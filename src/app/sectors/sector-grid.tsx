@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SectorCard } from "@/components/sector-card";
+import { SectorCard, type Timeframe } from "@/components/sector-card";
 
 interface SectorData {
   ticker: string;
-  data: { date: string; value: number }[];
+  prices: { ts: number; close: number }[];
+  changes: { day: number | null; month: number | null; year: number | null; fiveYear: number | null };
 }
 
 const SECTOR_ORDER = [
@@ -27,6 +28,7 @@ export function SectorGrid() {
     null
   );
   const [error, setError] = useState<string | null>(null);
+  const [timeframe, setTimeframe] = useState<Timeframe>("1M");
 
   useEffect(() => {
     fetch("/api/sectors")
@@ -65,7 +67,7 @@ export function SectorGrid() {
         const sectorData = sectors[sector];
         if (!sectorData) return null;
         return (
-          <SectorCard key={sector} sector={sector} sectorData={sectorData} />
+          <SectorCard key={sector} sector={sector} sectorData={sectorData} timeframe={timeframe} onTimeframeChange={setTimeframe} />
         );
       })}
     </div>

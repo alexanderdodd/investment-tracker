@@ -10,11 +10,14 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "generate-reports": "npx tsx scripts/generate-reports.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.50",
     "@auth/drizzle-adapter": "^1.11.1",
     "@neondatabase/serverless": "^1.0.2",
+    "ai": "^6.0.146",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "next": "16.2.1",

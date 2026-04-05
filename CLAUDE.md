@@ -14,6 +14,7 @@ npm run db:push      # Push schema changes to Neon (no migration files)
 npm run db:generate  # Generate migration files from schema diff
 npm run db:migrate   # Run pending migrations
 npm run db:studio    # Open Drizzle Studio (DB browser)
+npm run generate-reports  # Generate AI sector reports (stores in DB)
 ```
 
 No test framework is configured yet.
@@ -35,4 +36,4 @@ No test framework is configured yet.
 - New tables go in `src/db/schema.ts`. After changes, run `npm run db:push` (dev) or generate migrations for production.
 
 ### Environment
-Required vars in `.env.local` (see `.env.example`): `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`.
+Required vars in `.env.local` (see `.env.example`): `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `OPENROUTER_API_KEY`.

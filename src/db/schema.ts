@@ -62,3 +62,12 @@ export const verificationTokens = pgTable(
     }),
   ]
 );
+
+export const sectorReports = pgTable("sector_report", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  sector: text("sector").notNull(),
+  summary: text("summary").notNull(),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
