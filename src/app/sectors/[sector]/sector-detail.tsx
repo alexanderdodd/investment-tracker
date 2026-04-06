@@ -42,6 +42,15 @@ interface Holding {
   weight: number;
 }
 
+interface EmergingLeader {
+  ticker: string;
+  companyName: string;
+  rationale: string;
+  metricLabel: string;
+  metricValue: string;
+  rank: number;
+}
+
 const SECTOR_ICONS: Record<string, string> = {
   Technology: "💻",
   Financials: "🏦",
@@ -97,6 +106,9 @@ export function SectorDetail({
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryGeneratedAt, setSummaryGeneratedAt] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
+  const [leaders, setLeaders] = useState<EmergingLeader[] | null>(null);
+  const [leadersGeneratedAt, setLeadersGeneratedAt] = useState<string | null>(null);
+  const [leadersLoading, setLeadersLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<Timeframe>("1Y");
   const [loading, setLoading] = useState(true);
 
@@ -123,6 +135,15 @@ export function SectorDetail({
       })
       .catch(() => {})
       .finally(() => setSummaryLoading(false));
+
+    fetch(`/api/sectors/${slug}/emerging-leaders`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.leaders?.length) setLeaders(data.leaders);
+        if (data.generatedAt) setLeadersGeneratedAt(data.generatedAt);
+      })
+      .catch(() => {})
+      .finally(() => setLeadersLoading(false));
   }, [sector, slug]);
 
   const chartData = useMemo(() => {
@@ -341,6 +362,76 @@ export function SectorDetail({
           </table>
         </div>
       )}
+      {/* Emerging Leaders */}
+      {leadersLoading ? (
+        <div className="h-64 animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800" />
+      ) : leaders && leaders.length > 0 ? (
+        <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Emerging Leaders
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Growth opportunities showing strong momentum in this sector
+            </p>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                <th className="px-6 py-3 font-medium">#</th>
+                <th className="px-6 py-3 font-medium">Company</th>
+                <th className="px-6 py-3 font-medium">Key Metric</th>
+                <th className="hidden px-6 py-3 font-medium sm:table-cell">Rationale</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaders.map((leader) => (
+                <tr
+                  key={leader.ticker}
+                  className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
+                >
+                  <td className="px-6 py-3 text-sm text-zinc-400">
+                    {leader.rank}
+                  </td>
+                  <td className="px-6 py-3">
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {leader.ticker}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {leader.companyName}
+                    </p>
+                  </td>
+                  <td className="px-6 py-3">
+                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                      {leader.metricValue}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {leader.metricLabel}
+                    </p>
+                  </td>
+                  <td className="hidden px-6 py-3 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400 sm:table-cell">
+                    {leader.rationale}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {leadersGeneratedAt && (
+            <div className="border-t border-zinc-100 px-6 py-3 dark:border-zinc-800">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                Generated{" "}
+                {new Date(leadersGeneratedAt).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
