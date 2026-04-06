@@ -61,6 +61,7 @@ Use current market data. Be specific with numbers. Return ONLY the JSON array, n
         throw new Error("AI returned no valid entries");
       }
 
+      const batchTime = new Date();
       await db.insert(sectorEmergingLeaders).values(
         leaders.map((leader, i) => ({
           sector,
@@ -70,6 +71,7 @@ Use current market data. Be specific with numbers. Return ONLY the JSON array, n
           metricLabel: leader.metricLabel,
           metricValue: leader.metricValue,
           rank: i + 1,
+          generatedAt: batchTime,
         }))
       );
 

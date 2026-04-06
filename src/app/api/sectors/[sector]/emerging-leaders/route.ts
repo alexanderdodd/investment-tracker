@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db/index";
 import { sectorEmergingLeaders } from "@/db/schema";
 import { slugToSector } from "@/lib/sectors";
@@ -17,29 +17,20 @@ export async function GET(
 
   const db = getDb();
 
-  // Get the most recent generation timestamp for this sector
-  const [latest] = await db
-    .select({ generatedAt: sectorEmergingLeaders.generatedAt })
-    .from(sectorEmergingLeaders)
-    .where(eq(sectorEmergingLeaders.sector, sector))
-    .orderBy(desc(sectorEmergingLeaders.generatedAt))
-    .limit(1);
-
-  if (!latest) {
-    return NextResponse.json({ leaders: [], generatedAt: null });
-  }
-
-  // Get all leaders from that batch
+  // Get the 10 most recent leaders for this sector
   const leaders = await db
     .select()
     .from(sectorEmergingLeaders)
-    .where(
-      and(
-        eq(sectorEmergingLeaders.sector, sector),
-        eq(sectorEmergingLeaders.generatedAt, latest.generatedAt)
-      )
-    )
-    .orderBy(sectorEmergingLeaders.rank);
+    .where(eq(sectorEmergingLeaders.sector, sector))
+    .orderBy(desc(sectorEmergingLeaders.generatedAt), sectorEmergingLeaders.rank)
+    .limit(10);
+
+  if (leaders.length === 0) {
+    return NextResponse.json({ leaders: [], generatedAt: null });
+  }
+
+  // Sort by rank for display
+  leaders.sort((a, b) => a.rank - b.rank);
 
   return NextResponse.json({
     leaders: leaders.map((l) => ({
@@ -50,6 +41,6 @@ export async function GET(
       metricValue: l.metricValue,
       rank: l.rank,
     })),
-    generatedAt: latest.generatedAt.toISOString(),
+    generatedAt: leaders[0].generatedAt.toISOString(),
   });
 }
