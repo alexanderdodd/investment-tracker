@@ -17,6 +17,7 @@
     "@ai-sdk/openai": "^3.0.50",
     "@auth/drizzle-adapter": "^1.11.1",
     "@neondatabase/serverless": "^1.0.2",
+    "@vercel/analytics": "^2.0.1",
     "ai": "^6.0.146",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
