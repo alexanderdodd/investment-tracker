@@ -23,7 +23,87 @@ export interface MetricDef {
   short: string;
   description: string;
   format: "ratio" | "percent" | "currency";
-  rate: (value: number) => MetricRating;
+  rate: (value: number, sector?: string) => MetricRating;
+}
+
+// Sector-specific thresholds for valuation multiples: [good_below, neutral_below, caution_below]
+// Values above caution_below are rated "bad"
+type Thresholds = [number, number, number];
+
+const SECTOR_PE_THRESHOLDS: Record<string, Thresholds> = {
+  Technology:                [25, 35, 50],
+  "Communication Services":  [20, 30, 45],
+  "Consumer Discretionary":  [20, 30, 45],
+  "Health Care":             [20, 30, 45],
+  Financials:                [12, 18, 25],
+  Industrials:               [15, 22, 35],
+  "Consumer Staples":        [18, 25, 35],
+  Energy:                    [10, 15, 22],
+  Utilities:                 [15, 20, 28],
+  Materials:                 [12, 18, 28],
+  "Real Estate":             [20, 30, 45],
+};
+
+const SECTOR_EVEBITDA_THRESHOLDS: Record<string, Thresholds> = {
+  Technology:                [15, 22, 30],
+  "Communication Services":  [12, 18, 25],
+  "Consumer Discretionary":  [12, 18, 25],
+  "Health Care":             [12, 18, 25],
+  Financials:                [8, 12, 18],
+  Industrials:               [10, 14, 20],
+  "Consumer Staples":        [12, 16, 22],
+  Energy:                    [5, 8, 12],
+  Utilities:                 [8, 12, 16],
+  Materials:                 [7, 10, 15],
+  "Real Estate":             [12, 18, 25],
+};
+
+const SECTOR_PS_THRESHOLDS: Record<string, Thresholds> = {
+  Technology:                [5, 10, 20],
+  "Communication Services":  [3, 7, 15],
+  "Consumer Discretionary":  [2, 5, 10],
+  "Health Care":             [4, 8, 15],
+  Financials:                [2, 4, 8],
+  Industrials:               [2, 4, 8],
+  "Consumer Staples":        [2, 4, 7],
+  Energy:                    [1, 2, 4],
+  Utilities:                 [2, 3, 5],
+  Materials:                 [1, 3, 5],
+  "Real Estate":             [3, 6, 12],
+};
+
+const SECTOR_MARGIN_THRESHOLDS: Record<string, Thresholds> = {
+  Technology:                [0.15, 0.25, 999],  // > thresholds are "good"
+  "Communication Services":  [0.15, 0.25, 999],
+  "Consumer Discretionary":  [0.08, 0.15, 999],
+  "Health Care":             [0.10, 0.20, 999],
+  Financials:                [0.15, 0.25, 999],
+  Industrials:               [0.08, 0.15, 999],
+  "Consumer Staples":        [0.08, 0.15, 999],
+  Energy:                    [0.08, 0.15, 999],
+  Utilities:                 [0.10, 0.18, 999],
+  Materials:                 [0.08, 0.15, 999],
+  "Real Estate":             [0.10, 0.20, 999],
+};
+
+const DEFAULT_PE: Thresholds = [15, 25, 40];
+const DEFAULT_EVEBITDA: Thresholds = [10, 15, 20];
+const DEFAULT_PS: Thresholds = [2, 5, 10];
+const DEFAULT_MARGIN: Thresholds = [0.10, 0.20, 999];
+
+function rateLowerIsBetter(v: number, t: Thresholds): MetricRating {
+  if (v < 0) return "bad";
+  if (v < t[0]) return "good";
+  if (v <= t[1]) return "neutral";
+  if (v <= t[2]) return "caution";
+  return "bad";
+}
+
+function rateHigherIsBetter(v: number, bad: number, caution: number, good: number): MetricRating {
+  if (v >= good) return "good";
+  if (v >= caution) return "neutral";
+  if (v >= bad) return "caution";
+  return "bad";
 }
 
 export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> = {
@@ -31,91 +111,63 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Forward P/E",
     short: "Fwd P/E",
     description:
-      "Price vs. expected next-year earnings. Under 15x is generally cheap, 15-25x is fair for quality companies, 25-40x is growth-priced, above 40x is very expensive. Negative means the company is expected to lose money.",
+      "Price vs. expected next-year earnings. What's 'cheap' depends on the sector — tech stocks commonly trade at 25-35x while energy trades at 10-15x. Negative means expected losses. Color coding adjusts for sector norms.",
     format: "ratio",
-    rate: (v) => {
-      if (v < 0) return "bad";
-      if (v < 15) return "good";
-      if (v <= 25) return "neutral";
-      if (v <= 40) return "caution";
-      return "bad";
-    },
+    rate: (v, s) => rateLowerIsBetter(v, SECTOR_PE_THRESHOLDS[s ?? ""] ?? DEFAULT_PE),
   },
   trailingPE: {
     label: "Trailing P/E",
     short: "P/E",
     description:
-      "Price vs. last 12 months' actual earnings. Under 15x is value territory, 15-25x is typical for established companies, above 25x suggests the market expects strong growth. Negative means the company lost money.",
+      "Price vs. last 12 months' actual earnings. Ranges vary by sector — utilities at 15-20x are normal, while tech at 30x+ is common. Negative means the company lost money. Compare within the same sector for best insight.",
     format: "ratio",
-    rate: (v) => {
-      if (v < 0) return "bad";
-      if (v < 15) return "good";
-      if (v <= 25) return "neutral";
-      if (v <= 40) return "caution";
-      return "bad";
-    },
+    rate: (v, s) => rateLowerIsBetter(v, SECTOR_PE_THRESHOLDS[s ?? ""] ?? DEFAULT_PE),
   },
   evToEbitda: {
     label: "EV/EBITDA",
     short: "EV/EBITDA",
     description:
-      "Total business value vs. operating earnings (debt-neutral). Under 10x is cheap, 10-15x is fair, 15-20x is pricey, above 20x is expensive. More reliable than P/E for comparing companies with different debt levels.",
+      "Total business value vs. operating earnings (debt-neutral). Sector norms vary widely: energy at 5-8x, industrials at 10-14x, tech at 15-22x. More reliable than P/E for cross-company comparison.",
     format: "ratio",
-    rate: (v) => {
-      if (v < 0) return "bad";
-      if (v < 10) return "good";
-      if (v <= 15) return "neutral";
-      if (v <= 20) return "caution";
-      return "bad";
-    },
+    rate: (v, s) => rateLowerIsBetter(v, SECTOR_EVEBITDA_THRESHOLDS[s ?? ""] ?? DEFAULT_EVEBITDA),
   },
   evToEbit: {
     label: "EV/EBIT",
     short: "EV/EBIT",
     description:
-      "Like EV/EBITDA but stricter — includes depreciation. Under 12x is cheap, 12-18x is fair, above 18x is expensive. Better for asset-heavy industries (manufacturing, utilities) where depreciation is a real cost.",
+      "Like EV/EBITDA but stricter — includes depreciation. Better for asset-heavy industries (manufacturing, utilities, real estate) where depreciation is a real cost. Typically 2-4x higher than EV/EBITDA.",
     format: "ratio",
-    rate: (v) => {
-      if (v < 0) return "bad";
-      if (v < 12) return "good";
-      if (v <= 18) return "neutral";
-      if (v <= 25) return "caution";
-      return "bad";
+    rate: (v, s) => {
+      // Roughly EV/EBITDA thresholds * 1.3
+      const base = SECTOR_EVEBITDA_THRESHOLDS[s ?? ""] ?? DEFAULT_EVEBITDA;
+      return rateLowerIsBetter(v, [base[0] * 1.3, base[1] * 1.3, base[2] * 1.3]);
     },
   },
   priceToBook: {
     label: "Price/Book",
     short: "P/B",
     description:
-      "Market price vs. net asset value. Under 1.0x means the stock trades below book value (potentially cheap or troubled). 1-2x is typical for banks. Above 3x suggests the market values intangibles like brand or IP highly.",
+      "Market price vs. net asset value. Under 1.0x means trading below book value (potentially cheap or troubled). For banks 1-2x is normal, for tech 5x+ is common due to intangible assets. Most useful for financials and asset-heavy firms.",
     format: "ratio",
-    rate: (v) => {
-      if (v < 0) return "bad";
-      if (v < 1.5) return "good";
-      if (v <= 3) return "neutral";
-      if (v <= 5) return "caution";
-      return "bad";
+    rate: (v, s) => {
+      if (s === "Financials") return rateLowerIsBetter(v, [1.2, 2, 3]);
+      if (s === "Real Estate") return rateLowerIsBetter(v, [1.5, 3, 5]);
+      return rateLowerIsBetter(v, [2, 5, 10]);
     },
   },
   priceToSales: {
     label: "Price/Sales",
     short: "P/S",
     description:
-      "Market cap vs. revenue. Under 2x is cheap, 2-5x is reasonable for growing companies, 5-10x is pricey (needs strong growth), above 10x is very expensive. Useful when a company isn't yet profitable.",
+      "Market cap vs. revenue. Ranges vary hugely: energy/retail at 0.5-2x, industrials at 2-4x, tech/software at 5-15x. Useful when a company isn't yet profitable. Color coding adjusts for sector norms.",
     format: "ratio",
-    rate: (v) => {
-      if (v < 0) return "bad";
-      if (v < 2) return "good";
-      if (v <= 5) return "neutral";
-      if (v <= 10) return "caution";
-      return "bad";
-    },
+    rate: (v, s) => rateLowerIsBetter(v, SECTOR_PS_THRESHOLDS[s ?? ""] ?? DEFAULT_PS),
   },
   pegRatio: {
     label: "PEG Ratio",
     short: "PEG",
     description:
-      "P/E divided by earnings growth rate. Under 1.0 suggests undervalued relative to growth, 1.0-1.5 is fairly priced, above 2.0 means you're paying a premium even accounting for growth.",
+      "P/E divided by expected earnings growth rate. Under 1.0 suggests undervalued relative to growth, 1.0-1.5 is fairly priced, above 2.0 means you're overpaying even accounting for growth. Sector-agnostic — works across industries.",
     format: "ratio",
     rate: (v) => {
       if (v < 0) return "bad";
@@ -129,7 +181,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Free Cash Flow",
     short: "FCF",
     description:
-      "Cash left after running the business and buying equipment. Positive is good — it's real money available to shareholders. Negative means the company is burning cash. The higher, the stronger the business.",
+      "Cash left after running the business and buying equipment. Positive is good — it's real money available to shareholders. Negative means burning cash (acceptable for high-growth companies, red flag for mature ones).",
     format: "currency",
     rate: (v) => {
       if (v > 0) return "good";
@@ -141,75 +193,69 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Revenue Growth",
     short: "Rev Growth",
     description:
-      "Year-over-year sales change. Above 20% is strong growth, 10-20% is solid, 0-10% is modest, negative means revenue is shrinking — a red flag unless it's a deliberate business transition.",
+      "Year-over-year sales change. Above 20% is strong, 10-20% is solid, 0-10% is modest, negative is shrinking. Expectations vary: 5% is fine for utilities, but tech investors expect 15%+.",
     format: "percent",
-    rate: (v) => {
-      if (v > 0.2) return "good";
-      if (v > 0.05) return "neutral";
-      if (v >= 0) return "caution";
-      return "bad";
+    rate: (v, s) => {
+      // Higher growth expectations for tech/growth sectors
+      if (s === "Technology" || s === "Communication Services") {
+        return rateHigherIsBetter(v, -0.05, 0.10, 0.20);
+      }
+      if (s === "Utilities" || s === "Consumer Staples") {
+        return rateHigherIsBetter(v, -0.02, 0.02, 0.05);
+      }
+      return rateHigherIsBetter(v, -0.05, 0.05, 0.15);
     },
   },
   operatingMargin: {
     label: "Operating Margin",
     short: "Op Margin",
     description:
-      "What percentage of revenue becomes operating profit. Above 20% is strong, 10-20% is healthy, 0-10% is thin, negative means the core business is losing money.",
+      "What percentage of revenue becomes operating profit. Norms vary: software at 25-40%, industrials at 8-15%, retail at 3-8%. Negative means the core business is losing money. Color coding adjusts for sector expectations.",
     format: "percent",
-    rate: (v) => {
-      if (v > 0.2) return "good";
-      if (v > 0.1) return "neutral";
-      if (v >= 0) return "caution";
-      return "bad";
+    rate: (v, s) => {
+      const t = SECTOR_MARGIN_THRESHOLDS[s ?? ""] ?? DEFAULT_MARGIN;
+      if (v < 0) return "bad";
+      if (v < t[0]) return "caution";
+      if (v < t[1]) return "neutral";
+      return "good";
     },
   },
   roic: {
     label: "ROIC",
     short: "ROIC",
     description:
-      "Return on invested capital — profit generated per dollar invested in the business. Above 15% is excellent (strong competitive advantage), 10-15% is good, below 10% is mediocre, below cost of capital (~8%) destroys value.",
+      "Return on invested capital — profit per dollar invested. Above 15% is excellent (strong moat), 10-15% is good, below cost of capital (~8%) destroys value. One of the best single indicators of business quality, applicable across all sectors.",
     format: "percent",
-    rate: (v) => {
-      if (v > 0.15) return "good";
-      if (v > 0.08) return "neutral";
-      if (v >= 0) return "caution";
-      return "bad";
-    },
+    rate: (v) => rateHigherIsBetter(v, 0, 0.08, 0.15),
   },
   grossMargin: {
     label: "Gross Margin",
     short: "Gross Margin",
     description:
-      "Revenue minus direct costs, as a percentage. Above 50% signals strong pricing power (software, luxury brands), 30-50% is solid, under 30% is thin (retail, commodities). Key for growth companies not yet showing operating profit.",
+      "Revenue minus direct costs. Above 60% signals software/IP businesses, 40-60% is strong (pharma, brands), 20-40% is typical (hardware, manufacturing), under 20% is thin (retail, commodities).",
     format: "percent",
-    rate: (v) => {
-      if (v > 0.5) return "good";
-      if (v > 0.3) return "neutral";
-      if (v >= 0) return "caution";
-      return "bad";
-    },
+    rate: (v) => rateHigherIsBetter(v, 0, 0.3, 0.5),
   },
   roe: {
     label: "Return on Equity",
     short: "ROE",
     description:
-      "Profit per dollar of shareholder equity. Above 15% is strong, 10-15% is decent, below 10% is weak. For banks, 12%+ is the benchmark. Very high ROE (30%+) can signal either excellence or heavy debt leverage.",
+      "Profit per dollar of shareholder equity. Above 15% is strong, 10-15% is decent, below 10% is weak. For banks, 12%+ is the benchmark. Very high ROE (30%+) can signal either excellence or heavy debt leverage — check debt levels.",
     format: "percent",
-    rate: (v) => {
-      if (v > 0.15) return "good";
-      if (v > 0.1) return "neutral";
-      if (v >= 0) return "caution";
-      return "bad";
+    rate: (v, s) => {
+      if (s === "Financials") return rateHigherIsBetter(v, 0, 0.08, 0.12);
+      return rateHigherIsBetter(v, 0, 0.10, 0.15);
     },
   },
 };
 
 export function rateMetric(
   metricKey: keyof Omit<StockMetrics, "ticker">,
-  value: number | null
+  value: number | null,
+  sector?: string
 ): MetricRating {
   if (value === null || value === undefined || isNaN(value)) return "neutral";
-  return METRIC_INFO[metricKey].rate(value);
+  return METRIC_INFO[metricKey].rate(value, sector);
 }
 
 export function formatMetric(

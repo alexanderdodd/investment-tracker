@@ -123,9 +123,9 @@ const RATING_COLORS: Record<MetricRating, string> = {
   bad: "text-red-600 dark:text-red-400",
 };
 
-function MetricCell({ value, metricKey }: { value: number | null; metricKey: MetricKey }) {
+function MetricCell({ value, metricKey, sector }: { value: number | null; metricKey: MetricKey; sector: string }) {
   const info = METRIC_INFO[metricKey];
-  const rating = rateMetric(metricKey, value);
+  const rating = rateMetric(metricKey, value, sector);
   return (
     <td className={`px-3 py-3 text-right text-sm font-medium ${RATING_COLORS[rating]}`}>
       {formatMetric(value, info.format)}
@@ -437,6 +437,7 @@ export function SectorDetail({
                           key={key}
                           value={m?.[key] ?? null}
                           metricKey={key}
+                          sector={sector}
                         />
                       ))}
                     </tr>
@@ -507,6 +508,7 @@ export function SectorDetail({
                           key={key}
                           value={m?.[key] ?? null}
                           metricKey={key}
+                          sector={sector}
                         />
                       ))}
                     </tr>
