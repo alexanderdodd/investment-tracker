@@ -129,10 +129,57 @@ export function formatMetric(
   }
 }
 
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
+
+async function getYahooCrumb(): Promise<{
+  crumb: string;
+  cookie: string;
+}> {
+  // Step 1: hit fc.yahoo.com to get a session cookie
+  const initRes = await fetch("https://fc.yahoo.com", {
+    headers: { "User-Agent": UA },
+    redirect: "manual",
+  });
+  const setCookies = initRes.headers.getSetCookie?.() ?? [];
+  const cookie = setCookies.map((c) => c.split(";")[0]).join("; ");
+
+  // Step 2: get crumb using the cookie
+  const crumbRes = await fetch(
+    "https://query2.finance.yahoo.com/v1/test/getcrumb",
+    {
+      headers: { "User-Agent": UA, Cookie: cookie },
+    }
+  );
+  const crumb = await crumbRes.text();
+
+  if (!crumb || crumb.includes("Too Many") || crumb.includes("error")) {
+    throw new Error(`Failed to get Yahoo crumb: ${crumb}`);
+  }
+
+  return { crumb, cookie };
+}
+
 export async function fetchStockMetrics(
   tickers: string[]
 ): Promise<Record<string, StockMetrics>> {
   const results: Record<string, StockMetrics> = {};
+
+  // Get auth credentials first
+  let crumb: string;
+  let cookie: string;
+  try {
+    const auth = await getYahooCrumb();
+    crumb = auth.crumb;
+    cookie = auth.cookie;
+  } catch (err) {
+    console.error("Failed to authenticate with Yahoo Finance:", err);
+    // Return empty metrics for all tickers
+    for (const ticker of tickers) {
+      results[ticker] = emptyMetrics(ticker);
+    }
+    return results;
+  }
 
   // Fetch in parallel batches of 5 to avoid overwhelming Yahoo
   const batchSize = 5;
@@ -141,10 +188,10 @@ export async function fetchStockMetrics(
     const promises = batch.map(async (ticker) => {
       try {
         const modules =
-          "defaultKeyStatistics,financialData,summaryDetail,incomeStatementHistory";
-        const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modules}`;
+          "defaultKeyStatistics,financialData,summaryDetail";
+        const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modules}&crumb=${encodeURIComponent(crumb)}`;
         const res = await fetch(url, {
-          headers: { "User-Agent": "Mozilla/5.0" },
+          headers: { "User-Agent": UA, Cookie: cookie },
         });
 
         if (!res.ok) throw new Error(`${res.status}`);
@@ -208,26 +255,30 @@ export async function fetchStockMetrics(
           roe: num(fin.returnOnEquity),
         };
       } catch {
-        results[ticker] = {
-          ticker,
-          forwardPE: null,
-          trailingPE: null,
-          evToEbitda: null,
-          evToEbit: null,
-          priceToBook: null,
-          priceToSales: null,
-          pegRatio: null,
-          freeCashFlow: null,
-          revenueGrowth: null,
-          operatingMargin: null,
-          roic: null,
-          grossMargin: null,
-          roe: null,
-        };
+        results[ticker] = emptyMetrics(ticker);
       }
     });
     await Promise.all(promises);
   }
 
   return results;
+}
+
+function emptyMetrics(ticker: string): StockMetrics {
+  return {
+    ticker,
+    forwardPE: null,
+    trailingPE: null,
+    evToEbitda: null,
+    evToEbit: null,
+    priceToBook: null,
+    priceToSales: null,
+    pegRatio: null,
+    freeCashFlow: null,
+    revenueGrowth: null,
+    operatingMargin: null,
+    roic: null,
+    grossMargin: null,
+    roe: null,
+  };
 }
