@@ -21,9 +21,28 @@ export type MetricRating = "good" | "neutral" | "caution" | "bad";
 export interface MetricDef {
   label: string;
   short: string;
-  description: string;
+  description: string | ((sector: string) => string);
   format: "ratio" | "percent" | "currency";
   rate: (value: number, sector?: string) => MetricRating;
+}
+
+export function getDescription(def: MetricDef, sector?: string): string {
+  if (typeof def.description === "function") {
+    return def.description(sector ?? "");
+  }
+  return def.description;
+}
+
+function peFmt(t: Thresholds): string {
+  return `Under ${t[0]}x = cheap (green), ${t[0]}-${t[1]}x = fair, ${t[1]}-${t[2]}x = pricey (amber), above ${t[2]}x = expensive (red).`;
+}
+
+function evFmt(t: Thresholds): string {
+  return `Under ${t[0]}x = cheap (green), ${t[0]}-${t[1]}x = fair, ${t[1]}-${t[2]}x = pricey (amber), above ${t[2]}x = expensive (red).`;
+}
+
+function psFmt(t: Thresholds): string {
+  return `Under ${t[0]}x = cheap (green), ${t[0]}-${t[1]}x = fair, ${t[1]}-${t[2]}x = pricey (amber), above ${t[2]}x = expensive (red).`;
 }
 
 // Sector-specific thresholds for valuation multiples: [good_below, neutral_below, caution_below]
@@ -110,32 +129,41 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
   forwardPE: {
     label: "Forward P/E",
     short: "Fwd P/E",
-    description:
-      "How many dollars you pay for each dollar of expected profit. Example: 20x means you pay $20 per $1 of earnings — so it would take 20 years of that profit to 'earn back' the price. Lower = cheaper. A high number means the market expects big future growth to justify the price. Negative means the company is expected to lose money (no earnings to price against). Typical ranges vary by sector — tech at 25-35x, energy at 10-15x.",
+    description: (sector) => {
+      const t = SECTOR_PE_THRESHOLDS[sector] ?? DEFAULT_PE;
+      return `How many dollars you pay for each dollar of expected profit. Example: 20x means you pay $20 per $1 of earnings — it would take 20 years of that profit to 'earn back' the price. Lower = cheaper. Negative means expected losses. For ${sector || "this sector"}: ${peFmt(t)}`;
+    },
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_PE_THRESHOLDS[s ?? ""] ?? DEFAULT_PE),
   },
   trailingPE: {
     label: "Trailing P/E",
     short: "P/E",
-    description:
-      "Same idea as Forward P/E, but based on actual earnings from the past 12 months instead of forecasts. A stock at 15x earned $1 for every $15 of its price last year. Lower = you're getting more earnings per dollar spent. Negative means the company actually lost money — there are no earnings, so the ratio flips negative. Best compared within the same sector.",
+    description: (sector) => {
+      const t = SECTOR_PE_THRESHOLDS[sector] ?? DEFAULT_PE;
+      return `Same as Forward P/E but using actual past-year earnings. A stock at 15x earned $1 for every $15 of price. Lower = more earnings per dollar. Negative = the company lost money. For ${sector || "this sector"}: ${peFmt(t)}`;
+    },
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_PE_THRESHOLDS[s ?? ""] ?? DEFAULT_PE),
   },
   evToEbitda: {
     label: "EV/EBITDA",
     short: "EV/EBITDA",
-    description:
-      "Total business value vs. operating earnings (debt-neutral). Sector norms vary widely: energy at 5-8x, industrials at 10-14x, tech at 15-22x. More reliable than P/E for cross-company comparison.",
+    description: (sector) => {
+      const t = SECTOR_EVEBITDA_THRESHOLDS[sector] ?? DEFAULT_EVEBITDA;
+      return `Total business value (including debt) vs. operating earnings. More reliable than P/E for comparing companies with different debt levels. For ${sector || "this sector"}: ${evFmt(t)}`;
+    },
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_EVEBITDA_THRESHOLDS[s ?? ""] ?? DEFAULT_EVEBITDA),
   },
   evToEbit: {
     label: "EV/EBIT",
     short: "EV/EBIT",
-    description:
-      "Like EV/EBITDA but stricter — includes depreciation. Better for asset-heavy industries (manufacturing, utilities, real estate) where depreciation is a real cost. Typically 2-4x higher than EV/EBITDA.",
+    description: (sector) => {
+      const base = SECTOR_EVEBITDA_THRESHOLDS[sector] ?? DEFAULT_EVEBITDA;
+      const t: Thresholds = [Math.round(base[0] * 1.3), Math.round(base[1] * 1.3), Math.round(base[2] * 1.3)];
+      return `Like EV/EBITDA but stricter — includes depreciation costs. Better for asset-heavy industries where equipment wear is a real expense. For ${sector || "this sector"}: ${evFmt(t)}`;
+    },
     format: "ratio",
     rate: (v, s) => {
       // Roughly EV/EBITDA thresholds * 1.3
@@ -146,8 +174,11 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
   priceToBook: {
     label: "Price/Book",
     short: "P/B",
-    description:
-      "Market price vs. net asset value. Under 1.0x means trading below book value (potentially cheap or troubled). For banks 1-2x is normal, for tech 5x+ is common due to intangible assets. Most useful for financials and asset-heavy firms.",
+    description: (sector) => {
+      if (sector === "Financials") return "Market price vs. net asset value. For banks and insurers: under 1.2x = cheap (green), 1.2-2x = fair, 2-3x = pricey (amber), above 3x = expensive (red). Under 1.0x can mean undervalued or troubled.";
+      if (sector === "Real Estate") return "Market price vs. net asset value. For real estate: under 1.5x = cheap (green), 1.5-3x = fair, 3-5x = pricey (amber), above 5x = expensive (red).";
+      return "Market price vs. net asset value. Most useful for financials and asset-heavy firms. For tech/growth companies, high P/B is normal because their value is in intangibles (IP, brand), not physical assets.";
+    },
     format: "ratio",
     rate: (v, s) => {
       if (s === "Financials") return rateLowerIsBetter(v, [1.2, 2, 3]);
@@ -158,8 +189,10 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
   priceToSales: {
     label: "Price/Sales",
     short: "P/S",
-    description:
-      "Market cap vs. revenue. Ranges vary hugely: energy/retail at 0.5-2x, industrials at 2-4x, tech/software at 5-15x. Useful when a company isn't yet profitable. Color coding adjusts for sector norms.",
+    description: (sector) => {
+      const t = SECTOR_PS_THRESHOLDS[sector] ?? DEFAULT_PS;
+      return `Market cap vs. revenue. Useful when a company isn't yet profitable — you can still value it by what you pay per dollar of sales. For ${sector || "this sector"}: ${psFmt(t)}`;
+    },
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_PS_THRESHOLDS[s ?? ""] ?? DEFAULT_PS),
   },
@@ -167,7 +200,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "PEG Ratio",
     short: "PEG",
     description:
-      "P/E divided by expected earnings growth rate. Under 1.0 suggests undervalued relative to growth, 1.0-1.5 is fairly priced, above 2.0 means you're overpaying even accounting for growth. Sector-agnostic — works across industries.",
+      "Checks if a high P/E is justified by growth. It divides P/E by the growth rate. Example: a stock with 30x P/E growing at 30% = PEG of 1.0 (fairly priced). Under 1.0 = you're getting growth cheap (green). 1.0-1.5 = fair. Above 2.0 = overpaying even after accounting for growth (red). Works across all sectors.",
     format: "ratio",
     rate: (v) => {
       if (v < 0) return "bad";
@@ -180,8 +213,12 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
   freeCashFlow: {
     label: "Free Cash Flow",
     short: "FCF",
-    description:
-      "Cash left after running the business and buying equipment. Positive is good — it's real money available to shareholders. Negative means burning cash (acceptable for high-growth companies, red flag for mature ones).",
+    description: (sector) => {
+      const context = (sector === "Technology" || sector === "Communication Services")
+        ? "For tech, negative FCF can be acceptable if the company is investing heavily in growth — but most mature tech companies should be FCF-positive."
+        : `For ${sector || "this sector"}, positive and growing FCF is a key quality signal.`;
+      return `The actual cash left over after paying all bills and buying equipment. Think of it as the company's 'take-home pay'. Positive (green) = healthy, the business generates real cash. Negative (red) = burning cash, spending more than it earns. ${context}`;
+    },
     format: "currency",
     rate: (v) => {
       if (v > 0) return "good";
@@ -192,8 +229,15 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
   revenueGrowth: {
     label: "Revenue Growth",
     short: "Rev Growth",
-    description:
-      "Year-over-year sales change. Above 20% is strong, 10-20% is solid, 0-10% is modest, negative is shrinking. Expectations vary: 5% is fine for utilities, but tech investors expect 15%+.",
+    description: (sector) => {
+      if (sector === "Technology" || sector === "Communication Services") {
+        return `Year-over-year sales change. For ${sector}: above 20% is strong (green), 10-20% is solid, below 10% is slow for this sector (amber), negative is shrinking (red).`;
+      }
+      if (sector === "Utilities" || sector === "Consumer Staples") {
+        return `Year-over-year sales change. For ${sector}: above 5% is solid (green), 2-5% is normal for this stable sector, below 2% is flat (amber), negative is shrinking (red).`;
+      }
+      return `Year-over-year sales change. For ${sector || "this sector"}: above 15% is strong (green), 5-15% is solid, below 5% is modest (amber), negative is shrinking (red).`;
+    },
     format: "percent",
     rate: (v, s) => {
       // Higher growth expectations for tech/growth sectors
@@ -209,8 +253,12 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
   operatingMargin: {
     label: "Operating Margin",
     short: "Op Margin",
-    description:
-      "What percentage of revenue becomes operating profit. Norms vary: software at 25-40%, industrials at 8-15%, retail at 3-8%. Negative means the core business is losing money. Color coding adjusts for sector expectations.",
+    description: (sector) => {
+      const t = SECTOR_MARGIN_THRESHOLDS[sector] ?? DEFAULT_MARGIN;
+      const low = (t[0] * 100).toFixed(0);
+      const high = (t[1] * 100).toFixed(0);
+      return `What percentage of revenue becomes operating profit. Negative means the core business is losing money. For ${sector || "this sector"}: above ${high}% is strong (green), ${low}-${high}% is fair, below ${low}% is thin (amber).`;
+    },
     format: "percent",
     rate: (v, s) => {
       const t = SECTOR_MARGIN_THRESHOLDS[s ?? ""] ?? DEFAULT_MARGIN;
@@ -224,7 +272,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "ROIC",
     short: "ROIC",
     description:
-      "Return on invested capital — profit per dollar invested. Above 15% is excellent (strong moat), 10-15% is good, below cost of capital (~8%) destroys value. One of the best single indicators of business quality, applicable across all sectors.",
+      "How much profit the company makes for each dollar invested in it. Example: 20% ROIC means every $1 invested generates $0.20 of profit. Above 15% = excellent, the business has a real competitive advantage (green). 8-15% = decent (neutral). Below 8% = the company isn't earning more than its cost of capital, which destroys shareholder value (red). One of the single best quality indicators across all sectors.",
     format: "percent",
     rate: (v) => rateHigherIsBetter(v, 0, 0.08, 0.15),
   },
@@ -232,15 +280,17 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Gross Margin",
     short: "Gross Margin",
     description:
-      "Revenue minus direct costs. Above 60% signals software/IP businesses, 40-60% is strong (pharma, brands), 20-40% is typical (hardware, manufacturing), under 20% is thin (retail, commodities).",
+      "How much the company keeps from each sale after paying direct production costs. Example: 60% gross margin means for every $100 in sales, $60 is left after making the product. Above 50% = strong pricing power, typical of software and luxury brands (green). 30-50% = solid. Under 30% = thin margins, common in retail and commodities (amber). Negative = selling below cost (red).",
     format: "percent",
     rate: (v) => rateHigherIsBetter(v, 0, 0.3, 0.5),
   },
   roe: {
     label: "Return on Equity",
     short: "ROE",
-    description:
-      "Profit per dollar of shareholder equity. Above 15% is strong, 10-15% is decent, below 10% is weak. For banks, 12%+ is the benchmark. Very high ROE (30%+) can signal either excellence or heavy debt leverage — check debt levels.",
+    description: (sector) => {
+      const benchmark = sector === "Financials" ? "12%" : "15%";
+      return `How much profit the company generates with shareholders' money. Example: 15% ROE means $1 of equity produces $0.15 of profit. Above ${benchmark} = strong for ${sector || "this sector"} (green). 10-${benchmark} = decent. Below 10% = weak (amber). Caveat: very high ROE (30%+) can mean either an excellent business or dangerously high debt — check the balance sheet.`;
+    },
     format: "percent",
     rate: (v, s) => {
       if (s === "Financials") return rateHigherIsBetter(v, 0, 0.08, 0.12);

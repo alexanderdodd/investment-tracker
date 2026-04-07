@@ -16,6 +16,7 @@ import {
   METRIC_INFO,
   formatMetric,
   rateMetric,
+  getDescription,
 } from "@/lib/stock-metrics";
 import { MetricTooltip } from "@/components/metric-tooltip";
 
@@ -402,7 +403,7 @@ export function SectorDetail({
                     const info = METRIC_INFO[key];
                     return (
                       <th key={key} className="px-3 py-3 text-right font-medium">
-                        <MetricTooltip label={info.label} description={info.description}>
+                        <MetricTooltip label={info.label} description={getDescription(info, sector)}>
                           <span className="text-xs">{info.short}</span>
                         </MetricTooltip>
                       </th>
@@ -473,7 +474,7 @@ export function SectorDetail({
                     const info = METRIC_INFO[key];
                     return (
                       <th key={key} className="px-3 py-3 text-right font-medium">
-                        <MetricTooltip label={info.label} description={info.description}>
+                        <MetricTooltip label={info.label} description={getDescription(info, sector)}>
                           <span className="text-xs">{info.short}</span>
                         </MetricTooltip>
                       </th>
