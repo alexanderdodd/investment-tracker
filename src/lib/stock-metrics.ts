@@ -15,102 +15,202 @@ export interface StockMetrics {
   roe: number | null;
 }
 
-export const METRIC_INFO: Record<
-  keyof Omit<StockMetrics, "ticker">,
-  { label: string; short: string; description: string; format: "ratio" | "percent" | "currency" }
-> = {
+// "good" = green, "neutral" = default, "bad" = red, "caution" = amber
+export type MetricRating = "good" | "neutral" | "caution" | "bad";
+
+export interface MetricDef {
+  label: string;
+  short: string;
+  description: string;
+  format: "ratio" | "percent" | "currency";
+  rate: (value: number) => MetricRating;
+}
+
+export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> = {
   forwardPE: {
     label: "Forward P/E",
     short: "Fwd P/E",
     description:
-      "Price divided by expected next-year earnings. Shows how much the market is willing to pay for future profits. Lower may indicate value; higher may reflect growth expectations.",
+      "Price vs. expected next-year earnings. Under 15x is generally cheap, 15-25x is fair for quality companies, 25-40x is growth-priced, above 40x is very expensive. Negative means the company is expected to lose money.",
     format: "ratio",
+    rate: (v) => {
+      if (v < 0) return "bad";
+      if (v < 15) return "good";
+      if (v <= 25) return "neutral";
+      if (v <= 40) return "caution";
+      return "bad";
+    },
   },
   trailingPE: {
     label: "Trailing P/E",
     short: "P/E",
     description:
-      "Price divided by last 12 months' earnings. A quick benchmark for how the market prices current profitability versus peers.",
+      "Price vs. last 12 months' actual earnings. Under 15x is value territory, 15-25x is typical for established companies, above 25x suggests the market expects strong growth. Negative means the company lost money.",
     format: "ratio",
+    rate: (v) => {
+      if (v < 0) return "bad";
+      if (v < 15) return "good";
+      if (v <= 25) return "neutral";
+      if (v <= 40) return "caution";
+      return "bad";
+    },
   },
   evToEbitda: {
     label: "EV/EBITDA",
     short: "EV/EBITDA",
     description:
-      "Enterprise value divided by earnings before interest, taxes, depreciation, and amortization. Compares the whole business value (including debt) against operating earnings. One of the most widely used cross-company valuation metrics.",
+      "Total business value vs. operating earnings (debt-neutral). Under 10x is cheap, 10-15x is fair, 15-20x is pricey, above 20x is expensive. More reliable than P/E for comparing companies with different debt levels.",
     format: "ratio",
+    rate: (v) => {
+      if (v < 0) return "bad";
+      if (v < 10) return "good";
+      if (v <= 15) return "neutral";
+      if (v <= 20) return "caution";
+      return "bad";
+    },
   },
   evToEbit: {
     label: "EV/EBIT",
     short: "EV/EBIT",
     description:
-      "Like EV/EBITDA but stricter — includes depreciation costs. Better for asset-heavy companies where capital expenditure and wear matter.",
+      "Like EV/EBITDA but stricter — includes depreciation. Under 12x is cheap, 12-18x is fair, above 18x is expensive. Better for asset-heavy industries (manufacturing, utilities) where depreciation is a real cost.",
     format: "ratio",
+    rate: (v) => {
+      if (v < 0) return "bad";
+      if (v < 12) return "good";
+      if (v <= 18) return "neutral";
+      if (v <= 25) return "caution";
+      return "bad";
+    },
   },
   priceToBook: {
     label: "Price/Book",
     short: "P/B",
     description:
-      "Market price divided by net asset value per share. Core valuation metric for banks, insurers, and asset-heavy firms. Below 1.0 may signal undervaluation or poor returns on equity.",
+      "Market price vs. net asset value. Under 1.0x means the stock trades below book value (potentially cheap or troubled). 1-2x is typical for banks. Above 3x suggests the market values intangibles like brand or IP highly.",
     format: "ratio",
+    rate: (v) => {
+      if (v < 0) return "bad";
+      if (v < 1.5) return "good";
+      if (v <= 3) return "neutral";
+      if (v <= 5) return "caution";
+      return "bad";
+    },
   },
   priceToSales: {
     label: "Price/Sales",
     short: "P/S",
     description:
-      "Market cap divided by revenue. Useful when earnings are weak or absent — lets you value companies before profitability stabilizes. Common for early-stage growth companies.",
+      "Market cap vs. revenue. Under 2x is cheap, 2-5x is reasonable for growing companies, 5-10x is pricey (needs strong growth), above 10x is very expensive. Useful when a company isn't yet profitable.",
     format: "ratio",
+    rate: (v) => {
+      if (v < 0) return "bad";
+      if (v < 2) return "good";
+      if (v <= 5) return "neutral";
+      if (v <= 10) return "caution";
+      return "bad";
+    },
   },
   pegRatio: {
     label: "PEG Ratio",
     short: "PEG",
     description:
-      "P/E divided by expected earnings growth rate. Helps judge whether a high P/E is justified by growth. A PEG near 1.0 suggests fair pricing relative to growth.",
+      "P/E divided by earnings growth rate. Under 1.0 suggests undervalued relative to growth, 1.0-1.5 is fairly priced, above 2.0 means you're paying a premium even accounting for growth.",
     format: "ratio",
+    rate: (v) => {
+      if (v < 0) return "bad";
+      if (v < 1) return "good";
+      if (v <= 1.5) return "neutral";
+      if (v <= 2) return "caution";
+      return "bad";
+    },
   },
   freeCashFlow: {
     label: "Free Cash Flow",
     short: "FCF",
     description:
-      "Cash generated after capital expenditures. The cash actually available to shareholders — central to intrinsic (DCF) valuation. Positive and growing FCF is a strong quality signal.",
+      "Cash left after running the business and buying equipment. Positive is good — it's real money available to shareholders. Negative means the company is burning cash. The higher, the stronger the business.",
     format: "currency",
+    rate: (v) => {
+      if (v > 0) return "good";
+      if (v === 0) return "neutral";
+      return "bad";
+    },
   },
   revenueGrowth: {
     label: "Revenue Growth",
     short: "Rev Growth",
     description:
-      "Year-over-year change in revenue. A major driver of intrinsic value — fast-growing revenue often supports higher valuation multiples.",
+      "Year-over-year sales change. Above 20% is strong growth, 10-20% is solid, 0-10% is modest, negative means revenue is shrinking — a red flag unless it's a deliberate business transition.",
     format: "percent",
+    rate: (v) => {
+      if (v > 0.2) return "good";
+      if (v > 0.05) return "neutral";
+      if (v >= 0) return "caution";
+      return "bad";
+    },
   },
   operatingMargin: {
     label: "Operating Margin",
     short: "Op Margin",
     description:
-      "Operating income as a percentage of revenue. Shows how much revenue becomes operating profit. Higher margins generally support higher valuations.",
+      "What percentage of revenue becomes operating profit. Above 20% is strong, 10-20% is healthy, 0-10% is thin, negative means the core business is losing money.",
     format: "percent",
+    rate: (v) => {
+      if (v > 0.2) return "good";
+      if (v > 0.1) return "neutral";
+      if (v >= 0) return "caution";
+      return "bad";
+    },
   },
   roic: {
     label: "ROIC",
     short: "ROIC",
     description:
-      "Return on invested capital — how efficiently the business turns capital into returns. High and sustained ROIC is one of the strongest indicators of business quality and usually supports premium valuations.",
+      "Return on invested capital — profit generated per dollar invested in the business. Above 15% is excellent (strong competitive advantage), 10-15% is good, below 10% is mediocre, below cost of capital (~8%) destroys value.",
     format: "percent",
+    rate: (v) => {
+      if (v > 0.15) return "good";
+      if (v > 0.08) return "neutral";
+      if (v >= 0) return "caution";
+      return "bad";
+    },
   },
   grossMargin: {
     label: "Gross Margin",
     short: "Gross Margin",
     description:
-      "Revenue minus cost of goods sold, as a percentage. Indicates pricing power and production efficiency. Especially important for growth companies not yet showing operating profit.",
+      "Revenue minus direct costs, as a percentage. Above 50% signals strong pricing power (software, luxury brands), 30-50% is solid, under 30% is thin (retail, commodities). Key for growth companies not yet showing operating profit.",
     format: "percent",
+    rate: (v) => {
+      if (v > 0.5) return "good";
+      if (v > 0.3) return "neutral";
+      if (v >= 0) return "caution";
+      return "bad";
+    },
   },
   roe: {
     label: "Return on Equity",
     short: "ROE",
     description:
-      "Net income divided by shareholder equity. Measures how effectively management uses equity to generate profit. Especially important for banks and financial companies.",
+      "Profit per dollar of shareholder equity. Above 15% is strong, 10-15% is decent, below 10% is weak. For banks, 12%+ is the benchmark. Very high ROE (30%+) can signal either excellence or heavy debt leverage.",
     format: "percent",
+    rate: (v) => {
+      if (v > 0.15) return "good";
+      if (v > 0.1) return "neutral";
+      if (v >= 0) return "caution";
+      return "bad";
+    },
   },
 };
+
+export function rateMetric(
+  metricKey: keyof Omit<StockMetrics, "ticker">,
+  value: number | null
+): MetricRating {
+  if (value === null || value === undefined || isNaN(value)) return "neutral";
+  return METRIC_INFO[metricKey].rate(value);
+}
 
 export function formatMetric(
   value: number | null,

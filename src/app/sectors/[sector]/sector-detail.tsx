@@ -12,8 +12,10 @@ import {
 } from "recharts";
 import {
   type StockMetrics,
+  type MetricRating,
   METRIC_INFO,
   formatMetric,
+  rateMetric,
 } from "@/lib/stock-metrics";
 import { MetricTooltip } from "@/components/metric-tooltip";
 
@@ -114,10 +116,18 @@ function ChangeValue({ value }: { value: number | null }) {
   );
 }
 
+const RATING_COLORS: Record<MetricRating, string> = {
+  good: "text-emerald-600 dark:text-emerald-400",
+  neutral: "text-zinc-900 dark:text-zinc-100",
+  caution: "text-amber-600 dark:text-amber-400",
+  bad: "text-red-600 dark:text-red-400",
+};
+
 function MetricCell({ value, metricKey }: { value: number | null; metricKey: MetricKey }) {
   const info = METRIC_INFO[metricKey];
+  const rating = rateMetric(metricKey, value);
   return (
-    <td className="px-3 py-3 text-right text-sm text-zinc-900 dark:text-zinc-100">
+    <td className={`px-3 py-3 text-right text-sm font-medium ${RATING_COLORS[rating]}`}>
       {formatMetric(value, info.format)}
     </td>
   );
