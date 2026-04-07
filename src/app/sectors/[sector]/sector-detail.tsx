@@ -10,6 +10,12 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import {
+  type StockMetrics,
+  METRIC_INFO,
+  formatMetric,
+} from "@/lib/stock-metrics";
+import { MetricTooltip } from "@/components/metric-tooltip";
 
 type Timeframe = "1D" | "1M" | "1Y" | "5Y";
 
@@ -65,6 +71,22 @@ const SECTOR_ICONS: Record<string, string> = {
   "Real Estate": "🏠",
 };
 
+// Which metrics to show based on sector type
+const FINANCIAL_SECTORS = ["Financials"];
+const GROWTH_SECTORS = ["Technology", "Communication Services"];
+
+type MetricKey = keyof Omit<StockMetrics, "ticker">;
+
+function getMetricColumns(sector: string): MetricKey[] {
+  if (FINANCIAL_SECTORS.includes(sector)) {
+    return ["forwardPE", "priceToBook", "roe", "operatingMargin", "freeCashFlow"];
+  }
+  if (GROWTH_SECTORS.includes(sector)) {
+    return ["forwardPE", "priceToSales", "revenueGrowth", "operatingMargin", "freeCashFlow"];
+  }
+  return ["forwardPE", "evToEbitda", "operatingMargin", "roic", "freeCashFlow"];
+}
+
 function getChangeForTimeframe(
   changes: SectorPriceData["changes"],
   tf: Timeframe
@@ -92,6 +114,15 @@ function ChangeValue({ value }: { value: number | null }) {
   );
 }
 
+function MetricCell({ value, metricKey }: { value: number | null; metricKey: MetricKey }) {
+  const info = METRIC_INFO[metricKey];
+  return (
+    <td className="px-3 py-3 text-right text-sm text-zinc-900 dark:text-zinc-100">
+      {formatMetric(value, info.format)}
+    </td>
+  );
+}
+
 export function SectorDetail({
   sector,
   ticker,
@@ -104,13 +135,20 @@ export function SectorDetail({
   const [priceData, setPriceData] = useState<SectorPriceData | null>(null);
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
-  const [summaryGeneratedAt, setSummaryGeneratedAt] = useState<string | null>(null);
+  const [summaryGeneratedAt, setSummaryGeneratedAt] = useState<string | null>(
+    null
+  );
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [leaders, setLeaders] = useState<EmergingLeader[] | null>(null);
-  const [leadersGeneratedAt, setLeadersGeneratedAt] = useState<string | null>(null);
+  const [leadersGeneratedAt, setLeadersGeneratedAt] = useState<string | null>(
+    null
+  );
   const [leadersLoading, setLeadersLoading] = useState(true);
+  const [metrics, setMetrics] = useState<Record<string, StockMetrics>>({});
   const [timeframe, setTimeframe] = useState<Timeframe>("1Y");
   const [loading, setLoading] = useState(true);
+
+  const metricColumns = useMemo(() => getMetricColumns(sector), [sector]);
 
   useEffect(() => {
     Promise.all([
@@ -146,6 +184,19 @@ export function SectorDetail({
       .finally(() => setLeadersLoading(false));
   }, [sector, slug]);
 
+  // Fetch metrics once we know which tickers to look up
+  useEffect(() => {
+    const holdingTickers = holdings?.map((h) => h.symbol) ?? [];
+    const leaderTickers = leaders?.map((l) => l.ticker) ?? [];
+    const allTickers = [...new Set([...holdingTickers, ...leaderTickers])];
+    if (allTickers.length === 0) return;
+
+    fetch(`/api/stocks/metrics?tickers=${allTickers.join(",")}`)
+      .then((r) => r.json())
+      .then((data) => setMetrics(data))
+      .catch(() => {});
+  }, [holdings, leaders]);
+
   const chartData = useMemo(() => {
     if (!priceData) return [];
     const days = TIMEFRAME_DAYS[timeframe];
@@ -175,7 +226,6 @@ export function SectorDetail({
   const lastValue =
     chartData.length > 0 ? chartData[chartData.length - 1].value : 0;
   const isPositive = lastValue >= 0;
-
   const icon = SECTOR_ICONS[sector] ?? "📊";
 
   if (loading) {
@@ -322,7 +372,7 @@ export function SectorDetail({
 
       {/* Holdings table */}
       {holdings && holdings.length > 0 && (
-        <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               Top 10 Holdings
@@ -331,42 +381,68 @@ export function SectorDetail({
               Largest positions in the {ticker} ETF by weight
             </p>
           </div>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                <th className="px-6 py-3 font-medium">#</th>
-                <th className="px-6 py-3 font-medium">Symbol</th>
-                <th className="px-6 py-3 font-medium">Name</th>
-                <th className="px-6 py-3 text-right font-medium">Weight</th>
-              </tr>
-            </thead>
-            <tbody>
-              {holdings.map((holding, i) => (
-                <tr
-                  key={holding.symbol}
-                  className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
-                >
-                  <td className="px-6 py-3 text-sm text-zinc-400">{i + 1}</td>
-                  <td className="px-6 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {holding.symbol}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-zinc-600 dark:text-zinc-400">
-                    {holding.name}
-                  </td>
-                  <td className="px-6 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {holding.weight.toFixed(2)}%
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px]">
+              <thead>
+                <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                  <th className="px-4 py-3 font-medium">#</th>
+                  <th className="px-4 py-3 font-medium">Stock</th>
+                  <th className="px-3 py-3 text-right font-medium">Weight</th>
+                  {metricColumns.map((key) => {
+                    const info = METRIC_INFO[key];
+                    return (
+                      <th key={key} className="px-3 py-3 text-right font-medium">
+                        <MetricTooltip label={info.label} description={info.description}>
+                          <span className="text-xs">{info.short}</span>
+                        </MetricTooltip>
+                      </th>
+                    );
+                  })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {holdings.map((holding, i) => {
+                  const m = metrics[holding.symbol];
+                  return (
+                    <tr
+                      key={holding.symbol}
+                      className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
+                    >
+                      <td className="px-4 py-3 text-sm text-zinc-400">
+                        {i + 1}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                          {holding.symbol}
+                        </p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {holding.name}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                        {holding.weight.toFixed(2)}%
+                      </td>
+                      {metricColumns.map((key) => (
+                        <MetricCell
+                          key={key}
+                          value={m?.[key] ?? null}
+                          metricKey={key}
+                        />
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
       {/* Emerging Leaders */}
       {leadersLoading ? (
         <div className="h-64 animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800" />
       ) : leaders && leaders.length > 0 ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               Emerging Leaders
@@ -375,47 +451,60 @@ export function SectorDetail({
               Growth opportunities showing strong momentum in this sector
             </p>
           </div>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                <th className="px-6 py-3 font-medium">#</th>
-                <th className="px-6 py-3 font-medium">Company</th>
-                <th className="px-6 py-3 font-medium">Key Metric</th>
-                <th className="hidden px-6 py-3 font-medium sm:table-cell">Rationale</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaders.map((leader) => (
-                <tr
-                  key={leader.ticker}
-                  className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
-                >
-                  <td className="px-6 py-3 text-sm text-zinc-400">
-                    {leader.rank}
-                  </td>
-                  <td className="px-6 py-3">
-                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {leader.ticker}
-                    </p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {leader.companyName}
-                    </p>
-                  </td>
-                  <td className="px-6 py-3">
-                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                      {leader.metricValue}
-                    </p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {leader.metricLabel}
-                    </p>
-                  </td>
-                  <td className="hidden px-6 py-3 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400 sm:table-cell">
-                    {leader.rationale}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead>
+                <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                  <th className="px-4 py-3 font-medium">#</th>
+                  <th className="px-4 py-3 font-medium">Company</th>
+                  <th className="px-3 py-3 font-medium">AI Insight</th>
+                  {metricColumns.map((key) => {
+                    const info = METRIC_INFO[key];
+                    return (
+                      <th key={key} className="px-3 py-3 text-right font-medium">
+                        <MetricTooltip label={info.label} description={info.description}>
+                          <span className="text-xs">{info.short}</span>
+                        </MetricTooltip>
+                      </th>
+                    );
+                  })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {leaders.map((leader) => {
+                  const m = metrics[leader.ticker];
+                  return (
+                    <tr
+                      key={leader.ticker}
+                      className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
+                    >
+                      <td className="px-4 py-3 text-sm text-zinc-400">
+                        {leader.rank}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                          {leader.ticker}
+                        </p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {leader.companyName}
+                        </p>
+                      </td>
+                      <td className="max-w-xs px-3 py-3 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                        {leader.rationale}
+                      </td>
+                      {metricColumns.map((key) => (
+                        <MetricCell
+                          key={key}
+                          value={m?.[key] ?? null}
+                          metricKey={key}
+                        />
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           {leadersGeneratedAt && (
             <div className="border-t border-zinc-100 px-6 py-3 dark:border-zinc-800">
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
