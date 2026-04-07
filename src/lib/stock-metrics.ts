@@ -131,7 +131,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     short: "Fwd P/E",
     description: (sector) => {
       const t = SECTOR_PE_THRESHOLDS[sector] ?? DEFAULT_PE;
-      return `How many dollars you pay for each dollar of expected profit. Example: 20x means you pay $20 per $1 of earnings — it would take 20 years of that profit to 'earn back' the price. Lower = cheaper. Negative means expected losses. For ${sector || "this sector"}: ${peFmt(t)}`;
+      return `How many dollars you pay for each dollar of expected profit. Example: 20x means you pay $20 per $1 of earnings — it would take 20 years of that profit to 'earn back' the price. Lower = cheaper. Why it matters: this is the quickest way to gauge if a stock is cheap or expensive relative to its peers. A stock with a much lower P/E than its sector average might be undervalued — or the market might see problems ahead. Negative means expected losses. For ${sector || "this sector"}: ${peFmt(t)}`;
     },
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_PE_THRESHOLDS[s ?? ""] ?? DEFAULT_PE),
@@ -151,7 +151,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     short: "EV/EBITDA",
     description: (sector) => {
       const t = SECTOR_EVEBITDA_THRESHOLDS[sector] ?? DEFAULT_EVEBITDA;
-      return `Total business value (including debt) vs. operating earnings. More reliable than P/E for comparing companies with different debt levels. For ${sector || "this sector"}: ${evFmt(t)}`;
+      return `Total business value (including debt) vs. operating earnings. Why it matters: unlike P/E, this accounts for debt — so a company that looks cheap on P/E but is loaded with debt will show a truer picture here. It's the professional standard for comparing acquisition targets and cross-company valuation. For ${sector || "this sector"}: ${evFmt(t)}`;
     },
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_EVEBITDA_THRESHOLDS[s ?? ""] ?? DEFAULT_EVEBITDA),
@@ -162,7 +162,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     description: (sector) => {
       const base = SECTOR_EVEBITDA_THRESHOLDS[sector] ?? DEFAULT_EVEBITDA;
       const t: Thresholds = [Math.round(base[0] * 1.3), Math.round(base[1] * 1.3), Math.round(base[2] * 1.3)];
-      return `Like EV/EBITDA but stricter — includes depreciation costs. Better for asset-heavy industries where equipment wear is a real expense. For ${sector || "this sector"}: ${evFmt(t)}`;
+      return `Like EV/EBITDA but stricter — includes depreciation costs. Why it matters: for companies that spend heavily on physical assets (factories, equipment, infrastructure), depreciation is a real ongoing cost. EV/EBIT captures this, giving a more conservative valuation. For ${sector || "this sector"}: ${evFmt(t)}`;
     },
     format: "ratio",
     rate: (v, s) => {
@@ -175,9 +175,10 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Price/Book",
     short: "P/B",
     description: (sector) => {
-      if (sector === "Financials") return "Market price vs. net asset value. For banks and insurers: under 1.2x = cheap (green), 1.2-2x = fair, 2-3x = pricey (amber), above 3x = expensive (red). Under 1.0x can mean undervalued or troubled.";
-      if (sector === "Real Estate") return "Market price vs. net asset value. For real estate: under 1.5x = cheap (green), 1.5-3x = fair, 3-5x = pricey (amber), above 5x = expensive (red).";
-      return "Market price vs. net asset value. Most useful for financials and asset-heavy firms. For tech/growth companies, high P/B is normal because their value is in intangibles (IP, brand), not physical assets.";
+      const why = "Why it matters: P/B tells you how much you're paying relative to what the company actually owns (buildings, cash, equipment minus debts). If a stock trades below 1.0x book value, you're theoretically paying less than the company's net assets are worth — either a bargain or a sign the market sees problems.";
+      if (sector === "Financials") return `Market price vs. net asset value. ${why} For banks and insurers: under 1.2x = cheap (green), 1.2-2x = fair, 2-3x = pricey (amber), above 3x = expensive (red).`;
+      if (sector === "Real Estate") return `Market price vs. net asset value. ${why} For real estate: under 1.5x = cheap (green), 1.5-3x = fair, 3-5x = pricey (amber), above 5x = expensive (red).`;
+      return `Market price vs. net asset value. ${why} Less useful for tech/growth companies where value is in intangibles (IP, brand), not physical assets — high P/B is normal there.`;
     },
     format: "ratio",
     rate: (v, s) => {
@@ -191,7 +192,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     short: "P/S",
     description: (sector) => {
       const t = SECTOR_PS_THRESHOLDS[sector] ?? DEFAULT_PS;
-      return `Market cap vs. revenue. Useful when a company isn't yet profitable — you can still value it by what you pay per dollar of sales. For ${sector || "this sector"}: ${psFmt(t)}`;
+      return `How many dollars of market value per dollar of sales. Example: 5x means investors pay $5 for every $1 of revenue. Why it matters: when a company isn't yet profitable, P/E doesn't work — but you can still gauge if it's expensive by looking at what you pay per dollar of sales. A company with high P/S needs to eventually convert that revenue into profit to justify its price. For ${sector || "this sector"}: ${psFmt(t)}`;
     },
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_PS_THRESHOLDS[s ?? ""] ?? DEFAULT_PS),
@@ -200,7 +201,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "PEG Ratio",
     short: "PEG",
     description:
-      "Checks if a high P/E is justified by growth. It divides P/E by the growth rate. Example: a stock with 30x P/E growing at 30% = PEG of 1.0 (fairly priced). Under 1.0 = you're getting growth cheap (green). 1.0-1.5 = fair. Above 2.0 = overpaying even after accounting for growth (red). Works across all sectors.",
+      "Checks if a high P/E is justified by growth. It divides P/E by the growth rate. Example: a stock with 30x P/E growing at 30% = PEG of 1.0. Why it matters: a 50x P/E looks expensive, but if the company is growing earnings at 50% per year, PEG says it's fairly priced. It lets you compare expensive fast-growers against cheap slow-growers on equal footing. Under 1.0 = growth is cheap (green). 1.0-1.5 = fair. Above 2.0 = overpaying even for the growth (red).",
     format: "ratio",
     rate: (v) => {
       if (v < 0) return "bad";
@@ -217,7 +218,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
       const context = (sector === "Technology" || sector === "Communication Services")
         ? "For tech, negative FCF can be acceptable if the company is investing heavily in growth — but most mature tech companies should be FCF-positive."
         : `For ${sector || "this sector"}, positive and growing FCF is a key quality signal.`;
-      return `The actual cash left over after paying all bills and buying equipment. Think of it as the company's 'take-home pay'. Positive (green) = healthy, the business generates real cash. Negative (red) = burning cash, spending more than it earns. ${context}`;
+      return `The actual cash left over after paying all bills and buying equipment. Think of it as the company's 'take-home pay'. Why it matters: earnings can be manipulated with accounting tricks, but cash is cash. A company with strong FCF can pay dividends, buy back shares, reduce debt, or invest in growth — all things that benefit you as a shareholder. Positive (green) = healthy. Negative (red) = burning cash. ${context}`;
     },
     format: "currency",
     rate: (v) => {
@@ -230,13 +231,14 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Revenue Growth",
     short: "Rev Growth",
     description: (sector) => {
+      const why = "Why it matters: revenue is the top line that everything else depends on. A company can cut costs to boost profits temporarily, but sustained value creation requires growing sales. Fast revenue growth is the main reason the market gives some stocks premium valuations.";
       if (sector === "Technology" || sector === "Communication Services") {
-        return `Year-over-year sales change. For ${sector}: above 20% is strong (green), 10-20% is solid, below 10% is slow for this sector (amber), negative is shrinking (red).`;
+        return `Year-over-year sales change. ${why} For ${sector}: above 20% is strong (green), 10-20% is solid, below 10% is slow for this sector (amber), negative is shrinking (red).`;
       }
       if (sector === "Utilities" || sector === "Consumer Staples") {
-        return `Year-over-year sales change. For ${sector}: above 5% is solid (green), 2-5% is normal for this stable sector, below 2% is flat (amber), negative is shrinking (red).`;
+        return `Year-over-year sales change. ${why} For ${sector}: above 5% is solid (green), 2-5% is normal for this stable sector, below 2% is flat (amber), negative is shrinking (red).`;
       }
-      return `Year-over-year sales change. For ${sector || "this sector"}: above 15% is strong (green), 5-15% is solid, below 5% is modest (amber), negative is shrinking (red).`;
+      return `Year-over-year sales change. ${why} For ${sector || "this sector"}: above 15% is strong (green), 5-15% is solid, below 5% is modest (amber), negative is shrinking (red).`;
     },
     format: "percent",
     rate: (v, s) => {
@@ -257,7 +259,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
       const t = SECTOR_MARGIN_THRESHOLDS[sector] ?? DEFAULT_MARGIN;
       const low = (t[0] * 100).toFixed(0);
       const high = (t[1] * 100).toFixed(0);
-      return `What percentage of revenue becomes operating profit. Negative means the core business is losing money. For ${sector || "this sector"}: above ${high}% is strong (green), ${low}-${high}% is fair, below ${low}% is thin (amber).`;
+      return `What percentage of revenue becomes operating profit. Example: 25% means for every $100 in sales, $25 is operating profit. Why it matters: high margins mean the company has pricing power or runs efficiently — it keeps more of every dollar it earns. Low margins mean the business is a grind where small cost increases can wipe out profit. For ${sector || "this sector"}: above ${high}% is strong (green), ${low}-${high}% is fair, below ${low}% is thin (amber). Negative = losing money.`;
     },
     format: "percent",
     rate: (v, s) => {
@@ -272,7 +274,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "ROIC",
     short: "ROIC",
     description:
-      "How much profit the company makes for each dollar invested in it. Example: 20% ROIC means every $1 invested generates $0.20 of profit. Above 15% = excellent, the business has a real competitive advantage (green). 8-15% = decent (neutral). Below 8% = the company isn't earning more than its cost of capital, which destroys shareholder value (red). One of the single best quality indicators across all sectors.",
+      "How much profit the company makes for each dollar invested in it. Example: 20% ROIC means every $1 invested generates $0.20 of profit. Why it matters: this is arguably the single best indicator of business quality. Companies with consistently high ROIC (15%+) usually have a durable competitive advantage — a 'moat' — that lets them reinvest profits at high rates. Below 8% means the company earns less than its cost of capital, effectively destroying value for shareholders. Above 15% = excellent (green). 8-15% = decent. Below 8% = poor (red).",
     format: "percent",
     rate: (v) => rateHigherIsBetter(v, 0, 0.08, 0.15),
   },
@@ -280,7 +282,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Gross Margin",
     short: "Gross Margin",
     description:
-      "How much the company keeps from each sale after paying direct production costs. Example: 60% gross margin means for every $100 in sales, $60 is left after making the product. Above 50% = strong pricing power, typical of software and luxury brands (green). 30-50% = solid. Under 30% = thin margins, common in retail and commodities (amber). Negative = selling below cost (red).",
+      "How much the company keeps from each sale after paying direct production costs. Example: 60% gross margin means for every $100 in sales, $60 is left after making the product. Why it matters: gross margin reveals pricing power. A company with 70% margins (like software) can absorb cost increases easily and spend heavily on R&D or marketing. A company with 10% margins (like groceries) has almost no room for error. Above 50% = strong (green). 30-50% = solid. Under 30% = thin (amber). Negative = selling below cost (red).",
     format: "percent",
     rate: (v) => rateHigherIsBetter(v, 0, 0.3, 0.5),
   },
@@ -289,7 +291,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     short: "ROE",
     description: (sector) => {
       const benchmark = sector === "Financials" ? "12%" : "15%";
-      return `How much profit the company generates with shareholders' money. Example: 15% ROE means $1 of equity produces $0.15 of profit. Above ${benchmark} = strong for ${sector || "this sector"} (green). 10-${benchmark} = decent. Below 10% = weak (amber). Caveat: very high ROE (30%+) can mean either an excellent business or dangerously high debt — check the balance sheet.`;
+      return `How much profit the company generates with shareholders' money. Example: 15% ROE means $1 of equity produces $0.15 of profit. Why it matters: high ROE means the company is good at turning your investment into profit. It's especially important for ${sector === "Financials" ? "banks, where the core business is managing equity efficiently" : "judging management effectiveness"}. Above ${benchmark} = strong for ${sector || "this sector"} (green). 10-${benchmark} = decent. Below 10% = weak (amber). Caveat: very high ROE (30%+) can mean either excellence or dangerously high debt — worth checking.`;
     },
     format: "percent",
     rate: (v, s) => {
