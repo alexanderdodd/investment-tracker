@@ -111,7 +111,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Forward P/E",
     short: "Fwd P/E",
     description:
-      "Price vs. expected next-year earnings. What's 'cheap' depends on the sector — tech stocks commonly trade at 25-35x while energy trades at 10-15x. Negative means expected losses. Color coding adjusts for sector norms.",
+      "How many dollars you pay for each dollar of expected profit. Example: 20x means you pay $20 per $1 of earnings — so it would take 20 years of that profit to 'earn back' the price. Lower = cheaper. A high number means the market expects big future growth to justify the price. Negative means the company is expected to lose money (no earnings to price against). Typical ranges vary by sector — tech at 25-35x, energy at 10-15x.",
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_PE_THRESHOLDS[s ?? ""] ?? DEFAULT_PE),
   },
@@ -119,7 +119,7 @@ export const METRIC_INFO: Record<keyof Omit<StockMetrics, "ticker">, MetricDef> 
     label: "Trailing P/E",
     short: "P/E",
     description:
-      "Price vs. last 12 months' actual earnings. Ranges vary by sector — utilities at 15-20x are normal, while tech at 30x+ is common. Negative means the company lost money. Compare within the same sector for best insight.",
+      "Same idea as Forward P/E, but based on actual earnings from the past 12 months instead of forecasts. A stock at 15x earned $1 for every $15 of its price last year. Lower = you're getting more earnings per dollar spent. Negative means the company actually lost money — there are no earnings, so the ratio flips negative. Best compared within the same sector.",
     format: "ratio",
     rate: (v, s) => rateLowerIsBetter(v, SECTOR_PE_THRESHOLDS[s ?? ""] ?? DEFAULT_PE),
   },
