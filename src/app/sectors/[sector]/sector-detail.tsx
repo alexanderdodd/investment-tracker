@@ -124,6 +124,19 @@ const RATING_COLORS: Record<MetricRating, string> = {
   bad: "text-red-600 dark:text-red-400",
 };
 
+function PreProfitBadge({ metrics: m }: { metrics?: StockMetrics }) {
+  if (!m) return null;
+  const opMargin = m.operatingMargin;
+  if (opMargin !== null && opMargin < 0) {
+    return (
+      <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        Pre-profit
+      </span>
+    );
+  }
+  return null;
+}
+
 function MetricCell({ value, metricKey, sector }: { value: number | null; metricKey: MetricKey; sector: string }) {
   const info = METRIC_INFO[metricKey];
   const rating = rateMetric(metricKey, value, sector);
@@ -425,6 +438,7 @@ export function SectorDetail({
                       <td className="px-4 py-3">
                         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                           {holding.symbol}
+                          <PreProfitBadge metrics={m} />
                         </p>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400">
                           {holding.name}
@@ -496,6 +510,7 @@ export function SectorDetail({
                       <td className="px-4 py-3">
                         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                           {leader.ticker}
+                          <PreProfitBadge metrics={m} />
                         </p>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400">
                           {leader.companyName}
