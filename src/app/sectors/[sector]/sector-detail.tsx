@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Markdown from "react-markdown";
 import {
   ResponsiveContainer,
   LineChart,
@@ -303,10 +304,39 @@ export function SectorDetail({
         </div>
       ) : analysis ? (
         <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="px-6 py-4">
-            <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+          <div className="px-6 py-5 sector-analysis-markdown">
+            <Markdown
+              components={{
+                h2: ({ children }) => (
+                  <h2 className="mt-5 mb-2 text-sm font-semibold text-zinc-900 first:mt-0 dark:text-zinc-50">
+                    {children}
+                  </h2>
+                ),
+                p: ({ children }) => (
+                  <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                    {children}
+                  </p>
+                ),
+                ul: ({ children }) => (
+                  <ul className="mt-1 space-y-2">
+                    {children}
+                  </ul>
+                ),
+                li: ({ children }) => (
+                  <li className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 pl-1">
+                    <span className="mr-1.5 text-zinc-400">•</span>
+                    {children}
+                  </li>
+                ),
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {children}
+                  </strong>
+                ),
+              }}
+            >
               {analysis.userSummary}
-            </p>
+            </Markdown>
           </div>
           <div className="border-t border-zinc-100 px-6 py-3 dark:border-zinc-800">
             <div className="flex items-center justify-between">

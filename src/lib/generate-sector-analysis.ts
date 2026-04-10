@@ -215,19 +215,41 @@ export async function distillForUser(
   sector: string,
   researchDocument: string
 ): Promise<string> {
-  const prompt = `You are a financial writer distilling a detailed sector research document into a concise, user-friendly summary for the ${sector} sector.
+  const prompt = `You are a financial writer distilling a detailed sector research document into a concise, structured summary for the ${sector} sector. This will be displayed on a sector dashboard.
 
 FULL RESEARCH DOCUMENT:
 ${researchDocument}
 
-Write a condensed summary suitable for display on a sector dashboard. The summary should:
-- Be 5-8 sentences total
-- Lead with the most important takeaway (how the sector is performing and why)
-- Highlight 1-2 key opportunities and 1-2 key risks
-- Use plain language — avoid jargon, but keep it substantive
-- Include specific numbers or data points where they add clarity
+Output the summary in EXACTLY this markdown structure. Do not deviate from this format:
 
-Do not give investment advice. Do not use markdown formatting.`;
+## Bottom Line
+
+1-2 sentences summarizing how the sector is performing relative to the S&P 500 and the single most important reason why. Include specific return numbers and timeframes (e.g., "+24% vs SPY's +17% over the past year"). Be direct.
+
+## What's Driving This
+
+- **[Driver name]:** 1-2 sentences explaining this driver with a specific data point or source
+- **[Driver name]:** 1-2 sentences explaining this driver with a specific data point or source
+- **[Driver name]:** (optional, only if there's a third meaningful driver)
+
+## Opportunities
+
+- **[Opportunity name]:** 1-2 sentences with specific projections or data where available
+- **[Opportunity name]:** 1-2 sentences with specific projections or data where available
+- **[Opportunity name]:** (optional third)
+
+## Risks to Watch
+
+- **[Risk name]:** 1-2 sentences with specific concerns or data
+- **[Risk name]:** 1-2 sentences with specific concerns or data
+- **[Risk name]:** (optional third)
+
+Rules:
+- Use plain language — keep it substantive but accessible
+- Every bullet must include at least one specific number, source, or concrete detail
+- Do not give investment advice or recommendations
+- Do not add any sections beyond the four above
+- Do not add introductory text before the first heading`;
 
   const { text } = await generateText({
     model: openrouter()(DATA_MODEL),
