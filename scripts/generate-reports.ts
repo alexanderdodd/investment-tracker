@@ -3,6 +3,7 @@ config({ path: ".env.local" });
 
 import { generateAllReports } from "../src/lib/generate-reports";
 import { generateAllEmergingLeaders } from "../src/lib/generate-emerging-leaders";
+import { generateAllSectorAnalyses } from "../src/lib/generate-sector-analysis";
 
 async function main() {
   console.log("Generating sector reports...\n");
@@ -19,9 +20,17 @@ async function main() {
     console.log(`  ${r.success ? "✓" : "✗"} ${r.sector}${r.error ? `: ${r.error}` : ""}`);
   }
 
+  console.log("\nGenerating sector analyses (multi-stage)...\n");
+
+  const analysisResults = await generateAllSectorAnalyses();
+  for (const r of analysisResults) {
+    console.log(`  ${r.success ? "✓" : "✗"} ${r.sector}${r.error ? `: ${r.error}` : ""}`);
+  }
+
   const reportOk = reportResults.filter((r) => r.success).length;
   const leaderOk = leaderResults.filter((r) => r.success).length;
-  console.log(`\nDone! Reports: ${reportOk}/11. Leaders: ${leaderOk}/11.`);
+  const analysisOk = analysisResults.filter((r) => r.success).length;
+  console.log(`\nDone! Reports: ${reportOk}/11. Leaders: ${leaderOk}/11. Analyses: ${analysisOk}/11.`);
 }
 
 main().catch((err) => {

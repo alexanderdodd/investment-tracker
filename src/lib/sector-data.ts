@@ -23,6 +23,23 @@ export interface SectorResult {
   };
 }
 
+export interface ExtendedChanges {
+  day: number | null;
+  week: number | null;
+  month: number | null;
+  threeMonth: number | null;
+  ytd: number | null;
+  year: number | null;
+  threeYear: number | null;
+  fiveYear: number | null;
+}
+
+export interface TickerPriceData {
+  ticker: string;
+  prices: PricePoint[];
+  changes: ExtendedChanges;
+}
+
 export async function fetchAllSectorData(): Promise<
   Record<string, SectorResult>
 > {
@@ -119,4 +136,90 @@ function generateSampleChanges() {
     year: parseFloat(((Math.random() - 0.5) * 30).toFixed(2)),
     fiveYear: parseFloat(((Math.random() - 0.3) * 80).toFixed(2)),
   };
+}
+
+/**
+ * Fetch 5 years of daily prices for a single ticker from Yahoo Finance,
+ * and compute extended return windows (1D, 1W, 1M, 3M, YTD, 1Y, 3Y, 5Y).
+ */
+export async function fetchTickerPriceData(
+  ticker: string
+): Promise<TickerPriceData> {
+  const now = Math.floor(Date.now() / 1000);
+  const fiveYearsAgo = now - 5 * 366 * 24 * 60 * 60;
+
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${fiveYearsAgo}&period2=${now}&interval=1d`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Yahoo Finance returned ${res.status} for ${ticker}`);
+  }
+
+  const json = await res.json();
+  const quote: YahooQuote = json.chart.result[0];
+  const timestamps = quote.timestamp;
+  const closes = quote.indicators.adjclose[0].adjclose;
+
+  const prices: PricePoint[] = timestamps
+    .map((ts: number, i: number) => ({ ts, close: closes[i] }))
+    .filter((p: { ts: number; close: number | null }): p is PricePoint => p.close !== null);
+
+  if (prices.length === 0) throw new Error(`No price data for ${ticker}`);
+
+  const latestPrice = prices[prices.length - 1].close;
+
+  function priceNDaysAgo(days: number): number | null {
+    const target = now - days * 24 * 60 * 60;
+    let found: number | null = null;
+    for (const p of prices) {
+      if (p.ts <= target) found = p.close;
+    }
+    return found;
+  }
+
+  // YTD: find the last trading day of the previous year
+  function priceAtYearStart(): number | null {
+    const currentYear = new Date().getFullYear();
+    const yearStart = Math.floor(new Date(currentYear, 0, 1).getTime() / 1000);
+    let found: number | null = null;
+    for (const p of prices) {
+      if (p.ts < yearStart) found = p.close;
+    }
+    return found;
+  }
+
+  const pctChange = (old: number | null): number | null => {
+    if (old === null || old === 0) return null;
+    return parseFloat((((latestPrice - old) / old) * 100).toFixed(2));
+  };
+
+  return {
+    ticker,
+    prices,
+    changes: {
+      day: pctChange(priceNDaysAgo(1)),
+      week: pctChange(priceNDaysAgo(7)),
+      month: pctChange(priceNDaysAgo(30)),
+      threeMonth: pctChange(priceNDaysAgo(90)),
+      ytd: pctChange(priceAtYearStart()),
+      year: pctChange(priceNDaysAgo(365)),
+      threeYear: pctChange(priceNDaysAgo(3 * 365)),
+      fiveYear: pctChange(priceNDaysAgo(5 * 365)),
+    },
+  };
+}
+
+/**
+ * Fetch price data for a sector ETF and SPY (benchmark) in parallel.
+ */
+export async function fetchSectorAndBenchmark(
+  sectorTicker: string
+): Promise<{ sector: TickerPriceData; benchmark: TickerPriceData }> {
+  const [sector, benchmark] = await Promise.all([
+    fetchTickerPriceData(sectorTicker),
+    fetchTickerPriceData("SPY"),
+  ]);
+  return { sector, benchmark };
 }
