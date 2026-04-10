@@ -91,10 +91,7 @@ export const sectorAnalyses = pgTable("sector_analysis", {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   sector: text("sector").notNull(),
-  performanceSummary: text("performance_summary").notNull(),
-  sectorStructure: text("sector_structure").notNull(),
-  fundamentalDrivers: text("fundamental_drivers").notNull(),
-  opportunities: text("opportunities").notNull(),
-  risks: text("risks").notNull(),
+  researchDocument: text("research_document").notNull(),
+  userSummary: text("user_summary").notNull(),
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });

@@ -61,11 +61,8 @@ interface EmergingLeader {
 }
 
 interface SectorAnalysis {
-  performanceSummary: string;
-  sectorStructure: string;
-  fundamentalDrivers: string;
-  opportunities: string;
-  risks: string;
+  userSummary: string;
+  researchDocument: string;
   generatedAt: string;
 }
 
@@ -174,9 +171,7 @@ export function SectorDetail({
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [analysis, setAnalysis] = useState<SectorAnalysis | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(true);
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    performance: true,
-  });
+  const [showFullResearch, setShowFullResearch] = useState(false);
   const [leaders, setLeaders] = useState<EmergingLeader[] | null>(null);
   const [leadersGeneratedAt, setLeadersGeneratedAt] = useState<string | null>(
     null
@@ -301,61 +296,45 @@ export function SectorDetail({
 
       {/* Sector Analysis */}
       {analysisLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
-          ))}
+        <div className="space-y-2">
+          <div className="h-4 w-3/4 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-4 w-full animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-4 w-5/6 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
         </div>
       ) : analysis ? (
-        <div className="space-y-2">
-          {([
-            { key: "performance", title: "Performance", content: analysis.performanceSummary },
-            { key: "structure", title: "Sector Structure & Valuation", content: analysis.sectorStructure },
-            { key: "drivers", title: "Fundamental Drivers", content: analysis.fundamentalDrivers },
-            { key: "opportunities", title: "Opportunities", content: analysis.opportunities },
-            { key: "risks", title: "Risks", content: analysis.risks },
-          ] as const).map(({ key, title, content }) => (
-            <div
-              key={key}
-              className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <button
-                onClick={() =>
-                  setExpandedSections((prev) => ({
-                    ...prev,
-                    [key]: !prev[key],
-                  }))
-                }
-                className="flex w-full items-center justify-between px-6 py-4 text-left"
-              >
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                  {title}
-                </h3>
-                <span className="text-zinc-400 dark:text-zinc-500">
-                  {expandedSections[key] ? "−" : "+"}
-                </span>
-              </button>
-              {expandedSections[key] && (
-                <div className="border-t border-zinc-100 px-6 py-4 dark:border-zinc-800">
-                  <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-                    {content}
-                  </p>
-                </div>
-              )}
-            </div>
-          ))}
-          {analysis.generatedAt && (
-            <p className="px-2 text-xs text-zinc-400 dark:text-zinc-500">
-              Analysis generated{" "}
-              {new Date(analysis.generatedAt).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              })}
+        <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="px-6 py-4">
+            <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+              {analysis.userSummary}
             </p>
-          )}
+          </div>
+          <div className="border-t border-zinc-100 px-6 py-3 dark:border-zinc-800">
+            <div className="flex items-center justify-between">
+              {analysis.generatedAt && (
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                  Analysis generated{" "}
+                  {new Date(analysis.generatedAt).toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+              <button
+                onClick={() => setShowFullResearch((v) => !v)}
+                className="text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+              >
+                {showFullResearch ? "Hide full research" : "View full research"}
+              </button>
+            </div>
+            {showFullResearch && (
+              <div className="mt-4 whitespace-pre-line text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                {analysis.researchDocument}
+              </div>
+            )}
+          </div>
         </div>
       ) : summaryLoading ? (
         <div className="space-y-2">

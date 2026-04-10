@@ -29,11 +29,8 @@ export async function GET(
 
   return NextResponse.json({
     analysis: {
-      performanceSummary: analysis.performanceSummary,
-      sectorStructure: analysis.sectorStructure,
-      fundamentalDrivers: analysis.fundamentalDrivers,
-      opportunities: analysis.opportunities,
-      risks: analysis.risks,
+      userSummary: analysis.userSummary,
+      researchDocument: analysis.researchDocument,
       generatedAt: analysis.generatedAt.toISOString(),
     },
   });
