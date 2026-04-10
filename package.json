@@ -12,7 +12,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "generate-reports": "npx tsx scripts/generate-reports.ts",
-    "generate-analysis": "npx tsx scripts/generate-analysis.ts"
+    "generate-analysis": "npx tsx scripts/generate-analysis.ts",
+    "distill-summaries": "npx tsx scripts/distill-summaries.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",

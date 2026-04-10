@@ -15,6 +15,10 @@ npm run db:generate  # Generate migration files from schema diff
 npm run db:migrate   # Run pending migrations
 npm run db:studio    # Open Drizzle Studio (DB browser)
 npm run generate-reports  # Generate AI sector reports (stores in DB)
+npm run generate-analysis              # Run full sector research pipeline (all sectors)
+npm run generate-analysis -- --sector Utilities  # Single sector research
+npm run distill-summaries              # Re-distill user summaries from existing research (cheap)
+npm run distill-summaries -- --sector Utilities   # Single sector distill
 ```
 
 No test framework is configured yet.

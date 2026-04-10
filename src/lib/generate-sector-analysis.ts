@@ -1,4 +1,5 @@
 import { generateText } from "ai";
+import { desc, eq } from "drizzle-orm";
 import { openrouter } from "./ai";
 import { getDb } from "../db/index";
 import { sectorAnalyses } from "../db/schema";
@@ -210,7 +211,7 @@ Cite specific concerns, data, or reports where possible. Be factual and balanced
 // Post-processing: distill research into user-facing summary
 // ---------------------------------------------------------------------------
 
-async function distillForUser(
+export async function distillForUser(
   sector: string,
   researchDocument: string
 ): Promise<string> {
@@ -276,7 +277,7 @@ ${sections.risks}`;
 }
 
 // ---------------------------------------------------------------------------
-// Orchestrator: run all stages for one sector
+// Orchestrator: full pipeline (research + distill) for one sector
 // ---------------------------------------------------------------------------
 
 export async function generateSectorAnalysis(
@@ -333,7 +334,60 @@ export async function generateSectorAnalysis(
 }
 
 // ---------------------------------------------------------------------------
-// Public: generate analyses for all sectors or a specific one
+// Re-distill: regenerate user summaries from existing research documents
+// ---------------------------------------------------------------------------
+
+export async function redistillSectorSummary(
+  sector: SectorName
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = getDb();
+    const [latest] = await db
+      .select()
+      .from(sectorAnalyses)
+      .where(eq(sectorAnalyses.sector, sector))
+      .orderBy(desc(sectorAnalyses.generatedAt))
+      .limit(1);
+
+    if (!latest) {
+      return { success: false, error: "No existing research document found" };
+    }
+
+    const userSummary = await distillForUser(sector, latest.researchDocument);
+
+    await db
+      .update(sectorAnalyses)
+      .set({ userSummary })
+      .where(eq(sectorAnalyses.id, latest.id));
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function redistillAllSummaries(onlySector?: SectorName) {
+  const sectors = onlySector ? [onlySector] : SECTORS;
+  const results: { sector: string; success: boolean; error?: string }[] = [];
+
+  for (const sector of sectors) {
+    console.log(`  Distilling summary for ${sector}...`);
+    const result = await redistillSectorSummary(sector);
+    results.push({ sector, ...result });
+
+    if (sectors.length > 1) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Public: generate full analyses for all sectors or a specific one
 // ---------------------------------------------------------------------------
 
 export async function generateAllSectorAnalyses(onlySector?: SectorName) {
