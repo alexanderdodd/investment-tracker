@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { sectorToSlug } from "@/lib/sectors";
+import type { SectorInsights } from "@/lib/sector-insights";
 import {
   ResponsiveContainer,
   LineChart,
@@ -114,16 +115,40 @@ function ChangeChip({
   );
 }
 
+function stanceColor(stance: "Positive" | "Neutral" | "Cautious") {
+  switch (stance) {
+    case "Positive":
+      return "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400";
+    case "Neutral":
+      return "border-zinc-500/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400";
+    case "Cautious":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
+  }
+}
+
+function valuationColor(valuation: "Cheap" | "Fair" | "Expensive") {
+  switch (valuation) {
+    case "Cheap":
+      return "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400";
+    case "Fair":
+      return "border-zinc-500/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400";
+    case "Expensive":
+      return "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400";
+  }
+}
+
 export function SectorCard({
   sector,
   sectorData,
   timeframe,
   onTimeframeChange,
+  insights,
 }: {
   sector: string;
   sectorData: SectorData;
   timeframe: Timeframe;
   onTimeframeChange: (tf: Timeframe) => void;
+  insights: SectorInsights | null;
 }) {
   const { ticker, prices, changes } = sectorData;
   const icon = SECTOR_ICONS[sector] ?? "📊";
@@ -187,6 +212,21 @@ export function SectorCard({
           </span>
         )}
       </div>
+
+      {/* Insight badges */}
+      {insights && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${stanceColor(insights.stanceLongTerm)}`}>
+            {insights.stanceLongTerm} LT
+          </span>
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${stanceColor(insights.stanceShortTerm)}`}>
+            {insights.stanceShortTerm} ST
+          </span>
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${valuationColor(insights.valuation)}`}>
+            {insights.valuation}
+          </span>
+        </div>
+      )}
 
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div className="mb-3 flex gap-1 rounded-lg bg-zinc-50 py-1 dark:bg-zinc-800/50" onClick={(e) => e.preventDefault()}>

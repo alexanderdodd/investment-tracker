@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SectorCard, type Timeframe } from "@/components/sector-card";
+import { type SectorInsights, parseSectorInsights } from "@/lib/sector-insights";
 
 interface SectorData {
   ticker: string;
@@ -27,6 +28,7 @@ export function SectorGrid() {
   const [sectors, setSectors] = useState<Record<string, SectorData> | null>(
     null
   );
+  const [insights, setInsights] = useState<Record<string, SectorInsights>>({});
   const [error, setError] = useState<string | null>(null);
   const [timeframe, setTimeframe] = useState<Timeframe>("1M");
 
@@ -38,6 +40,18 @@ export function SectorGrid() {
       })
       .then(setSectors)
       .catch((err) => setError(err.message));
+
+    fetch("/api/sectors/insights")
+      .then((res) => res.json())
+      .then((data: Record<string, unknown>) => {
+        const parsed: Record<string, SectorInsights> = {};
+        for (const [sector, raw] of Object.entries(data)) {
+          const ins = parseSectorInsights(raw);
+          if (ins) parsed[sector] = ins;
+        }
+        setInsights(parsed);
+      })
+      .catch(() => {});
   }, []);
 
   if (error) {
@@ -67,7 +81,7 @@ export function SectorGrid() {
         const sectorData = sectors[sector];
         if (!sectorData) return null;
         return (
-          <SectorCard key={sector} sector={sector} sectorData={sectorData} timeframe={timeframe} onTimeframeChange={setTimeframe} />
+          <SectorCard key={sector} sector={sector} sectorData={sectorData} timeframe={timeframe} onTimeframeChange={setTimeframe} insights={insights[sector] ?? null} />
         );
       })}
     </div>
