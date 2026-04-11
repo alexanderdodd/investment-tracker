@@ -76,7 +76,17 @@ Rules:
   });
 
   // Strip markdown fences if present
-  const cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
-  const parsed = JSON.parse(cleaned) as SectorInsights;
+  let cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
+
+  // Fix common LLM JSON issues: trailing commas before } or ]
+  cleaned = cleaned.replace(/,\s*([}\]])/g, "$1");
+
+  // Try to extract JSON object if there's surrounding text
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("No JSON object found in response");
+  }
+
+  const parsed = JSON.parse(jsonMatch[0]) as SectorInsights;
   return parsed;
 }
