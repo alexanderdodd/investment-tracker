@@ -19,9 +19,13 @@ Produce a JSON object with EXACTLY this schema. Every field is required.
 
 {
   "stanceShortTerm": "Positive" | "Neutral" | "Cautious",
+  "stanceShortTermReason": "<1 sentence explaining why, e.g. 'Recent momentum is strong with +4.9% weekly gains driven by rate-cut expectations'>",
   "stanceLongTerm": "Positive" | "Neutral" | "Cautious",
+  "stanceLongTermReason": "<1 sentence explaining why, e.g. 'AI infrastructure demand and strong earnings growth support a multi-year tailwind'>",
   "valuation": "Cheap" | "Fair" | "Expensive",
+  "valuationReason": "<1 sentence explaining why, e.g. 'Forward P/E of 29.4x is above the 5-year average, reflecting high growth expectations'>",
   "confidence": "High" | "Medium" | "Low",
+  "confidenceReason": "<1 sentence explaining confidence level, e.g. 'Medium because structural drivers are clear but near-term rate sensitivity adds uncertainty'>",
   "forwardPE": <number or null if unknown>,
 
   "performanceSummary": "<1-2 sentences: how the sector performed vs S&P 500, with specific numbers>",

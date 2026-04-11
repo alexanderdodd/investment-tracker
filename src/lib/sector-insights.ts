@@ -1,9 +1,13 @@
 export interface SectorInsights {
   // Header
   stanceShortTerm: "Positive" | "Neutral" | "Cautious";
+  stanceShortTermReason: string;
   stanceLongTerm: "Positive" | "Neutral" | "Cautious";
+  stanceLongTermReason: string;
   valuation: "Cheap" | "Fair" | "Expensive";
+  valuationReason: string;
   confidence: "High" | "Medium" | "Low";
+  confidenceReason: string;
   forwardPE: number | null;
 
   // Overview tab
