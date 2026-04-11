@@ -20,11 +20,13 @@ interface ProgressStage {
 }
 
 const INITIAL_STAGES: Omit<ProgressStage, "totalStages">[] = [
-  { stage: 1, label: "Business & Industry", description: "Understanding what the company does, its business model, competitive position, and industry dynamics", status: "pending", percent: 0 },
-  { stage: 2, label: "Financial Analysis", description: "Analyzing revenue trends, profitability, cash flow generation, balance sheet health, and accounting quality from recent filings", status: "pending", percent: 0 },
-  { stage: 3, label: "Valuation", description: "Building a DCF model, comparing market multiples to peers and history, and estimating intrinsic value", status: "pending", percent: 0 },
-  { stage: 4, label: "Risk & Scenarios", description: "Constructing bull/base/bear cases, identifying key risks, sensitivity factors, and upcoming catalysts", status: "pending", percent: 0 },
-  { stage: 5, label: "Structuring Results", description: "Extracting key insights into a structured format for the dashboard display", status: "pending", percent: 0 },
+  { stage: 1, label: "Extracting Verified Data", description: "Pulling verified financial data from the latest 10-K, 10-Q, and earnings release — share counts, TTM financials, balance sheet, competitors, and current market price", status: "pending", percent: 0 },
+  { stage: 2, label: "Business & Industry", description: "Analyzing the business model, competitive position, industry dynamics, customer concentration, and recent strategic developments", status: "pending", percent: 0 },
+  { stage: 3, label: "Financial Analysis", description: "Assessing revenue quality, profitability vs historical averages, cash generation, balance sheet strength, and accounting quality", status: "pending", percent: 0 },
+  { stage: 4, label: "Valuation", description: "Building a DCF from normalized GAAP free cash flow, calculating market multiples vs peers, and cross-checking methods for consistency", status: "pending", percent: 0 },
+  { stage: 5, label: "Risk & Scenarios", description: "Constructing bull/base/bear cases with price targets, identifying key risks, sensitivity factors, and upcoming catalysts", status: "pending", percent: 0 },
+  { stage: 6, label: "Quality Check", description: "Checking the full report for arithmetic errors, stale data, methodology issues, and contradictions against the verified fact sheet", status: "pending", percent: 0 },
+  { stage: 7, label: "Structuring Results", description: "Extracting key insights into a structured format for the dashboard display", status: "pending", percent: 0 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -217,7 +219,7 @@ export function StockValuationView({ ticker }: { ticker: string }) {
   const triggerValuation = async () => {
     setGenerating(true);
     setError(null);
-    setStages(INITIAL_STAGES.map((s) => ({ ...s, totalStages: 5 })));
+    setStages(INITIAL_STAGES.map((s) => ({ ...s, totalStages: 7 })));
     setOverallPercent(0);
 
     try {
