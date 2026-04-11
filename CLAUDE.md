@@ -19,6 +19,9 @@ npm run generate-analysis              # Run full sector research pipeline (all 
 npm run generate-analysis -- --sector Utilities  # Single sector research
 npm run distill-summaries              # Re-distill user summaries from existing research (cheap)
 npm run distill-summaries -- --sector Utilities   # Single sector distill
+npm run distill-insights               # Re-distill structured insights (cheap)
+npm run distill-insights -- --sector Utilities
+npm run value-stock -- --ticker KO     # Deep stock valuation report
 ```
 
 No test framework is configured yet.

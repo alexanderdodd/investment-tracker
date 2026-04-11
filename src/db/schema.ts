@@ -97,3 +97,14 @@ export const sectorAnalyses = pgTable("sector_analysis", {
   structuredInsights: jsonb("structured_insights"),
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+export const stockValuations = pgTable("stock_valuation", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  ticker: text("ticker").notNull(),
+  companyName: text("company_name").notNull(),
+  researchDocument: text("research_document").notNull(),
+  structuredInsights: jsonb("structured_insights"),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
