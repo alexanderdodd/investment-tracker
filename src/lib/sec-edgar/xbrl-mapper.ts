@@ -166,15 +166,22 @@ export function getValueForPeriod(
 }
 
 /**
- * Get the most recent instant value (balance sheet item).
+ * Get the most recent instant/point-in-time value (balance sheet item).
+ *
+ * SEC EDGAR represents balance sheet items in two ways:
+ * - Some have an `instant` field (point-in-time date)
+ * - Others have only an `end` field without a `start` field
+ * We check both patterns.
  */
 export function getLatestInstantValue(units: XbrlUnit[]): { value: number; date: string; accession: string } | null {
+  // Find entries that are point-in-time: either instant field exists, or end exists without start
   const instants = units
-    .filter((u) => u.instant && (u.form === "10-K" || u.form === "10-Q"))
-    .sort((a, b) => (b.instant! > a.instant! ? 1 : -1));
+    .filter((u) => (u.form === "10-K" || u.form === "10-Q") && (u.instant || (u.end && !u.start)))
+    .map((u) => ({ val: u.val, date: (u.instant ?? u.end)!, accn: u.accn }))
+    .sort((a, b) => (b.date > a.date ? 1 : -1));
 
   if (instants.length === 0) return null;
-  return { value: instants[0].val, date: instants[0].instant!, accession: instants[0].accn };
+  return { value: instants[0].val, date: instants[0].date, accession: instants[0].accn };
 }
 
 // ---------------------------------------------------------------------------

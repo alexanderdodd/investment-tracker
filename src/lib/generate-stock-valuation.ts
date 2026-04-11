@@ -80,11 +80,42 @@ async function buildStructuredInsights(
   qa: QaReport,
   narrative: string
 ): Promise<StockValuationInsights> {
-  // Extract headline via LLM (the only LLM-dependent field)
-  const { text: headline } = await generateText({
+  // Extract headline + business fields via LLM
+  const { text: qualitativeJson } = await generateText({
     model: openrouter()("google/gemini-2.5-flash"),
-    prompt: `Write 3-4 sentences in plain English for someone with no finance background about ${facts.companyName} (${facts.ticker}). What does this company do (in everyday terms), is the stock a good deal right now, and what's the one thing to know. Like explaining it to a friend over coffee. The stock is currently $${facts.currentPrice.value?.toFixed(2)} and the analysis says it's ${valuation.verdict}. Do not give investment advice.`,
+    prompt: `Extract qualitative summaries from this analyst report for ${facts.companyName} (${facts.ticker}). The stock is $${facts.currentPrice.value?.toFixed(2)} and the analysis verdict is ${valuation.verdict}.
+
+ANALYST REPORT:
+${narrative}
+
+Return JSON only:
+{
+  "headline": "<3-4 sentences in plain English for someone with no finance background. What does this company do, is the stock a good deal, what's the one thing to know. Like explaining to a friend over coffee.>",
+  "businessSummary": "<2-3 sentences summarizing what the company does>",
+  "businessModel": "<1-2 sentences on how they make money>",
+  "competitivePosition": "<1-2 sentences on moats/advantages>",
+  "industryContext": "<1-2 sentences on industry dynamics>",
+  "keyDrivers": [{"label": "<2-4 words>", "detail": "<1 sentence>"}],
+  "catalysts": [{"label": "<2-4 words>", "detail": "<1 sentence about upcoming event>"}]
+}
+Do not give investment advice. Return ONLY valid JSON.`,
   });
+
+  let qualitative: Record<string, unknown> = {};
+  try {
+    let cleaned = qualitativeJson.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
+    cleaned = cleaned.replace(/,\s*([}\]])/g, "$1");
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) qualitative = JSON.parse(match[0]);
+  } catch { /* use defaults */ }
+
+  const headline = (qualitative.headline as string) ?? "";
+  const businessSummary = (qualitative.businessSummary as string) ?? "";
+  const businessModel = (qualitative.businessModel as string) ?? "";
+  const competitivePosition = (qualitative.competitivePosition as string) ?? "";
+  const industryContext = (qualitative.industryContext as string) ?? "";
+  const keyDrivers = (qualitative.keyDrivers as { label: string; detail: string }[]) ?? [];
+  const catalysts = (qualitative.catalysts as { label: string; detail: string }[]) ?? [];
 
   const price = facts.currentPrice.value;
   const baseCase = valuation.scenarios?.base.perShareValue ?? valuation.dcf?.perShareValue ?? null;
@@ -105,10 +136,10 @@ async function buildStructuredInsights(
       ? `${valuation.marginOfSafety > 0 ? "+" : ""}${(valuation.marginOfSafety * 100).toFixed(1)}%`
       : null,
     headline,
-    businessSummary: "", // Will be filled from narrative sections
-    businessModel: "",
-    competitivePosition: "",
-    industryContext: "",
+    businessSummary,
+    businessModel,
+    competitivePosition,
+    industryContext,
     revenueGrowth: model.revenueGrowth.length > 0
       ? `Revenue grew ${model.revenueGrowth.map(g => `${(g.value * 100).toFixed(1)}% in ${g.period}`).join(", ")}`
       : "Revenue growth data not available",
@@ -126,11 +157,11 @@ async function buildStructuredInsights(
     baseCase: valuation.scenarios ? `$${valuation.scenarios.base.perShareValue.toFixed(2)}: ${valuation.scenarios.base.assumptions}` : "Not computed",
     bearCase: valuation.scenarios ? `$${valuation.scenarios.bear.perShareValue.toFixed(2)}: ${valuation.scenarios.bear.assumptions}` : "Not computed",
     keyRisks: qa.issues.filter(i => i.severity !== "low").map(i => ({ label: i.location, detail: i.error })).slice(0, 5),
-    keyDrivers: [],
+    keyDrivers,
     sensitivityFactors: valuation.dcf?.sensitivityGrid
       ? [`WACC sensitivity: ${valuation.dcf.sensitivityGrid.map(s => `$${s.perShareValue.toFixed(0)} at ${(s.wacc * 100).toFixed(1)}%`).join(", ")}`]
       : [],
-    catalysts: [],
+    catalysts,
   };
 }
 
