@@ -20,13 +20,13 @@ interface ProgressStage {
 }
 
 const INITIAL_STAGES: Omit<ProgressStage, "totalStages">[] = [
-  { stage: 1, label: "Extracting Verified Data", description: "Pulling verified financial data from the latest 10-K, 10-Q, and earnings release — share counts, TTM financials, balance sheet, competitors, and current market price", status: "pending", percent: 0 },
-  { stage: 2, label: "Business & Industry", description: "Analyzing the business model, competitive position, industry dynamics, customer concentration, and recent strategic developments", status: "pending", percent: 0 },
-  { stage: 3, label: "Financial Analysis", description: "Assessing revenue quality, profitability vs historical averages, cash generation, balance sheet strength, and accounting quality", status: "pending", percent: 0 },
-  { stage: 4, label: "Valuation", description: "Building a DCF from normalized GAAP free cash flow, calculating market multiples vs peers, and cross-checking methods for consistency", status: "pending", percent: 0 },
-  { stage: 5, label: "Risk & Scenarios", description: "Constructing bull/base/bear cases with price targets, identifying key risks, sensitivity factors, and upcoming catalysts", status: "pending", percent: 0 },
-  { stage: 6, label: "Quality Check", description: "Checking the full report for arithmetic errors, stale data, methodology issues, and contradictions against the verified fact sheet", status: "pending", percent: 0 },
-  { stage: 7, label: "Structuring Results", description: "Extracting key insights into a structured format for the dashboard display", status: "pending", percent: 0 },
+  { stage: 1, label: "Extracting Verified Data", description: "Pulling financial data from SEC EDGAR XBRL filings and current market prices — every number has provenance tracking", status: "pending", percent: 0 },
+  { stage: 2, label: "Financial Analysis", description: "Computing ratios, detecting cycle state, and normalizing metrics to mid-cycle levels if at peak — all in code, not LLM", status: "pending", percent: 0 },
+  { stage: 3, label: "Valuation Engine", description: "Running deterministic DCF, market multiples, reverse DCF, and bull/base/bear scenarios — all computed in code", status: "pending", percent: 0 },
+  { stage: 4, label: "Quality Assurance", description: "Validating arithmetic, data completeness, formula consistency, and methodology compliance against the verified fact sheet", status: "pending", percent: 0 },
+  { stage: 5, label: "Analyst Narrative", description: "Writing the analyst report — locked to verified data, may explain but cannot introduce new numbers", status: "pending", percent: 0 },
+  { stage: 6, label: "Red-Team Review", description: "Challenging the report's conclusions — flagging unsupported claims, missing risks, and aggressive assumptions", status: "pending", percent: 0 },
+  { stage: 7, label: "Structuring Results", description: "Assembling dashboard insights from deterministic outputs — not re-extracted from narrative text", status: "pending", percent: 0 },
 ];
 
 // ---------------------------------------------------------------------------
