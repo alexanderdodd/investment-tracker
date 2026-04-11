@@ -295,6 +295,12 @@ export function computeTTM(units: XbrlUnit[]): TtmResult | null {
 /**
  * Build a 5-year annual history of a metric from XBRL units.
  * Uses the longest-duration FY entry for each fiscal year.
+ *
+ * IMPORTANT: Uses the calendar year of the period-end date as the fiscal year
+ * identifier, NOT the SEC EDGAR `fy` field. For non-calendar fiscal years
+ * (e.g., Micron ending in August), SEC assigns the same `fy` number to
+ * different physical fiscal years. Using end-date year ensures each physical
+ * year gets a unique, stable identifier that can be joined across metrics.
  */
 export function buildAnnualHistory(
   units: XbrlUnit[],
@@ -302,17 +308,19 @@ export function buildAnnualHistory(
 ): { fiscalYear: number; value: number }[] {
   const annuals = getAnnualEntries(units);
 
-  // Deduplicate by end date (same physical year can appear under different fy numbers)
-  const byEndYear = new Map<string, { fy: number; val: number }>();
+  // Deduplicate by end-date year (the calendar year the fiscal year ends in).
+  // This is the stable identifier — the SEC fy field is unreliable for
+  // non-calendar fiscal years.
+  const byEndYear = new Map<number, { endYear: number; val: number }>();
   for (const a of annuals) {
-    const endYear = a.end.substring(0, 4);
+    const endYear = parseInt(a.end.substring(0, 4), 10);
     if (!byEndYear.has(endYear)) {
-      byEndYear.set(endYear, { fy: a.fy, val: a.val });
+      byEndYear.set(endYear, { endYear, val: a.val });
     }
   }
 
   return Array.from(byEndYear.values())
-    .sort((a, b) => a.fy - b.fy)
+    .sort((a, b) => a.endYear - b.endYear)
     .slice(-years)
-    .map((e) => ({ fiscalYear: e.fy, value: e.val }));
+    .map((e) => ({ fiscalYear: e.endYear, value: e.val }));
 }
