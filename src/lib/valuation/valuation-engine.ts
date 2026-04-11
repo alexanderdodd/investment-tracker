@@ -176,16 +176,45 @@ export function computeDcf(
   const waccDeriv = computeWacc(facts);
   const wacc = waccFromDerivation(waccDeriv);
 
-  // Determine base FCF
-  const useCycleNormalized =
+  // Determine base FCF — try multiple approaches before giving up
+  let baseYearFCF: number | null = null;
+  let normalized = false;
+
+  // Approach 1: For cyclical companies at peak/above_mid, use normalized FCF
+  if (
     framework.cycleRelevant &&
     (model.cycleState === "peak" || model.cycleState === "above_mid") &&
     model.normalizedFCF !== null &&
-    model.normalizedFCF > 0;
+    model.normalizedFCF > 0
+  ) {
+    baseYearFCF = model.normalizedFCF;
+    normalized = true;
+  }
 
-  const baseYearFCF = useCycleNormalized
-    ? model.normalizedFCF!
-    : facts.ttmFCF.value;
+  // Approach 2: Use reported TTM FCF if positive
+  if (baseYearFCF === null && facts.ttmFCF.value !== null && facts.ttmFCF.value > 0) {
+    baseYearFCF = facts.ttmFCF.value;
+  }
+
+  // Approach 3: If reported FCF is negative (e.g., heavy growth capex),
+  // try normalized FCF even if not at cycle peak
+  if (baseYearFCF === null && model.normalizedFCF !== null && model.normalizedFCF > 0) {
+    baseYearFCF = model.normalizedFCF;
+    normalized = true;
+  }
+
+  // Approach 4: Estimate from operating income (NOPAT + D&A - maintenance capex)
+  if (baseYearFCF === null && facts.ttmOperatingIncome.value !== null && facts.ttmOperatingIncome.value > 0) {
+    const da = facts.ttmDA.value ?? 0;
+    const nopat = facts.ttmOperatingIncome.value * (1 - 0.21);
+    // Estimate maintenance capex as 1.2x D&A
+    const maintenanceCapex = da * 1.2;
+    const estimatedFCF = nopat + da - maintenanceCapex;
+    if (estimatedFCF > 0) {
+      baseYearFCF = estimatedFCF;
+      normalized = true;
+    }
+  }
 
   if (baseYearFCF === null || baseYearFCF <= 0) {
     return null;
@@ -213,7 +242,7 @@ export function computeDcf(
     totalCash,
     totalDebt,
     shares,
-    useCycleNormalized
+    normalized
   );
 
   if (!result) return null;

@@ -150,12 +150,19 @@ function computeNormalized(
   if (
     normalizedRevenue != null &&
     normalizedOperatingMargin != null &&
-    da != null &&
-    capex != null
+    da != null
   ) {
-    // normalizedFCF = normalizedRevenue * normalizedOperatingMargin * (1 - taxRate) + D&A - Capex
+    // For capital-intensive cyclical companies (semiconductor, commodity),
+    // actual capex often includes massive growth investments (new fabs, mines).
+    // Using full capex produces unrealistic normalized FCF.
+    // Estimate maintenance capex as 1.2x D&A — this reflects the cost of
+    // maintaining existing capacity without expansion.
+    const maintenanceCapex = framework.cycleRelevant && capex != null && da > 0 && capex > da * 2
+      ? da * 1.2  // Growth capex is dominant; use maintenance estimate
+      : (capex ?? da); // Normal: use actual capex
+
     normalizedFCF =
-      normalizedRevenue * normalizedOperatingMargin * (1 - taxRate) + da - capex;
+      normalizedRevenue * normalizedOperatingMargin * (1 - taxRate) + da - maintenanceCapex;
   }
 
   return {
