@@ -198,10 +198,28 @@ export interface QaIssue {
   severity: "high" | "medium" | "low";
 }
 
+export type PublishGateStatus =
+  | "WITHHOLD_ALL"
+  | "PUBLISH_FACTS_ONLY"
+  | "PUBLISH_WITH_WARNINGS"
+  | "PUBLISH_FULL";
+
+export interface GateDecision {
+  status: PublishGateStatus;
+  factsPublishable: boolean;
+  valuationPublishable: boolean;
+  /** Null when valuation is withheld */
+  valuationConfidence: number | null;
+  factsGateFailures: string[];
+  valuationGateFailures: string[];
+}
+
 export interface QaReport {
   issues: QaIssue[];
   passed: boolean;
+  /** @deprecated Use gateDecision.status instead */
   status: "published" | "withheld" | "published_with_warnings";
+  gateDecision: GateDecision;
 }
 
 // ---------------------------------------------------------------------------

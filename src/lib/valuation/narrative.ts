@@ -103,20 +103,70 @@ export async function generateNarrative(
 ): Promise<string> {
   const factsText = formatFactsForPrompt(facts);
   const modelText = formatModelOutputsForPrompt(model);
-  const valuationText = formatValuationForPrompt(valuation, facts.currentPrice.value);
   const qaText = qa.issues.length > 0
     ? `QA ISSUES:\n${qa.issues.map(i => `  [${i.severity.toUpperCase()}] ${i.location}: ${i.error}`).join("\n")}`
     : "QA: All checks passed.";
 
   onProgress?.("Writing analyst narrative");
 
-  const prompt = `You are writing a stock valuation analyst report for ${facts.companyName} (${facts.ticker}).
+  // Respect the publish gate: if valuation is withheld, do NOT provide
+  // valuation outputs (DCF value, verdict, margin of safety, scenarios) to the LLM
+  const valuationWithheld = qa.gateDecision && !qa.gateDecision.valuationPublishable;
+
+  let valuationText: string;
+  let valuationInstructions: string;
+
+  if (valuationWithheld) {
+    valuationText = `VALUATION STATUS: WITHHELD
+The valuation gate has determined that a fair-value verdict cannot be published for this company at this time.
+Reasons: ${qa.gateDecision.valuationGateFailures.join("; ")}
+
+MARKET MULTIPLES (publishable — these are derived from reconciled facts, not a valuation opinion):
+  P/E: ${valuation.multiples.current.pe?.toFixed(1) ?? "N/A"}x | P/B: ${valuation.multiples.current.pb?.toFixed(1) ?? "N/A"}x | EV/EBITDA: ${valuation.multiples.current.evEbitda?.toFixed(1) ?? "N/A"}x`;
+
+    valuationInstructions = `
+CRITICAL INSTRUCTION — VALUATION WITHHELD:
+The valuation verdict has been withheld by the deterministic gate. You MUST NOT include any of the following in your report:
+- Fair value estimates or target prices
+- Margin of safety calculations
+- "Undervalued", "Overvalued", or "Fair Value" verdicts
+- DCF per-share values
+- Investment conclusions (buy, sell, hold)
+- Confidence scores related to valuation
+- Bull/base/bear scenario price targets
+
+You MAY discuss:
+- The reconciled financial facts and market multiples
+- The company's financial health, profitability, and cash generation
+- The cycle position and what it means for durability
+- Qualitative risks and structural factors
+- Why the valuation is withheld (explain this to the reader)
+
+Write the report as a FACTS AND ANALYSIS report, not a valuation report.`;
+  } else {
+    valuationText = formatValuationForPrompt(valuation, facts.currentPrice.value);
+    valuationInstructions = `Write a structured analyst report with these sections:
+
+1. EXECUTIVE SUMMARY (3-4 sentences: verdict, key reason, confidence level)
+
+2. BUSINESS OVERVIEW (what the company does, competitive position, recent developments — use your knowledge but do not introduce new financial numbers)
+
+3. FINANCIAL ANALYSIS (interpret the model outputs above — margins, cash conversion, cycle state, normalization. Explain what the numbers mean for the investment case)
+
+4. VALUATION (explain the DCF assumptions and result, the multiples comparison, the reverse DCF interpretation. What is the market implying? Is the current price justified?)
+
+5. RISKS AND SCENARIOS (bull/base/bear from the valuation outputs, plus qualitative risks from your knowledge of the business and industry)
+
+6. METHODOLOGY AND CONFIDENCE (what methods were used, what data quality issues exist, what could be wrong with this analysis)`;
+  }
+
+  const prompt = `You are writing a stock ${valuationWithheld ? "facts and analysis" : "valuation analyst"} report for ${facts.companyName} (${facts.ticker}).
 
 You are working from LOCKED deterministic outputs. These numbers have been computed from SEC XBRL filings and market data. You may NOT:
 - Introduce any new numeric facts
 - Change any values from the data below
 - Fetch new prices or recompute TTM figures
-- Override the valuation outputs
+- Override the valuation outputs or gate decisions
 
 You MAY:
 - Interpret and explain the numbers
@@ -132,19 +182,7 @@ ${valuationText}
 
 ${qaText}
 
-Write a structured analyst report with these sections:
-
-1. EXECUTIVE SUMMARY (3-4 sentences: verdict, key reason, confidence level)
-
-2. BUSINESS OVERVIEW (what the company does, competitive position, recent developments — use your knowledge but do not introduce new financial numbers)
-
-3. FINANCIAL ANALYSIS (interpret the model outputs above — margins, cash conversion, cycle state, normalization. Explain what the numbers mean for the investment case)
-
-4. VALUATION (explain the DCF assumptions and result, the multiples comparison, the reverse DCF interpretation. What is the market implying? Is the current price justified?)
-
-5. RISKS AND SCENARIOS (bull/base/bear from the valuation outputs, plus qualitative risks from your knowledge of the business and industry)
-
-6. METHODOLOGY AND CONFIDENCE (what methods were used, what data quality issues exist, what could be wrong with this analysis)
+${valuationInstructions}
 
 Be factual and measured. Do not give investment advice. Do not use markdown formatting.`;
 

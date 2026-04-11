@@ -234,46 +234,109 @@ export async function generateStockValuation(
     const valuationOutputs = runValuationEngine(facts, financialModel, framework);
     report(2, "complete");
 
-    // Stage 3: Deterministic QA
+    // Stage 3: Deterministic QA — two-stage publish gate
     report(3, "running");
     const qaReport = runQaValidation(facts, financialModel, valuationOutputs);
+    const gate = qaReport.gateDecision;
     report(3, "complete");
 
-    // Stage 4: LLM narrative (locked to artifacts)
-    report(4, "running");
-    const narrative = await generateNarrative(facts, financialModel, valuationOutputs, qaReport);
-    report(4, "complete");
+    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    let narrative = "";
+    let redTeam = "";
+    let structuredInsights: StockValuationInsights | null = null;
 
-    // Stage 5: Red-team review
-    report(5, "running");
-    const redTeam = await redTeamReview(
-      narrative,
-      `Price: $${facts.currentPrice.value} | EPS: $${facts.ttmDilutedEPS.value} | P/E: ${facts.trailingPE.value}`,
-      `Verdict: ${valuationOutputs.verdict} | DCF: $${valuationOutputs.dcf?.perShareValue.toFixed(2) ?? "N/A"}`
-    );
-    report(5, "complete");
+    if (gate.status === "WITHHOLD_ALL") {
+      // Gate 1 failed — diagnostic only, no narrative
+      report(4, "running");
+      narrative = `VALUATION WITHHELD — DIAGNOSTIC ONLY\n\nThe facts gate blocked publication due to ${gate.factsGateFailures.length} critical failure(s):\n${gate.factsGateFailures.map(f => `- ${f}`).join("\n")}\n\nNo valuation, fair value, target price, or investment conclusion is provided.`;
+      report(4, "complete");
+      report(5, "running");
+      redTeam = "Skipped — facts gate did not pass.";
+      report(5, "complete");
+    } else if (!gate.valuationPublishable) {
+      // Gate 2 failed — publish facts only, no valuation verdict
+      report(4, "running");
+      narrative = await generateNarrative(facts, financialModel, valuationOutputs, qaReport);
+      report(4, "complete");
+      report(5, "running");
+      redTeam = await redTeamReview(
+        narrative,
+        `Price: $${facts.currentPrice.value} | EPS: $${facts.ttmDilutedEPS.value} | P/E: ${facts.trailingPE.value}`,
+        `Gate: ${gate.status} | Valuation withheld due to: ${gate.valuationGateFailures.join("; ")}`
+      );
+      report(5, "complete");
+    } else {
+      // Both gates passed — full report
+      report(4, "running");
+      narrative = await generateNarrative(facts, financialModel, valuationOutputs, qaReport);
+      report(4, "complete");
+      report(5, "running");
+      redTeam = await redTeamReview(
+        narrative,
+        `Price: $${facts.currentPrice.value} | EPS: $${facts.ttmDilutedEPS.value} | P/E: ${facts.trailingPE.value}`,
+        `Verdict: ${valuationOutputs.verdict} | DCF: $${valuationOutputs.dcf?.perShareValue.toFixed(2) ?? "N/A"}`
+      );
+      report(5, "complete");
+    }
+
+    // Gate status label for the report
+    const gateStatusLabel = gate.status === "WITHHOLD_ALL"
+      ? "WITHHOLD_ALL — diagnostic only"
+      : gate.status === "PUBLISH_FACTS_ONLY"
+        ? "FACTS_PUBLISHABLE / VALUATION_VERDICT_WITHHELD"
+        : gate.status === "PUBLISH_WITH_WARNINGS"
+          ? "PUBLISHED_WITH_WARNINGS"
+          : "PUBLISHED";
+
+    // Build valuation section only if gate allows
+    let valuationSection = "";
+    if (gate.valuationPublishable) {
+      valuationSection = `\nVALUATION VERDICT: ${valuationOutputs.verdict}
+Confidence: ${(valuationOutputs.confidenceScore * 100).toFixed(0)}%
+${valuationOutputs.dcf ? `DCF Fair Value: $${valuationOutputs.dcf.perShareValue.toFixed(2)}/share` : "DCF: Not computed"}
+${valuationOutputs.marginOfSafety !== null ? `Margin of Safety: ${(valuationOutputs.marginOfSafety * 100).toFixed(1)}%` : ""}
+`;
+    } else {
+      valuationSection = `\nVALUATION STATUS: WITHHELD
+Reason: ${gate.valuationGateFailures.join("; ")}
+No fair value, target price, margin of safety, or investment conclusion is provided.
+`;
+    }
 
     // Assemble final document
-    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     const researchDocument = `${facts.companyName} (${facts.ticker}) — Stock Valuation Report v2
 Generated: ${date}
 Source: SEC EDGAR XBRL + Market Data (deterministic pipeline)
-Status: ${qaReport.status}
-
+Publish Gate: ${gateStatusLabel}
+${valuationSection}
 ANALYST REPORT
 ${narrative}
 
 RED-TEAM REVIEW
 ${redTeam}
 
-QA REPORT (${qaReport.issues.length} issues)
-${qaReport.issues.length === 0 ? "All checks passed." : qaReport.issues.map(i => `[${i.severity.toUpperCase()}] ${i.location}: ${i.error} (correct: ${i.correctValue})`).join("\n")}`;
+QA REPORT (${qaReport.issues.length} issues, gate: ${gate.status})
+${qaReport.issues.length === 0 ? "All fact checks passed." : qaReport.issues.map(i => `[${i.severity.toUpperCase()}] ${i.location}: ${i.error} (correct: ${i.correctValue})`).join("\n")}
+${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.valuationGateFailures.map(f => `- ${f}`).join("\n")}` : ""}`;
 
     // Stage 6: Build structured insights
     report(6, "running");
-    let structuredInsights: StockValuationInsights | null = null;
     try {
       structuredInsights = await buildStructuredInsights(facts, financialModel, valuationOutputs, qaReport, narrative);
+
+      // Enforce leak prevention: strip valuation fields when verdict is withheld
+      if (!gate.valuationPublishable && structuredInsights) {
+        structuredInsights.intrinsicValue = null;
+        structuredInsights.marginOfSafety = null;
+        structuredInsights.verdict = "Withheld";
+        structuredInsights.verdictReason = gate.valuationGateFailures.join("; ");
+        structuredInsights.confidence = "N/A";
+        structuredInsights.confidenceReason = "Valuation withheld — confidence not applicable";
+        structuredInsights.dcfSummary = "DCF valuation withheld — cycle-normalization prerequisites not met.";
+        structuredInsights.bullCase = "Withheld";
+        structuredInsights.baseCase = "Withheld";
+        structuredInsights.bearCase = "Withheld";
+      }
     } catch (err) {
       console.warn(`Warning: structured insights extraction failed: ${err}`);
     }
@@ -286,11 +349,17 @@ ${qaReport.issues.length === 0 ? "All checks passed." : qaReport.issues.map(i =>
       facts.latestQuarterlyFiling?.accession,
     ].filter(Boolean).join(",");
 
+    // Map gate status to legacy status for DB compatibility
+    const dbStatus = gate.status === "WITHHOLD_ALL" ? "withheld"
+      : gate.status === "PUBLISH_FACTS_ONLY" ? "published_with_warnings"
+      : gate.status === "PUBLISH_WITH_WARNINGS" ? "published_with_warnings"
+      : "published";
+
     await db.insert(stockValuations).values({
       ticker: upperTicker,
       companyName: facts.companyName,
       cik: facts.cik,
-      status: qaReport.status,
+      status: dbStatus,
       frameworkType: framework.type,
       canonicalFacts: facts as unknown as Record<string, unknown>,
       financialModel: financialModel as unknown as Record<string, unknown>,

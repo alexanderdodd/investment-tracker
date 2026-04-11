@@ -3,9 +3,9 @@ export interface StockValuationInsights {
   ticker: string;
   companyName: string;
   sector: string;
-  verdict: "Undervalued" | "Fair Value" | "Overvalued";
+  verdict: "Undervalued" | "Fair Value" | "Overvalued" | "Withheld";
   verdictReason: string;
-  confidence: "High" | "Medium" | "Low";
+  confidence: "High" | "Medium" | "Low" | "N/A";
   confidenceReason: string;
   currentPrice: number | null;
   intrinsicValue: number | null;
