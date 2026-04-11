@@ -11,6 +11,7 @@ export interface SectorInsights {
   forwardPE: number | null;
 
   // Overview tab
+  headline: string;
   performanceSummary: string;
   topDrivers: { label: string; detail: string }[];
   topRisks: { label: string; detail: string }[];

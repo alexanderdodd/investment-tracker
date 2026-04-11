@@ -28,6 +28,8 @@ Produce a JSON object with EXACTLY this schema. Every field is required.
   "confidenceReason": "<1 sentence explaining confidence level, e.g. 'Medium because structural drivers are clear but near-term rate sensitivity adds uncertainty'>",
   "forwardPE": <number or null if unknown>,
 
+  "headline": "<2-4 sentences written for someone with no finance background. Explain in plain, relatable language: what does this sector do, how has it been doing lately (good/bad/mixed), what's the main thing driving it, and what's the outlook. Use analogies or everyday comparisons where helpful. Avoid all jargon — no P/E, no basis points, no 'multiple expansion'. Include one or two key numbers but explain what they mean. This should read like a friend explaining it over coffee.>",
+
   "performanceSummary": "<1-2 sentences: how the sector performed vs S&P 500, with specific numbers>",
 
   "topDrivers": [
