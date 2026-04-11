@@ -9,7 +9,8 @@
  */
 
 const BASE = "https://data.sec.gov";
-const USER_AGENT = "InvestmentTracker/1.0 (investment-tracker-app)";
+// SEC requires User-Agent in format "Company Name Contact@email.com"
+const USER_AGENT = "InvestmentTracker support@investment-tracker.app";
 const MIN_REQUEST_INTERVAL_MS = 120; // ~8 req/s to stay safely under 10
 
 let lastRequestTime = 0;
@@ -42,22 +43,84 @@ let tickerToCikMap: Record<string, string> | null = null;
 async function loadTickerMap(): Promise<Record<string, string>> {
   if (tickerToCikMap) return tickerToCikMap;
 
-  const res = await throttledFetch("https://www.sec.gov/files/company_tickers.json");
-  const data: Record<string, { cik_str: number; ticker: string; title: string }> =
-    await res.json();
+  try {
+    const res = await throttledFetch("https://www.sec.gov/files/company_tickers.json");
+    const data: Record<string, { cik_str: number; ticker: string; title: string }> =
+      await res.json();
 
-  tickerToCikMap = {};
-  for (const entry of Object.values(data)) {
-    tickerToCikMap[entry.ticker.toUpperCase()] = String(entry.cik_str).padStart(10, "0");
+    tickerToCikMap = {};
+    for (const entry of Object.values(data)) {
+      tickerToCikMap[entry.ticker.toUpperCase()] = String(entry.cik_str).padStart(10, "0");
+    }
+    return tickerToCikMap;
+  } catch {
+    // Fallback: return empty map, individual lookups will use search API
+    tickerToCikMap = {};
+    return tickerToCikMap;
   }
-  return tickerToCikMap;
 }
 
+/**
+ * Resolve ticker to CIK using the company_tickers.json file,
+ * with fallback to EDGAR's full-text search API.
+ */
 export async function resolveTickerToCIK(ticker: string): Promise<string> {
+  const upper = ticker.toUpperCase();
+
+  // Try the bulk ticker map first
   const map = await loadTickerMap();
-  const cik = map[ticker.toUpperCase()];
-  if (!cik) throw new Error(`No CIK found for ticker: ${ticker}`);
-  return cik;
+  if (map[upper]) return map[upper];
+
+  // Fallback: use EDGAR company search API
+  const searchUrl = `https://efts.sec.gov/LATEST/search-index?q=%22${upper}%22&dateRange=custom&forms=10-K&from=0&size=1`;
+  try {
+    const res = await throttledFetch(searchUrl);
+    const data = await res.json();
+    const hits = data?.hits?.hits;
+    if (hits && hits.length > 0) {
+      // Extract CIK from the accession number or _source
+      const source = hits[0]._source || hits[0];
+      const entityName = source?.entity_name;
+      const fileNum = source?.file_num;
+      // Try to get CIK from the filing index
+      if (source?.entity_id) {
+        return String(source.entity_id).padStart(10, "0");
+      }
+    }
+  } catch {
+    // Search API also failed
+  }
+
+  // Fallback: try the company tickers exchange JSON
+  try {
+    const res = await throttledFetch(`${BASE}/submissions/CIK${upper.padStart(10, "0")}.json`);
+    const data = await res.json();
+    if (data?.cik) {
+      return String(data.cik).padStart(10, "0");
+    }
+  } catch {
+    // Direct CIK lookup failed
+  }
+
+  // Last resort: try EDGAR company search
+  try {
+    const searchRes = await fetch(
+      `https://efts.sec.gov/LATEST/search-index?q=%22${upper}%22&forms=10-K`,
+      { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } }
+    );
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      // Parse CIK from results if available
+      const firstHit = data?.hits?.hits?.[0];
+      if (firstHit?._source?.entity_id) {
+        return String(firstHit._source.entity_id).padStart(10, "0");
+      }
+    }
+  } catch {
+    // All fallbacks exhausted
+  }
+
+  throw new Error(`No CIK found for ticker: ${ticker}. SEC EDGAR lookup failed.`);
 }
 
 // ---------------------------------------------------------------------------
