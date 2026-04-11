@@ -443,6 +443,82 @@ function computeScenarios(
 }
 
 // ---------------------------------------------------------------------------
+// 5b. Multiples-based scenarios (fallback when DCF is unavailable)
+// ---------------------------------------------------------------------------
+
+function computeMultiplesBasedScenarios(
+  facts: CanonicalFacts,
+  multiples: MultiplesOutputs
+): ValuationOutputs["scenarios"] {
+  const price = val(facts.currentPrice, 0);
+  if (price <= 0) return null;
+
+  const pe = multiples.current.pe;
+  const pb = multiples.current.pb;
+  const bvps = val(facts.bookValuePerShare);
+
+  // Try P/E-based scenarios if we have earnings
+  if (pe !== null && pe > 0 && pe < 200) {
+    // Assume P/E can range ±30% around current for bull/bear
+    const bullPE = pe * 1.3;
+    const bearPE = pe * 0.7;
+    const eps = facts.ttmDilutedEPS.value;
+    if (eps !== null && eps > 0) {
+      return {
+        bull: {
+          perShareValue: Math.round(eps * bullPE * 100) / 100,
+          assumptions: `P/E expands to ${bullPE.toFixed(1)}x on improving fundamentals`,
+        },
+        base: {
+          perShareValue: price,
+          assumptions: `Current P/E of ${pe.toFixed(1)}x maintained — fairly valued at current multiples`,
+        },
+        bear: {
+          perShareValue: Math.round(eps * bearPE * 100) / 100,
+          assumptions: `P/E compresses to ${bearPE.toFixed(1)}x on deteriorating outlook`,
+        },
+      };
+    }
+  }
+
+  // Try P/B-based scenarios for companies without positive earnings
+  if (pb !== null && pb > 0 && bvps > 0) {
+    const bullPB = pb * 1.3;
+    const bearPB = Math.max(0.5, pb * 0.6);
+    return {
+      bull: {
+        perShareValue: Math.round(bvps * bullPB * 100) / 100,
+        assumptions: `P/B expands to ${bullPB.toFixed(1)}x on improved returns`,
+      },
+      base: {
+        perShareValue: price,
+        assumptions: `Current P/B of ${pb.toFixed(1)}x maintained`,
+      },
+      bear: {
+        perShareValue: Math.round(bvps * bearPB * 100) / 100,
+        assumptions: `P/B compresses to ${bearPB.toFixed(1)}x on weaker fundamentals`,
+      },
+    };
+  }
+
+  // Last resort: simple ±25% range around current price
+  return {
+    bull: {
+      perShareValue: Math.round(price * 1.25 * 100) / 100,
+      assumptions: "25% upside from improving fundamentals and sentiment",
+    },
+    base: {
+      perShareValue: price,
+      assumptions: "Current price maintained — insufficient data for intrinsic valuation",
+    },
+    bear: {
+      perShareValue: Math.round(price * 0.75 * 100) / 100,
+      assumptions: "25% downside from deteriorating fundamentals or market conditions",
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 6. Main entry point
 // ---------------------------------------------------------------------------
 
@@ -455,7 +531,15 @@ export function runValuationEngine(
   const multiples = computeMultiples(facts, model);
   const waccDeriv = computeWacc(facts);
   const reverseDcf = computeReverseDcf(facts, waccDeriv);
-  const scenarios = dcf ? computeScenarios(dcf, facts, model) : null;
+
+  // Scenarios: try DCF-based, fall back to multiples-based
+  let scenarios: ValuationOutputs["scenarios"] = null;
+  if (dcf) {
+    scenarios = computeScenarios(dcf, facts, model);
+  }
+  if (!scenarios) {
+    scenarios = computeMultiplesBasedScenarios(facts, multiples);
+  }
 
   const price = val(facts.currentPrice, 0);
 
