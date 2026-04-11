@@ -73,6 +73,32 @@ const STAGES = [
 // Structured insights extraction (from deterministic outputs, not narrative)
 // ---------------------------------------------------------------------------
 
+function buildFallbackSensitivityFactors(facts: CanonicalFacts, model: FinancialModelOutputs): string[] {
+  const factors: string[] = [];
+
+  if (facts.trailingPE.value !== null) {
+    factors.push(`Earnings multiple: a 5x change in P/E moves the stock by ~$${((facts.ttmDilutedEPS.value ?? 0) * 5).toFixed(0)} per share`);
+  }
+  if (model.cashConversionRatio !== null) {
+    factors.push(`Cash conversion: the ability to turn reported earnings into actual cash flow is a key swing factor (current ratio: ${model.cashConversionRatio.toFixed(1)}x)`);
+  }
+  if (model.debtToEquity !== null && model.debtToEquity > 0.5) {
+    factors.push(`Leverage: with D/E of ${model.debtToEquity.toFixed(2)}, interest rate changes materially affect financing costs and equity value`);
+  }
+  if (model.cycleState === "peak" || model.cycleState === "above_mid") {
+    factors.push(`Cycle position: current margins are well above historical averages — reversion to mid-cycle would significantly reduce earnings`);
+  }
+
+  // Always include at least one generic factor
+  if (factors.length === 0) {
+    factors.push("Revenue growth trajectory is the primary driver of valuation");
+    factors.push("Operating margin expansion or compression has an outsized impact on intrinsic value");
+    factors.push("Competitive dynamics and market share trends could shift the earnings outlook materially");
+  }
+
+  return factors;
+}
+
 async function buildStructuredInsights(
   facts: CanonicalFacts,
   model: FinancialModelOutputs,
@@ -160,7 +186,7 @@ Do not give investment advice. Return ONLY valid JSON.`,
     keyDrivers,
     sensitivityFactors: valuation.dcf?.sensitivityGrid
       ? [`WACC sensitivity: ${valuation.dcf.sensitivityGrid.map(s => `$${s.perShareValue.toFixed(0)} at ${(s.wacc * 100).toFixed(1)}%`).join(", ")}`]
-      : [],
+      : buildFallbackSensitivityFactors(facts, model),
     catalysts,
   };
 }
