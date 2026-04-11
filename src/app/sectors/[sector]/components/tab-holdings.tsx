@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import {
   type StockMetrics,
   type MetricRating,
@@ -129,11 +130,22 @@ export function TabHoldings({
                     >
                       <td className="px-4 py-3 text-sm text-zinc-400">{i + 1}</td>
                       <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                          {holding.symbol}
-                          <PreProfitBadge metrics={m} />
-                        </p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{holding.name}</p>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                              {holding.symbol}
+                              <PreProfitBadge metrics={m} />
+                            </p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">{holding.name}</p>
+                          </div>
+                          <Link
+                            href={`/stocks/${holding.symbol}/valuation`}
+                            className="shrink-0 rounded-md border border-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+                            title={`Deep valuation analysis for ${holding.symbol}`}
+                          >
+                            Value
+                          </Link>
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
                         {holding.weight.toFixed(2)}%
@@ -190,11 +202,22 @@ export function TabHoldings({
                     >
                       <td className="px-4 py-3 text-sm text-zinc-400">{leader.rank}</td>
                       <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                          {leader.ticker}
-                          <PreProfitBadge metrics={m} />
-                        </p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{leader.companyName}</p>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                              {leader.ticker}
+                              <PreProfitBadge metrics={m} />
+                            </p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">{leader.companyName}</p>
+                          </div>
+                          <Link
+                            href={`/stocks/${leader.ticker}/valuation`}
+                            className="shrink-0 rounded-md border border-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+                            title={`Deep valuation analysis for ${leader.ticker}`}
+                          >
+                            Value
+                          </Link>
+                        </div>
                       </td>
                       <td className="max-w-xs px-3 py-3 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
                         {leader.rationale}
