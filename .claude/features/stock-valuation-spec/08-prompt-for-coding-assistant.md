@@ -33,7 +33,7 @@ Build the deterministic filing-first valuation pipeline and RALPH loop described
 - two-stage publish gate:
   - facts gate
   - valuation gate
-- artifact bundle emission on every run
+- artifact persistence to Postgres on every run (canonical facts, model, valuation, QA/gate, narrative, insights)
 - RALPH loop:
   Reconcile -> Audit -> Localize -> Patch -> Harden
 
@@ -105,7 +105,7 @@ Build the deterministic filing-first valuation pipeline and RALPH loop described
 For each iteration:
 
 A. Run candidate workflow on MU frozen fixture.
-B. Emit full artifact bundle:
+B. Persist all artifacts to Postgres (the DB is the artifact store):
 - raw sources
 - parsed statement tables
 - quarter manifest
@@ -153,7 +153,7 @@ G. Continue until expected gate state and exact baseline facts are achieved.
 - TTM math reconciles exactly from quarter manifest.
 - Publish gate returns FACTS_PUBLISHABLE / VALUATION_VERDICT_WITHHELD for the frozen baseline.
 - Any intentionally broken fixture causes WITHHOLD_ALL.
-- Full artifact bundle is emitted on every iteration.
+- All artifacts are persisted to Postgres on every iteration.
 
 ## Mandatory iteration report — write to disk after every iteration
 

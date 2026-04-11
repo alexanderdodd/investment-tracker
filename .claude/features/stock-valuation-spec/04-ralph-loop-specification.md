@@ -300,51 +300,32 @@ It returns:
 
 - sector-specific benchmark packs
 
-## 12. Artifact contract per iteration
+## 12. Artifact persistence
 
-```text
-/run_{timestamp}_{iteration}/
-  manifest.json
-  source_bundle/
-    sec/
-      latest_10q.html
-      latest_10q_ixbrl.xml
-      latest_10k.html
-      latest_10k_ixbrl.xml
-      prior_quarter_sources/
-    market/
-      quote_snapshot.json
-  extracted/
-    statement_tables.json
-    discrete_quarters.json
-    annual_history.json
-    canonical_facts.json
-    evidence_pack.json
-  validation/
-    rule_results.json
-    fact_reconciliation.json
-    period_identity.json
-    history_coverage.json
-    valuation_prereqs.json
-  model/
-    financial_model.json
-    valuation_outputs.json
-    gate_decision.json
-  llm/
-    narrative_prompt.txt
-    narrative_response.md
-    redteam_prompt.txt
-    redteam_response.md
-    diagnosis_prompt.txt
-    diagnosis_response.json
-  regression/
-    diff_vs_golden.json
-    suite_scorecard.json
-  patch/
-    patch_plan.md
-    candidate_patch.diff
-  summary/
-    iteration_report.md
+All pipeline artifacts are persisted to the **Postgres database** via the `stock_valuations` table. Each run stores the following as JSONB columns:
+
+- `canonicalFacts` — full extracted facts with provenance
+- `financialModel` — cycle state, normalization, ratios
+- `valuationOutputs` — DCF, multiples, scenarios, verdict
+- `qualityReport` — QA issues + gate decision (includes `gateDecision` with status, failures)
+- `researchDocument` — the complete generated report text
+- `structuredInsights` — dashboard-ready summaries
+- `sourceAccessions` — filing accession numbers for traceability
+
+The database is the authoritative artifact store. A file-based artifact bundle is **not required** — the DB provides full queryability, auditability, and persistence. All fields needed for forensic review (provenance, gate failures, validation results) are stored in the JSONB columns.
+
+### Querying artifacts
+
+To inspect a specific run:
+
+```sql
+SELECT status, "qualityReport"->'gateDecision' as gate,
+       "canonicalFacts"->'quartersUsed' as quarters,
+       "generatedAt"
+FROM stock_valuations
+WHERE ticker = 'MU'
+ORDER BY "generatedAt" DESC
+LIMIT 1;
 ```
 
 ## 13. Mandatory iteration report

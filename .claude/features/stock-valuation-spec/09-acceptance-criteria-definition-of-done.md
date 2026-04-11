@@ -17,7 +17,7 @@
 | `MU-GATE-002` | valuation gate | withhold for golden baseline |
 | `MU-GATE-003` | no verdict leak | no fair value, target price, margin of safety, or valuation confidence in golden output |
 | `BROKEN-FIX-001` | critical failure behavior | intentionally broken fixture returns `WITHHOLD_ALL` |
-| `RLOOP-001` | artifact completeness | every iteration emits full artifact bundle |
+| `RLOOP-001` | artifact persistence | every pipeline run persists canonical facts, financial model, valuation outputs, QA report (with gate decision), research document, and structured insights to the Postgres database |
 | `RLOOP-002` | iteration report written | every iteration writes generated-report.md, iteration-changes.md, and evaluation-scorecard.md to ralph-loop-reports/iteration-{N}/ |
 | `REG-001` | no regression | accepted patch must not worsen any prior passing benchmark |
 

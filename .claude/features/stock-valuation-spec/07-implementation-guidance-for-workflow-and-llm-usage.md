@@ -110,19 +110,21 @@ src/
 
 ## 6. Logging and evidence retention
 
-### Mandatory
+All pipeline artifacts are persisted to the **Postgres database** (`stock_valuations` table) as JSONB columns. This is the authoritative artifact store — a separate file-based artifact bundle is not required.
 
-- raw source retention
-- parsed statement tables
-- quarter manifest
-- formula traces for all derived metrics
-- validator results
-- publish decision
-- all LLM prompts and responses
+### Mandatory (stored in DB per run)
+
+- `canonicalFacts` — all extracted facts with provenance (source type, accession, method)
+- `financialModel` — cycle state, normalization, ratios, margin trends
+- `valuationOutputs` — DCF, multiples, scenarios, verdict, confidence
+- `qualityReport` — QA issues + two-stage gate decision (status, failures)
+- `researchDocument` — full generated report text (narrative + red-team + QA summary)
+- `structuredInsights` — dashboard-ready summaries
+- `sourceAccessions` — filing accession numbers for traceability
 
 ### Recommended
 
-- provenance graph viewer
+- provenance graph viewer (reads from DB JSONB)
 - HTML diff view versus golden snapshot
 
 ## 7. Golden regression fixture design
@@ -149,7 +151,7 @@ Use the frozen price snapshot for CI so the baseline stays stable. Use live pric
 - two-stage publish gate
 - Micron golden regression fixture
 - 5-year history loader for cyclical names
-- deterministic rule engine with artifact bundle
+- deterministic rule engine with DB-persisted artifacts
 
 ### Recommended next
 
