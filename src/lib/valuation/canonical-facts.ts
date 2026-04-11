@@ -90,6 +90,7 @@ export async function buildCanonicalFacts(ticker: string): Promise<CanonicalFact
   // Step 5: Balance sheet (latest instant values)
   const bsCash = xbrl.cashUnits ? getLatestInstantValue(xbrl.cashUnits) : null;
   const bsStInv = xbrl.shortTermInvestmentsUnits ? getLatestInstantValue(xbrl.shortTermInvestmentsUnits) : null;
+  const bsLtInv = xbrl.ltInvestmentsUnits ? getLatestInstantValue(xbrl.ltInvestmentsUnits) : null;
   const bsCurrDebt = xbrl.currentDebtUnits ? getLatestInstantValue(xbrl.currentDebtUnits) : null;
   const bsLtDebt = xbrl.longTermDebtUnits ? getLatestInstantValue(xbrl.longTermDebtUnits) : null;
   const bsEquity = xbrl.totalEquityUnits ? getLatestInstantValue(xbrl.totalEquityUnits) : null;
@@ -99,7 +100,7 @@ export async function buildCanonicalFacts(ticker: string): Promise<CanonicalFact
   const bsShares = xbrl.sharesOutstandingUnits ? getLatestInstantValue(xbrl.sharesOutstandingUnits) : null;
 
   // Totals
-  const totalCash = (bsCash?.value ?? 0) + (bsStInv?.value ?? 0);
+  const totalCash = (bsCash?.value ?? 0) + (bsStInv?.value ?? 0) + (bsLtInv?.value ?? 0);
   const totalDebt = (bsCurrDebt?.value ?? 0) + (bsLtDebt?.value ?? 0);
   const bsDate = bsCash?.date ?? bsEquity?.date ?? today;
 
@@ -192,7 +193,7 @@ export async function buildCanonicalFacts(ticker: string): Promise<CanonicalFact
 
     cash: pv(bsCash?.value ?? null, "USD", "point-in-time", bsDate, "SEC_XBRL", src(xbrl.matchedTags["cash"] ?? ""), "latest filing"),
     shortTermInvestments: pv(bsStInv?.value ?? null, "USD", "point-in-time", bsDate, "SEC_XBRL", src(xbrl.matchedTags["shortTermInvestments"] ?? ""), "latest filing"),
-    totalCashAndInvestments: pv(totalCash, "USD", "point-in-time", bsDate, "COMPUTED", "cash + shortTermInvestments", "addition"),
+    totalCashAndInvestments: pv(totalCash, "USD", "point-in-time", bsDate, "COMPUTED", "cash + shortTermInvestments + ltInvestments", "addition"),
     currentDebt: pv(bsCurrDebt?.value ?? null, "USD", "point-in-time", bsDate, "SEC_XBRL", src(xbrl.matchedTags["currentDebt"] ?? ""), "latest filing"),
     longTermDebt: pv(bsLtDebt?.value ?? null, "USD", "point-in-time", bsDate, "SEC_XBRL", src(xbrl.matchedTags["longTermDebt"] ?? ""), "latest filing"),
     totalDebt: pv(totalDebt, "USD", "point-in-time", bsDate, "COMPUTED", "currentDebt + longTermDebt", "addition"),

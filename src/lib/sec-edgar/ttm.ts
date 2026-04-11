@@ -1,178 +1,318 @@
 /**
- * TTM (Trailing Twelve Months) calculator.
+ * TTM (Trailing Twelve Months) calculator — v3 statement-table-first.
  *
- * Constructs TTM values by summing the last 4 discrete quarterly values
- * from XBRL data.  Handles the common case where Q4 is not separately
- * reported but must be derived as FY - (Q1 + Q2 + Q3).
+ * Strategy: find the latest 4 discrete quarters by walking backward from
+ * the most recent calendar quarter frame. Derive Q4 from FY annual when
+ * it's not reported as a separate discrete quarter.
  */
 
 import type { XbrlUnit } from "./client";
-import { getValueForPeriod } from "./xbrl-mapper";
 
 export interface QuarterlyValue {
   fiscalYear: number;
-  fiscalPeriod: string; // "Q1", "Q2", "Q3", "Q4"
+  fiscalPeriod: string;
+  calendarFrame: string;
+  endDate: string;
   value: number;
   accession: string;
-  derived: boolean; // true if Q4 was derived from FY - Q1 - Q2 - Q3
+  derived: boolean;
 }
 
 export interface TtmResult {
   value: number;
   quarters: QuarterlyValue[];
-  quartersLabel: string; // e.g. "Q3 FY25 + Q4 FY25 + Q1 FY26 + Q2 FY26"
+  quartersLabel: string;
+}
+
+interface DiscreteEntry {
+  frame: string;
+  fy: number;
+  fp: string;
+  start: string;
+  end: string;
+  val: number;
+  accn: string;
+  durationDays: number;
 }
 
 /**
- * Identify the latest 4 fiscal quarters available in the XBRL data.
- * Returns them in chronological order [oldest, ..., newest].
+ * Extract all discrete (single-quarter) entries from XBRL units.
+ * A discrete entry is one with the shortest duration for a given fy+fp,
+ * or one that has a calendar quarter frame (CY####Q#).
  */
-function identifyLatest4Quarters(units: XbrlUnit[]): { fy: number; fp: string }[] {
-  // Collect all quarterly and annual period markers from 10-K/10-Q filings
-  const quarters: { fy: number; fp: string; end: string }[] = [];
-  const annuals: { fy: number; end: string }[] = [];
+function getDiscreteEntries(units: XbrlUnit[]): DiscreteEntry[] {
+  const result: DiscreteEntry[] = [];
+  const seenFrames = new Set<string>();
 
+  // First pass: get all framed entries (these are definitively discrete)
   for (const u of units) {
     if (u.form !== "10-K" && u.form !== "10-Q") continue;
-    if (!u.start || !u.end) continue; // skip instant values
+    if (!u.frame || !u.start || !u.end) continue;
+    if (u.fp === "FY") continue;
 
-    if (u.fp === "FY") {
-      if (!annuals.some((a) => a.fy === u.fy)) {
-        annuals.push({ fy: u.fy, end: u.end });
-      }
-    } else if (["Q1", "Q2", "Q3"].includes(u.fp)) {
-      if (!quarters.some((q) => q.fy === u.fy && q.fp === u.fp)) {
-        quarters.push({ fy: u.fy, fp: u.fp, end: u.end });
-      }
-    }
+    const frameKey = u.frame.replace("I", "");
+    if (seenFrames.has(frameKey)) continue;
+    seenFrames.add(frameKey);
+
+    const duration = (new Date(u.end).getTime() - new Date(u.start).getTime()) / (1000 * 60 * 60 * 24);
+
+    result.push({
+      frame: frameKey,
+      fy: u.fy,
+      fp: u.fp,
+      start: u.start,
+      end: u.end,
+      val: u.val,
+      accn: u.accn,
+      durationDays: duration,
+    });
   }
 
-  // Sort by end date descending
-  quarters.sort((a, b) => (b.end > a.end ? 1 : -1));
-  annuals.sort((a, b) => (b.end > a.end ? 1 : -1));
-
-  // Build the latest 4 quarters
-  // Strategy: take the most recent quarters, deriving Q4 if needed
-  const result: { fy: number; fp: string }[] = [];
-  const seen = new Set<string>();
-
-  // First pass: collect actual quarterly data points
-  for (const q of quarters) {
-    const key = `${q.fy}-${q.fp}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push({ fy: q.fy, fp: q.fp });
-    }
-  }
-
-  // Check if we need to synthesize Q4 for any fiscal year
-  for (const annual of annuals) {
-    const q4Key = `${annual.fy}-Q4`;
-    if (!seen.has(q4Key)) {
-      // Check if we have Q1, Q2, Q3 for this year
-      const hasQ1 = seen.has(`${annual.fy}-Q1`);
-      const hasQ2 = seen.has(`${annual.fy}-Q2`);
-      const hasQ3 = seen.has(`${annual.fy}-Q3`);
-      if (hasQ1 && hasQ2 && hasQ3) {
-        seen.add(q4Key);
-        result.push({ fy: annual.fy, fp: "Q4" });
-      }
-    }
-  }
-
-  // Sort chronologically: by FY then Q1<Q2<Q3<Q4
-  const qOrder: Record<string, number> = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
-  result.sort((a, b) => {
-    if (a.fy !== b.fy) return a.fy - b.fy;
-    return (qOrder[a.fp] ?? 0) - (qOrder[b.fp] ?? 0);
-  });
-
-  // Take the last 4
-  return result.slice(-4);
+  return result;
 }
 
 /**
- * Compute TTM by summing the last 4 discrete quarters.
- * Derives Q4 as FY - Q1 - Q2 - Q3 when Q4 is not separately reported.
+ * Get all FY (full-year) entries for deriving Q4.
  */
-export function computeTTM(units: XbrlUnit[]): TtmResult | null {
-  const latest4 = identifyLatest4Quarters(units);
-  if (latest4.length < 4) return null;
+function getAnnualEntries(units: XbrlUnit[]): { fy: number; start: string; end: string; val: number }[] {
+  const byFyEnd = new Map<string, { fy: number; start: string; end: string; val: number; duration: number }>();
 
-  const quarters: QuarterlyValue[] = [];
+  for (const u of units) {
+    if (u.fp !== "FY" || !u.start || !u.end) continue;
+    if (u.form !== "10-K" && u.form !== "10-Q") continue;
 
-  for (const { fy, fp } of latest4) {
-    if (fp === "Q4") {
-      // Q4 is derived: FY - Q1 - Q2 - Q3
-      const fyVal = getValueForPeriod(units, fy, "FY");
-      const q1Val = getValueForPeriod(units, fy, "Q1");
-      const q2Val = getValueForPeriod(units, fy, "Q2");
-      const q3Val = getValueForPeriod(units, fy, "Q3");
+    const key = `${u.fy}-${u.end}`;
+    const duration = new Date(u.end).getTime() - new Date(u.start).getTime();
+    const existing = byFyEnd.get(key);
+    if (!existing || duration > existing.duration) {
+      byFyEnd.set(key, { fy: u.fy, start: u.start, end: u.end, val: u.val, duration });
+    }
+  }
 
-      if (fyVal === null || q1Val === null || q2Val === null || q3Val === null) {
-        return null; // Can't derive Q4
-      }
+  return Array.from(byFyEnd.values()).sort((a, b) => (b.end > a.end ? 1 : -1));
+}
 
-      quarters.push({
-        fiscalYear: fy,
-        fiscalPeriod: "Q4",
-        value: fyVal - q1Val - q2Val - q3Val,
-        accession: "derived",
-        derived: true,
-      });
-    } else {
-      const val = getValueForPeriod(units, fy, fp);
-      if (val === null) return null;
+/**
+ * Try to derive Q4 by finding FY annual entries where Q1+Q2+Q3 are known
+ * but Q4 is not a separate discrete entry.
+ */
+function deriveQ4Entries(
+  discreteEntries: DiscreteEntry[],
+  annualEntries: { fy: number; start: string; end: string; val: number }[]
+): DiscreteEntry[] {
+  const derived: DiscreteEntry[] = [];
 
-      // Find the accession for this quarter
-      const match = units.find(
-        (u) => u.fy === fy && u.fp === fp && u.start && (u.form === "10-Q" || u.form === "10-K")
-      );
+  for (const annual of annualEntries) {
+    const annualStart = new Date(annual.start).getTime();
+    const annualEnd = new Date(annual.end).getTime();
 
-      quarters.push({
-        fiscalYear: fy,
-        fiscalPeriod: fp,
-        value: val,
-        accession: match?.accn ?? "unknown",
-        derived: false,
+    // Find Q1, Q2, Q3 whose period falls WITHIN this annual period.
+    // This is critical for non-calendar fiscal years where the same fy number
+    // can refer to different periods in SEC EDGAR.
+    const q1 = discreteEntries.find(e => {
+      const eEnd = new Date(e.end).getTime();
+      return e.fp === "Q1" && eEnd > annualStart && eEnd <= annualEnd;
+    });
+    const q2 = discreteEntries.find(e => {
+      const eEnd = new Date(e.end).getTime();
+      return e.fp === "Q2" && eEnd > annualStart && eEnd <= annualEnd;
+    });
+    const q3 = discreteEntries.find(e => {
+      const eEnd = new Date(e.end).getTime();
+      return e.fp === "Q3" && eEnd > annualStart && eEnd <= annualEnd;
+    });
+
+    // Check if a Q4 already exists for this annual period
+    const hasQ4 = [...discreteEntries, ...derived].some(e => {
+      const eEnd = new Date(e.end).getTime();
+      return e.fp === "Q4" && Math.abs(eEnd - annualEnd) < 7 * 24 * 60 * 60 * 1000; // within 7 days
+    });
+
+    if (q1 && q2 && q3 && !hasQ4) {
+      const q4Val = annual.val - q1.val - q2.val - q3.val;
+      const q3EndDate = new Date(q3.end);
+      const q4StartDate = new Date(q3EndDate);
+      q4StartDate.setDate(q4StartDate.getDate() + 1);
+
+      derived.push({
+        frame: `FY${annual.fy}Q4_derived`,
+        fy: annual.fy,
+        fp: "Q4",
+        start: q4StartDate.toISOString().split("T")[0],
+        end: annual.end,
+        val: q4Val,
+        accn: "derived",
+        durationDays: 90,
       });
     }
   }
 
-  const ttmValue = quarters.reduce((sum, q) => sum + q.value, 0);
+  return derived;
+}
 
-  const quartersLabel = quarters
-    .map((q) => `${q.fiscalPeriod} FY${String(q.fiscalYear).slice(-2)}`)
-    .join(" + ");
+/**
+ * Compute TTM using cumulative approach for cash flow items.
+ *
+ * Cash flow statements in SEC XBRL are typically reported as cumulative
+ * (YTD) values. TTM = latest_cumulative + (prior_FY - equivalent_prior_cumulative).
+ *
+ * Example for a Q2 filing:
+ *   TTM = H1_current_year + (FY_prior - H1_prior_year)
+ *       = 20,314 + (17,525 - 7,186) = 30,653
+ */
+function computeTTMCumulative(units: XbrlUnit[]): TtmResult | null {
+  const filingEntries = units.filter(u =>
+    u.start && u.end && (u.form === "10-K" || u.form === "10-Q")
+  );
+
+  if (filingEntries.length === 0) return null;
+
+  // Find the latest non-FY cumulative entry (from the most recent 10-Q)
+  const cumulatives = filingEntries
+    .filter(u => u.fp !== "FY")
+    .sort((a, b) => (b.end! > a.end! ? 1 : -1));
+
+  if (cumulatives.length === 0) return null;
+
+  // Get the latest cumulative entry (could be Q1, Q2, or Q3)
+  // For each fp, there may be both short (discrete) and long (cumulative) entries
+  // We want the longest (most cumulative) entry for the latest filing
+  const latestEnd = cumulatives[0].end!;
+  const latestFy = cumulatives[0].fy;
+  const latestFp = cumulatives[0].fp;
+
+  // Get all entries for this fy+fp
+  const samePeriod = cumulatives.filter(u => u.fy === latestFy && u.fp === latestFp);
+  // Pick the longest duration (most cumulative)
+  samePeriod.sort((a, b) => {
+    const durA = new Date(a.end!).getTime() - new Date(a.start!).getTime();
+    const durB = new Date(b.end!).getTime() - new Date(b.start!).getTime();
+    return durB - durA;
+  });
+  const latestCumulative = samePeriod[0];
+  const latestCumVal = latestCumulative.val;
+  const latestCumStart = latestCumulative.start!;
+
+  // Find the prior FY annual entry that covers the year before this cumulative
+  const annuals = getAnnualEntries(units);
+  // The prior FY should end right before the cumulative starts (within a few days)
+  const priorFY = annuals.find(a => {
+    const fyEnd = new Date(a.end).getTime();
+    const cumStart = new Date(latestCumStart).getTime();
+    return Math.abs(fyEnd - cumStart) < 7 * 24 * 60 * 60 * 1000; // within 7 days
+  });
+
+  if (!priorFY) return null;
+
+  // Find the equivalent cumulative from the prior year
+  // Same fp, same fiscal year as the annual, longest duration
+  const priorCumulatives = filingEntries
+    .filter(u => {
+      if (u.fp !== latestFp) return false;
+      const uStart = new Date(u.start!).getTime();
+      const fyStart = new Date(priorFY.start).getTime();
+      return Math.abs(uStart - fyStart) < 7 * 24 * 60 * 60 * 1000;
+    })
+    .sort((a, b) => {
+      const durA = new Date(a.end!).getTime() - new Date(a.start!).getTime();
+      const durB = new Date(b.end!).getTime() - new Date(b.start!).getTime();
+      return durB - durA;
+    });
+
+  if (priorCumulatives.length === 0) return null;
+  const priorCumVal = priorCumulatives[0].val;
+
+  // TTM = latest_cumulative + (prior_FY - prior_equivalent_cumulative)
+  const ttmValue = latestCumVal + (priorFY.val - priorCumVal);
 
   return {
     value: ttmValue,
-    quarters,
-    quartersLabel,
+    quarters: [
+      { fiscalYear: priorFY.fy, fiscalPeriod: "remainder", calendarFrame: "derived", endDate: priorFY.end, value: priorFY.val - priorCumVal, accession: "derived_cumulative", derived: true },
+      { fiscalYear: latestFy, fiscalPeriod: latestFp + "_cumulative", calendarFrame: "cumulative", endDate: latestEnd, value: latestCumVal, accession: latestCumulative.accn, derived: false },
+    ],
+    quartersLabel: `${latestFp} FY${String(latestFy).slice(-2)} cumulative + FY${String(priorFY.fy).slice(-2)} remainder`,
   };
 }
 
 /**
+ * Compute TTM by finding the latest 4 discrete quarters and summing.
+ * Falls back to cumulative approach for cash flow items where discrete
+ * quarter frames are not available.
+ */
+export function computeTTM(units: XbrlUnit[]): TtmResult | null {
+  const discrete = getDiscreteEntries(units);
+  const annuals = getAnnualEntries(units);
+  const derivedQ4s = deriveQ4Entries(discrete, annuals);
+
+  // Combine all available quarters
+  const allQuarters = [...discrete, ...derivedQ4s];
+
+  // Sort by end date descending
+  allQuarters.sort((a, b) => (b.end > a.end ? 1 : -1));
+
+  // Take the latest 4
+  const latest4 = allQuarters.slice(0, 4);
+
+  if (latest4.length >= 4) {
+    // Verify the 4 quarters are contiguous (not 4 Q1s from different years)
+    // Check: they should span approximately 365 days total
+    const oldestEnd = new Date(latest4[latest4.length - 1].end).getTime();
+    const newestEnd = new Date(latest4[0].end).getTime();
+    const spanDays = (newestEnd - oldestEnd) / (1000 * 60 * 60 * 24);
+
+    // Also check: no duplicate fiscal periods in same fiscal year
+    const fpSet = new Set(latest4.map(q => `${q.fy}-${q.fp}`));
+    const isContiguous = spanDays > 250 && spanDays < 400 && fpSet.size === 4;
+
+    if (isContiguous) {
+      // Reverse to chronological order
+      latest4.reverse();
+
+      const quarters: QuarterlyValue[] = latest4.map((e) => ({
+        fiscalYear: e.fy,
+        fiscalPeriod: e.fp,
+        calendarFrame: e.frame,
+        endDate: e.end,
+        value: e.val,
+        accession: e.accn,
+        derived: e.accn === "derived",
+      }));
+
+      const ttmValue = quarters.reduce((sum, q) => sum + q.value, 0);
+      const quartersLabel = quarters
+        .map((q) => `${q.fiscalPeriod} FY${String(q.fiscalYear).slice(-2)}`)
+        .join(" + ");
+
+      return { value: ttmValue, quarters, quartersLabel };
+    }
+  }
+
+  // Fallback: use cumulative approach (for cash flow items)
+  return computeTTMCumulative(units);
+}
+
+/**
  * Build a 5-year annual history of a metric from XBRL units.
+ * Uses the longest-duration FY entry for each fiscal year.
  */
 export function buildAnnualHistory(
   units: XbrlUnit[],
   years = 5
 ): { fiscalYear: number; value: number }[] {
-  const annuals = units
-    .filter((u) => u.fp === "FY" && u.start && u.end && (u.form === "10-K" || u.form === "10-Q"))
-    .sort((a, b) => b.fy - a.fy)
-    .slice(0, years);
+  const annuals = getAnnualEntries(units);
 
-  // Deduplicate by fiscal year
-  const seen = new Set<number>();
-  const result: { fiscalYear: number; value: number }[] = [];
-  for (const u of annuals) {
-    if (!seen.has(u.fy)) {
-      seen.add(u.fy);
-      result.push({ fiscalYear: u.fy, value: u.val });
+  // Deduplicate by end date (same physical year can appear under different fy numbers)
+  const byEndYear = new Map<string, { fy: number; val: number }>();
+  for (const a of annuals) {
+    const endYear = a.end.substring(0, 4);
+    if (!byEndYear.has(endYear)) {
+      byEndYear.set(endYear, { fy: a.fy, val: a.val });
     }
   }
 
-  return result.sort((a, b) => a.fiscalYear - b.fiscalYear);
+  return Array.from(byEndYear.values())
+    .sort((a, b) => a.fy - b.fy)
+    .slice(-years)
+    .map((e) => ({ fiscalYear: e.fy, value: e.val }));
 }

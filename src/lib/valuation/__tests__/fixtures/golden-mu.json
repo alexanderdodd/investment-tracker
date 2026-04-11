@@ -1,0 +1,80 @@
+{
+  "ticker": "MU",
+  "companyName": "Micron Technology, Inc.",
+  "frozenPrice": 420.59,
+  "priceTimestamp": "2026-04-11T00:15:00Z",
+  "latestAnnualFiling": {
+    "accession": "0000723125-25-000028",
+    "periodEnd": "2025-08-28",
+    "filedDate": "2025-10-03"
+  },
+  "latestQuarterlyFiling": {
+    "accession": "0000723125-26-000006",
+    "periodEnd": "2026-02-26",
+    "filedDate": "2026-03-19"
+  },
+  "latestQuarter": {
+    "label": "Q2_FY2026",
+    "revenue": 23860,
+    "grossProfit": 17755,
+    "operatingIncome": 16135,
+    "netIncome": 13785,
+    "dilutedEPS": 12.07
+  },
+  "ttm": {
+    "quartersUsed": ["Q3_FY2025", "Q4_FY2025", "Q1_FY2026", "Q2_FY2026"],
+    "quarterValues": {
+      "Q3_FY2025": { "revenue": 9301, "grossProfit": 3508, "operatingIncome": 2169, "netIncome": 1885, "dilutedEPS": 1.68, "ocf": 4609, "capex": 2938 },
+      "Q4_FY2025": { "revenue": 11315, "grossProfit": 5054, "operatingIncome": 3654, "netIncome": 3201, "dilutedEPS": 2.83, "ocf": 5730, "capex": 5658 },
+      "Q1_FY2026": { "revenue": 13643, "grossProfit": 7646, "operatingIncome": 6136, "netIncome": 5240, "dilutedEPS": 4.60, "ocf": 8411, "capex": 5389 },
+      "Q2_FY2026": { "revenue": 23860, "grossProfit": 17755, "operatingIncome": 16135, "netIncome": 13785, "dilutedEPS": 12.07, "ocf": 11903, "capex": 6387 }
+    },
+    "revenue": 58119,
+    "grossProfit": 33963,
+    "operatingIncome": 28094,
+    "netIncome": 24111,
+    "dilutedEPS": 21.18,
+    "operatingCashFlow": 30653,
+    "capex": 20372,
+    "gaapFreeCashFlow": 10281
+  },
+  "annualHistory": [
+    { "year": 2021, "revenue": 27705, "grossMargin": 0.376, "operatingMargin": 0.227 },
+    { "year": 2022, "revenue": 30758, "grossMargin": 0.452, "operatingMargin": 0.315 },
+    { "year": 2023, "revenue": 15540, "grossMargin": -0.091, "operatingMargin": -0.370 },
+    { "year": 2024, "revenue": 25111, "grossMargin": 0.224, "operatingMargin": 0.052 },
+    { "year": 2025, "revenue": 37378, "grossMargin": 0.398, "operatingMargin": 0.261 }
+  ],
+  "fiveYearAvgGrossMargin": 0.2718,
+  "fiveYearAvgOperatingMargin": 0.0970,
+  "balanceSheet": {
+    "cashAndEquivalents": 13908,
+    "shortTermInvestments": 681,
+    "longTermMarketableInvestments": 2038,
+    "totalCashAndInvestments": 16627,
+    "totalDebt": 10142,
+    "currentDebt": 585,
+    "longTermDebt": 9557,
+    "totalEquity": 72459,
+    "receivables": 17314,
+    "inventory": 8267,
+    "pointInTimeShares": 1127734051
+  },
+  "derived": {
+    "marketCap": 474314,
+    "enterpriseValue": 467829,
+    "trailingPE": 19.86,
+    "priceToBook": 6.55,
+    "evToRevenue": 8.05,
+    "evToEbit": 16.65,
+    "evToFcf": 45.50,
+    "bookValuePerShare": 64.24
+  },
+  "expectedPublishState": "FACTS_PUBLISHABLE__VALUATION_VERDICT_WITHHELD",
+  "tolerances": {
+    "dollarMillions": 1,
+    "relativePercent": 0.1,
+    "perShare": 0.01,
+    "percentagePoints": 0.1
+  }
+}
