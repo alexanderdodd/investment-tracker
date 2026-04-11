@@ -42,7 +42,7 @@ let tickerToCikMap: Record<string, string> | null = null;
 async function loadTickerMap(): Promise<Record<string, string>> {
   if (tickerToCikMap) return tickerToCikMap;
 
-  const res = await throttledFetch(`${BASE}/files/company_tickers.json`);
+  const res = await throttledFetch("https://www.sec.gov/files/company_tickers.json");
   const data: Record<string, { cik_str: number; ticker: string; title: string }> =
     await res.json();
 
