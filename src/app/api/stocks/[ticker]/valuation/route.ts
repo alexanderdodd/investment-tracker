@@ -5,7 +5,10 @@ import { stockValuations } from "@/db/schema";
 import {
   getExistingValuation,
   generateStockValuation,
+  type ProgressEvent,
 } from "@/lib/generate-stock-valuation";
+
+export const maxDuration = 300;
 
 // GET: retrieve the latest valuation for a ticker
 export async function GET(
@@ -38,7 +41,7 @@ export async function GET(
   });
 }
 
-// POST: trigger a new valuation (returns existing if fresh this quarter)
+// POST: trigger a new valuation with Server-Sent Events for progress
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ ticker: string }> }
@@ -61,33 +64,64 @@ export async function POST(
     });
   }
 
-  // Generate new valuation
-  const result = await generateStockValuation(upperTicker);
+  // Stream progress via SSE
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendEvent = (data: Record<string, unknown>) => {
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+        );
+      };
 
-  if (!result.success) {
-    return NextResponse.json(
-      { status: "error", error: result.error },
-      { status: 500 }
-    );
-  }
+      const onProgress = (event: ProgressEvent) => {
+        sendEvent({ type: "progress", ...event });
+      };
 
-  // Fetch the just-created valuation
-  const db = getDb();
-  const [created] = await db
-    .select()
-    .from(stockValuations)
-    .where(eq(stockValuations.ticker, upperTicker))
-    .orderBy(desc(stockValuations.generatedAt))
-    .limit(1);
+      try {
+        const result = await generateStockValuation(upperTicker, onProgress);
 
-  return NextResponse.json({
-    status: "generated",
-    valuation: {
-      ticker: created.ticker,
-      companyName: created.companyName,
-      researchDocument: created.researchDocument,
-      structuredInsights: created.structuredInsights ?? null,
-      generatedAt: created.generatedAt.toISOString(),
+        if (!result.success) {
+          sendEvent({ type: "error", error: result.error });
+          controller.close();
+          return;
+        }
+
+        // Fetch the created valuation
+        const db = getDb();
+        const [created] = await db
+          .select()
+          .from(stockValuations)
+          .where(eq(stockValuations.ticker, upperTicker))
+          .orderBy(desc(stockValuations.generatedAt))
+          .limit(1);
+
+        sendEvent({
+          type: "complete",
+          valuation: {
+            ticker: created.ticker,
+            companyName: created.companyName,
+            researchDocument: created.researchDocument,
+            structuredInsights: created.structuredInsights ?? null,
+            generatedAt: created.generatedAt.toISOString(),
+          },
+        });
+      } catch (err) {
+        sendEvent({
+          type: "error",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
     },
   });
 }

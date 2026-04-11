@@ -289,30 +289,85 @@ ${sections.risks}`;
 // Orchestrator
 // ---------------------------------------------------------------------------
 
+export interface ProgressEvent {
+  stage: number;
+  totalStages: number;
+  label: string;
+  description: string;
+  status: "running" | "complete" | "error";
+  percent: number;
+}
+
+export type ProgressCallback = (event: ProgressEvent) => void;
+
+const STAGES = [
+  {
+    label: "Business & Industry",
+    description: "Understanding what the company does, its business model, competitive position, and industry dynamics",
+  },
+  {
+    label: "Financial Analysis",
+    description: "Analyzing revenue trends, profitability, cash flow generation, balance sheet health, and accounting quality from recent filings",
+  },
+  {
+    label: "Valuation",
+    description: "Building a DCF model, comparing market multiples to peers and history, and estimating intrinsic value",
+  },
+  {
+    label: "Risk & Scenarios",
+    description: "Constructing bull/base/bear cases, identifying key risks, sensitivity factors, and upcoming catalysts",
+  },
+  {
+    label: "Structuring Results",
+    description: "Extracting key insights into a structured format for the dashboard display",
+  },
+];
+
 export async function generateStockValuation(
-  ticker: string
+  ticker: string,
+  onProgress?: ProgressCallback
 ): Promise<{ success: boolean; error?: string }> {
   const upperTicker = ticker.toUpperCase();
+  const total = STAGES.length;
+
+  const report = (stage: number, status: "running" | "complete" | "error") => {
+    if (!onProgress) return;
+    const pct = status === "complete"
+      ? Math.round(((stage + 1) / total) * 100)
+      : Math.round(((stage + 0.5) / total) * 100);
+    onProgress({
+      stage: stage + 1,
+      totalStages: total,
+      label: STAGES[stage].label,
+      description: STAGES[stage].description,
+      status,
+      percent: Math.min(pct, 100),
+    });
+  };
 
   try {
     // Stage 1: Business overview
-    console.log(`    Stage 1/4: Business overview...`);
+    report(0, "running");
     const business = await generateBusinessOverview(upperTicker);
     let research = `BUSINESS & INDUSTRY OVERVIEW\n${business}`;
+    report(0, "complete");
 
     // Stage 2: Financial analysis
-    console.log(`    Stage 2/4: Financial analysis...`);
+    report(1, "running");
     const financials = await generateFinancialAnalysis(upperTicker, research);
     research += `\n\nFINANCIAL ANALYSIS\n${financials}`;
+    report(1, "complete");
 
     // Stage 3: Valuation
-    console.log(`    Stage 3/4: Valuation...`);
+    report(2, "running");
     const valuation = await generateValuation(upperTicker, research);
     research += `\n\nVALUATION ASSESSMENT\n${valuation}`;
+    report(2, "complete");
 
     // Stage 4: Risks & scenarios
-    console.log(`    Stage 4/4: Risk assessment...`);
+    report(3, "running");
     const risks = await generateRiskAssessment(upperTicker, research);
+    report(3, "complete");
 
     // Determine company name from the research
     const nameMatch = business.match(/^([A-Z][a-zA-Z\s&.,']+(?:Inc\.|Corp\.|Co\.|Company|plc|Ltd\.?))/);
@@ -326,14 +381,15 @@ export async function generateStockValuation(
       risks,
     });
 
-    // Extract structured insights
-    console.log(`    Extracting structured insights...`);
+    // Stage 5: Extract structured insights
+    report(4, "running");
     let structuredInsights: StockValuationInsights | null = null;
     try {
       structuredInsights = await extractStructuredInsights(upperTicker, researchDocument);
     } catch (err) {
       console.warn(`    Warning: failed to extract structured insights: ${err}`);
     }
+    report(4, "complete");
 
     // Use company name from insights if available
     const finalName = structuredInsights?.companyName || companyName;
