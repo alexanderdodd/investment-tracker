@@ -5,6 +5,7 @@ import { getDb } from "../db/index";
 import { sectorAnalyses } from "../db/schema";
 import { SECTORS, SECTOR_ETFS, type SectorName } from "./sectors";
 import { SECTOR_HOLDINGS } from "./sector-holdings";
+import { distillStructuredInsights } from "./distill-structured-insights";
 import {
   fetchSectorAndBenchmark,
   type ExtendedChanges,
@@ -336,14 +337,18 @@ export async function generateSectorAnalysis(
     );
 
     // Post-process: distill for user consumption
-    const userSummary = await distillForUser(data.sector, researchDocument);
+    const [userSummary, structuredInsights] = await Promise.all([
+      distillForUser(data.sector, researchDocument),
+      distillStructuredInsights(data.sector, researchDocument).catch(() => null),
+    ]);
 
-    // Persist both
+    // Persist all
     const db = getDb();
     await db.insert(sectorAnalyses).values({
       sector,
       researchDocument,
       userSummary,
+      structuredInsights,
     });
 
     return { success: true };
@@ -398,6 +403,59 @@ export async function redistillAllSummaries(onlySector?: SectorName) {
   for (const sector of sectors) {
     console.log(`  Distilling summary for ${sector}...`);
     const result = await redistillSectorSummary(sector);
+    results.push({ sector, ...result });
+
+    if (sectors.length > 1) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Re-distill: regenerate structured insights from existing research documents
+// ---------------------------------------------------------------------------
+
+export async function redistillSectorInsights(
+  sector: SectorName
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = getDb();
+    const [latest] = await db
+      .select()
+      .from(sectorAnalyses)
+      .where(eq(sectorAnalyses.sector, sector))
+      .orderBy(desc(sectorAnalyses.generatedAt))
+      .limit(1);
+
+    if (!latest) {
+      return { success: false, error: "No existing research document found" };
+    }
+
+    const structuredInsights = await distillStructuredInsights(sector, latest.researchDocument);
+
+    await db
+      .update(sectorAnalyses)
+      .set({ structuredInsights })
+      .where(eq(sectorAnalyses.id, latest.id));
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function redistillAllInsights(onlySector?: SectorName) {
+  const sectors = onlySector ? [onlySector] : SECTORS;
+  const results: { sector: string; success: boolean; error?: string }[] = [];
+
+  for (const sector of sectors) {
+    console.log(`  Distilling insights for ${sector}...`);
+    const result = await redistillSectorInsights(sector);
     results.push({ sector, ...result });
 
     if (sectors.length > 1) {

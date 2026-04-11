@@ -197,9 +197,9 @@ export default function TabOverview({
                     fontSize: "0.75rem",
                     color: "#fff",
                   }}
-                  formatter={(value: number, name: string) => [
-                    `${value.toFixed(2)}%`,
-                    name === "sector" ? sectorTicker : "SPY",
+                  formatter={(value) => [
+                    `${Number(value).toFixed(2)}%`,
+                    "Change",
                   ]}
                 />
                 <Line

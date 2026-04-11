@@ -31,6 +31,7 @@ export async function GET(
     analysis: {
       userSummary: analysis.userSummary,
       researchDocument: analysis.researchDocument,
+      structuredInsights: analysis.structuredInsights ?? null,
       generatedAt: analysis.generatedAt.toISOString(),
     },
   });

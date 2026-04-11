@@ -4,6 +4,7 @@ import {
   text,
   primaryKey,
   integer,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -93,5 +94,6 @@ export const sectorAnalyses = pgTable("sector_analysis", {
   sector: text("sector").notNull(),
   researchDocument: text("research_document").notNull(),
   userSummary: text("user_summary").notNull(),
+  structuredInsights: jsonb("structured_insights"),
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
