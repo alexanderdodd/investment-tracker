@@ -210,6 +210,7 @@ export function StockValuationView({ ticker }: { ticker: string }) {
   const [showHistory, setShowHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: string; generatedAt: string; verdict: string | null; confidence: string | null; intrinsicValue: string | number | null; status: string }[]>([]);
+  const [livePrice, setLivePrice] = useState<{ price: number; previousClose: number | null; timestamp: string } | null>(null);
 
   const loadValuation = useCallback(async () => {
     try {
@@ -237,10 +238,24 @@ export function StockValuationView({ ticker }: { ticker: string }) {
     }
   }, [ticker]);
 
+  const loadLivePrice = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/stocks/${ticker}/price`);
+      if (res.ok) {
+        const data = await res.json();
+        setLivePrice({ price: data.price, previousClose: data.previousClose, timestamp: data.timestamp });
+      }
+    } catch { /* ignore */ }
+  }, [ticker]);
+
   useEffect(() => {
     loadValuation();
     loadHistory();
-  }, [loadValuation, loadHistory]);
+    loadLivePrice();
+    // Refresh live price every 60 seconds
+    const interval = setInterval(loadLivePrice, 60_000);
+    return () => clearInterval(interval);
+  }, [loadValuation, loadHistory, loadLivePrice]);
 
   const triggerValuation = async () => {
     setGenerating(true);
@@ -453,11 +468,25 @@ export function StockValuationView({ ticker }: { ticker: string }) {
             </div>
           )}
         </div>
-        <div className="mt-1 flex items-center gap-3">
+        <div className="mt-1 flex flex-wrap items-center gap-3">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{ticker}</p>
           {insights?.sector && (
             <span className="text-xs text-zinc-400 dark:text-zinc-500">{insights.sector}</span>
           )}
+          {livePrice && (() => {
+            const change = livePrice.previousClose ? livePrice.price - livePrice.previousClose : 0;
+            const changePct = livePrice.previousClose ? (change / livePrice.previousClose) * 100 : 0;
+            const up = change >= 0;
+            return (
+              <span className="inline-flex items-center gap-1.5 text-xs">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-100">${livePrice.price.toFixed(2)}</span>
+                <span className={up ? "text-green-500" : "text-red-500"}>
+                  {up ? "+" : ""}{change.toFixed(2)} ({up ? "+" : ""}{changePct.toFixed(1)}%)
+                </span>
+                <span className="text-zinc-400 dark:text-zinc-500">live</span>
+              </span>
+            );
+          })()}
           {generatedAt && (
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
               Report from {new Date(generatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} at {new Date(generatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
