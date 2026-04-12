@@ -207,7 +207,9 @@ export function StockValuationView({ ticker }: { ticker: string }) {
   const [stages, setStages] = useState<ProgressStage[]>([]);
   const [overallPercent, setOverallPercent] = useState(0);
   const [showResearch, setShowResearch] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<{ id: string; generatedAt: string; verdict: string | null; confidence: string | null; intrinsicValue: string | number | null; status: string }[]>([]);
 
   const loadValuation = useCallback(async () => {
     try {
@@ -225,9 +227,20 @@ export function StockValuationView({ ticker }: { ticker: string }) {
     }
   }, [ticker]);
 
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/stocks/${ticker}/valuation?history=true`);
+      const data = await res.json();
+      if (data.history) setHistory(data.history);
+    } catch {
+      // ignore
+    }
+  }, [ticker]);
+
   useEffect(() => {
     loadValuation();
-  }, [loadValuation]);
+    loadHistory();
+  }, [loadValuation, loadHistory]);
 
   const triggerValuation = async () => {
     setGenerating(true);
@@ -236,7 +249,7 @@ export function StockValuationView({ ticker }: { ticker: string }) {
     setOverallPercent(0);
 
     try {
-      const res = await fetch(`/api/stocks/${ticker}/valuation`, { method: "POST" });
+      const res = await fetch(`/api/stocks/${ticker}/valuation?force=true`, { method: "POST" });
 
       // Check if it's a JSON response (existing valuation)
       const contentType = res.headers.get("content-type") ?? "";
@@ -302,6 +315,7 @@ export function StockValuationView({ ticker }: { ticker: string }) {
       setError(err instanceof Error ? err.message : "Failed to generate valuation");
     } finally {
       setGenerating(false);
+      loadHistory(); // Refresh history after generation
     }
   };
 
@@ -541,15 +555,76 @@ export function StockValuationView({ ticker }: { ticker: string }) {
         )}
       </div>
 
-      {/* Regenerate */}
-      <div className="text-center">
-        <button
-          onClick={triggerValuation}
-          disabled={generating}
-          className="text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50 dark:text-zinc-500 dark:hover:text-zinc-300"
-        >
-          Regenerate valuation
-        </button>
+      {/* Regenerate + History */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-center gap-4">
+          <button
+            onClick={triggerValuation}
+            disabled={generating}
+            className="text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50 dark:text-zinc-500 dark:hover:text-zinc-300"
+          >
+            Regenerate valuation
+          </button>
+          {history.length > 1 && (
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            >
+              {showHistory ? "Hide" : "Show"} history ({history.length})
+            </button>
+          )}
+        </div>
+
+        {showHistory && history.length > 0 && (
+          <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="border-b border-zinc-100 px-6 py-3 dark:border-zinc-800">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Valuation History</h3>
+            </div>
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {history.map((entry, i) => (
+                <button
+                  key={entry.id}
+                  onClick={async () => {
+                    const res = await fetch(`/api/stocks/${ticker}/valuation?id=${entry.id}`);
+                    const data = await res.json();
+                    if (data.valuation) {
+                      setInsights(parseStockValuationInsights(data.valuation.structuredInsights));
+                      setResearchDoc(data.valuation.researchDocument);
+                      setGeneratedAt(data.valuation.generatedAt);
+                    }
+                  }}
+                  className="flex w-full items-center justify-between px-6 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {new Date(entry.generatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    {entry.verdict && (
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${verdictColor(String(entry.verdict))}`}>
+                        {String(entry.verdict)}
+                      </span>
+                    )}
+                    {entry.confidence && entry.confidence !== "N/A" && (
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${confidenceColor(String(entry.confidence))}`}>
+                        {String(entry.confidence)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {entry.intrinsicValue && (
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        FV: ${typeof entry.intrinsicValue === 'number' ? entry.intrinsicValue : entry.intrinsicValue}
+                      </span>
+                    )}
+                    {i === 0 && (
+                      <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">Latest</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
