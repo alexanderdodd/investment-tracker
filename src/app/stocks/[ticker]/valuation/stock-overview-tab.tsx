@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import Link from "next/link";
+import type { StockMetrics } from "@/lib/stock-metrics";
+import { sectorToSlug } from "@/lib/sectors";
 import {
   ResponsiveContainer,
   LineChart,
@@ -43,8 +46,10 @@ interface PriceData {
   chart?: ChartPoint[];
 }
 
-export function StockOverviewTab({ ticker }: { ticker: string }) {
+export function StockOverviewTab({ ticker, sector }: { ticker: string; sector?: string }) {
   const [data, setData] = useState<PriceData | null>(null);
+  const [dayData, setDayData] = useState<{ price: number; previousClose: number | null } | null>(null);
+  const [metrics, setMetrics] = useState<StockMetrics | null>(null);
   const [timeframe, setTimeframe] = useState<Timeframe>("1Y");
   const [loading, setLoading] = useState(true);
 
@@ -58,6 +63,34 @@ export function StockOverviewTab({ ticker }: { ticker: string }) {
       }
     } catch { /* ignore */ }
     setLoading(false);
+  }, [ticker]);
+
+  // Separate 1D fetch for accurate day change (independent of chart timeframe)
+  useEffect(() => {
+    async function loadDay() {
+      try {
+        const res = await fetch(`/api/stocks/${ticker}/price?range=1d`);
+        if (res.ok) {
+          const json = await res.json();
+          setDayData({ price: json.price, previousClose: json.previousClose });
+        }
+      } catch { /* ignore */ }
+    }
+    loadDay();
+  }, [ticker]);
+
+  // Fetch key metrics
+  useEffect(() => {
+    async function loadMetrics() {
+      try {
+        const res = await fetch(`/api/stocks/metrics?tickers=${ticker}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data[ticker]) setMetrics(data[ticker]);
+        }
+      } catch { /* ignore */ }
+    }
+    loadMetrics();
   }, [ticker]);
 
   useEffect(() => {
@@ -184,11 +217,45 @@ export function StockOverviewTab({ ticker }: { ticker: string }) {
           <StatCard label="Current Price" value={`$${data.price.toFixed(2)}`} />
           <StatCard
             label="Day Change"
-            value={data.previousClose ? `${((data.price - data.previousClose) / data.previousClose * 100) >= 0 ? "+" : ""}${((data.price - data.previousClose) / data.previousClose * 100).toFixed(2)}%` : "—"}
-            color={data.previousClose && data.price >= data.previousClose ? "green" : "red"}
+            value={dayData?.previousClose ? `${((dayData.price - dayData.previousClose) / dayData.previousClose * 100) >= 0 ? "+" : ""}${((dayData.price - dayData.previousClose) / dayData.previousClose * 100).toFixed(2)}%` : "—"}
+            color={dayData?.previousClose && dayData.price >= dayData.previousClose ? "green" : "red"}
           />
           <StatCard label="52W High" value={data.fiftyTwoWeekHigh ? `$${data.fiftyTwoWeekHigh.toFixed(2)}` : "—"} />
           <StatCard label="52W Low" value={data.fiftyTwoWeekLow ? `$${data.fiftyTwoWeekLow.toFixed(2)}` : "—"} />
+        </div>
+      )}
+
+      {/* Key Metrics */}
+      {metrics && (
+        <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Key metrics</p>
+            {sector && (
+              <Link
+                href={`/sectors/${sectorToSlug(sector)}`}
+                className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                {sector}
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3 md:grid-cols-3">
+            <MetricRow label="Forward P/E" value={metrics.forwardPE} format="ratio" />
+            <MetricRow label="Trailing P/E" value={metrics.trailingPE} format="ratio" />
+            <MetricRow label="EV/EBITDA" value={metrics.evToEbitda} format="ratio" />
+            <MetricRow label="Price/Book" value={metrics.priceToBook} format="ratio" />
+            <MetricRow label="Price/Sales" value={metrics.priceToSales} format="ratio" />
+            <MetricRow label="PEG Ratio" value={metrics.pegRatio} format="ratio" />
+            <MetricRow label="Operating Margin" value={metrics.operatingMargin} format="percent" />
+            <MetricRow label="Gross Margin" value={metrics.grossMargin} format="percent" />
+            <MetricRow label="ROE" value={metrics.roe} format="percent" />
+            <MetricRow label="ROIC" value={metrics.roic} format="percent" />
+            <MetricRow label="Revenue Growth" value={metrics.revenueGrowth} format="percent" />
+            <MetricRow label="Free Cash Flow" value={metrics.freeCashFlow} format="currency" />
+          </div>
         </div>
       )}
     </div>
@@ -204,6 +271,37 @@ function StatCard({ label, value, color }: { label: string; value: string; color
       }`}>
         {value}
       </p>
+    </div>
+  );
+}
+
+function MetricRow({ label, value, format }: { label: string; value: number | null; format: "ratio" | "percent" | "currency" }) {
+  if (value === null) {
+    return (
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">{label}</span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500">—</span>
+      </div>
+    );
+  }
+
+  let formatted: string;
+  let color = "";
+  if (format === "ratio") {
+    formatted = `${value.toFixed(1)}x`;
+  } else if (format === "percent") {
+    formatted = `${(value * 100).toFixed(1)}%`;
+    color = value >= 0 ? "text-green-500" : "text-red-500";
+  } else {
+    const abs = Math.abs(value);
+    formatted = abs >= 1e9 ? `$${(value / 1e9).toFixed(1)}B` : abs >= 1e6 ? `$${(value / 1e6).toFixed(0)}M` : `$${value.toFixed(0)}`;
+    color = value >= 0 ? "text-green-500" : "text-red-500";
+  }
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-zinc-500 dark:text-zinc-400">{label}</span>
+      <span className={`text-xs font-medium ${color || "text-zinc-900 dark:text-zinc-100"}`}>{formatted}</span>
     </div>
   );
 }

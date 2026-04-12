@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { StockValuationView } from "./valuation-view";
 import { StockOverviewTab } from "./stock-overview-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
+import { sectorToSlug } from "@/lib/sectors";
 
 type Tab = "overview" | "valuation";
 
@@ -112,7 +114,9 @@ export default function StockPage() {
           <div className="mt-1 flex items-center gap-3">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{ticker}</p>
             {insights?.sector && (
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">{insights.sector}</span>
+              <Link href={`/sectors/${sectorToSlug(insights.sector)}`} className="text-xs text-zinc-400 hover:text-blue-500 dark:text-zinc-500 dark:hover:text-blue-400 transition-colors">
+                {insights.sector} →
+              </Link>
             )}
           </div>
         </div>
@@ -148,7 +152,7 @@ export default function StockPage() {
 
         {/* Tab content */}
         {tab === "overview" && (
-          <StockOverviewTab ticker={ticker} />
+          <StockOverviewTab ticker={ticker} sector={insights?.sector} />
         )}
         {tab === "valuation" && (
           <StockValuationView ticker={ticker} />
