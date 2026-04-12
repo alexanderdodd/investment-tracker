@@ -146,7 +146,14 @@ Do **not** output the promise if there are fixable failures remaining.
 
 ## Known priority issues
 
-1. **VAL-004 / Peer registry** (FIRST PRIORITY)
+1. **Key risks empty** (FIRST PRIORITY)
+   - The `keyRisks` field in structured insights is only populated from QA issues
+   - When QA passes (desired state), Key Risks section is empty on the dashboard
+   - Must derive risks deterministically from cycle state, valuation context, balance sheet
+   - See `14-key-risks-specification.md`
+   - New acceptance criteria: RISK-001 through RISK-005
+
+2. **VAL-004 / Peer registry** (RESOLVED in iteration 8)
    - No peer registry exists yet — this blocks everything
    - Build deterministic peer/relative framework for MU
    - SK hynix, Samsung (with conglomerate penalty), WDC, self-history
