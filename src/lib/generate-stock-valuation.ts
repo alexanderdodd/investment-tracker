@@ -664,6 +664,20 @@ ${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.va
     }
     report(6, "complete");
 
+    // CONSIST-001: Verify report consistency before persisting
+    if (structuredInsights && structuredInsights.verdict !== "Withheld") {
+      const price = Number(structuredInsights.currentPrice);
+      const low = Number(structuredInsights.fairValueLow);
+      const high = Number(structuredInsights.fairValueHigh);
+      if (price && low && high && low > 0 && high > 0) {
+        const expected = price < low ? "Undervalued" : price > high ? "Overvalued" : "Fair Value";
+        if (structuredInsights.verdict !== expected) {
+          console.error(`CONSIST-001 VIOLATION: Verdict "${structuredInsights.verdict}" but price $${price.toFixed(2)} vs range $${low}-$${high} → should be "${expected}". Fixing.`);
+          structuredInsights.verdict = expected;
+        }
+      }
+    }
+
     // Persist
     const db = getDb();
     const sourceAccessions = [
