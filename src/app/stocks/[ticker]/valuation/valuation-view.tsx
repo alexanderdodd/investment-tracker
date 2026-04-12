@@ -390,16 +390,23 @@ export function StockValuationView({ ticker }: { ticker: string }) {
               <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm ${verdictColor(insights.verdict)}`}>
                 {insights.verdict}
               </span>
-              {insights.currentPrice && insights.intrinsicValue && (
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  ${insights.currentPrice} vs ${insights.intrinsicValue} fair value
-                </span>
-              )}
-              {insights.marginOfSafety && (
-                <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
-                  ({insights.marginOfSafety})
-                </span>
-              )}
+              {insights.currentPrice && insights.intrinsicValue && (() => {
+                const price = Number(insights.currentPrice);
+                const fv = Number(insights.intrinsicValue);
+                const pctDiff = fv > 0 ? Math.abs((price - fv) / fv * 100) : 0;
+                const above = price > fv;
+                return (
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Trading at <span className="font-medium text-zinc-700 dark:text-zinc-200">${price.toFixed(2)}</span>
+                    {" — "}
+                    <span className={`font-medium ${above ? "text-red-500 dark:text-red-400" : "text-green-500 dark:text-green-400"}`}>
+                      {pctDiff.toFixed(0)}% {above ? "above" : "below"}
+                    </span>
+                    {" "}
+                    ${fv.toFixed(0)} est. fair value
+                  </span>
+                );
+              })()}
               {insights.confidence && insights.confidence !== "N/A" && (
                 <span className="relative group">
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}>
