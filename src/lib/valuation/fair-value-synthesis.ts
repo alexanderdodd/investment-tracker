@@ -54,6 +54,8 @@ export interface FairValueSynthesis {
   confidenceRating: ConfidenceRating;
   /** Human-readable reasons for the confidence rating */
   confidenceReasons: string[];
+  /** Pass/fail checklist for confidence factors */
+  confidenceChecklist: { label: string; passed: boolean; detail: string }[];
   /** Key assumptions */
   keyAssumptions: string[];
   /** Why this label was assigned */
@@ -91,63 +93,92 @@ function computeValuationConfidence(
   peerQuality: "strong" | "medium" | "weak",
   cycleMarginRatio: number,
   historyDepth: number
-): { score: number; rating: ConfidenceRating; reasons: string[] } {
+): { score: number; rating: ConfidenceRating; reasons: string[]; checklist: { label: string; passed: boolean; detail: string }[] } {
   let confidence = 1.0;
   const reasons: string[] = [];
+  const checklist: { label: string; passed: boolean; detail: string }[] = [];
 
   // Peer set quality
-  if (peerQuality === "medium") {
+  if (peerQuality === "strong") {
+    checklist.push({ label: "Peer comparables", passed: true, detail: "Strong peer set with good data quality" });
+  } else if (peerQuality === "medium") {
     confidence -= 0.15;
     reasons.push("Peer set quality is medium — few clean pure-play peers, curated snapshots rather than live pipeline data, conglomerate adjustments required");
-  }
-  if (peerQuality === "weak") {
+    checklist.push({ label: "Peer comparables", passed: false, detail: "Limited peer data — few clean comparables or only curated snapshots" });
+  } else {
     confidence -= 0.25;
     reasons.push("Peer set quality is weak — limited comparable companies with significant data limitations");
+    checklist.push({ label: "Peer comparables", passed: false, detail: "Weak peer set — no comparable companies with usable multiples" });
   }
 
   // Cycle divergence (current margins vs historical)
   if (cycleMarginRatio > 2.5) {
     confidence -= 0.20;
     reasons.push(`Current margins are ${cycleMarginRatio.toFixed(1)}x the historical average — extreme cycle peak increases valuation uncertainty`);
+    checklist.push({ label: "Cycle position", passed: false, detail: `Margins ${cycleMarginRatio.toFixed(1)}x above historical average — extreme peak` });
   } else if (cycleMarginRatio > 1.5) {
     confidence -= 0.10;
     reasons.push(`Current margins are ${cycleMarginRatio.toFixed(1)}x the historical average — above-cycle performance may not be sustainable`);
+    checklist.push({ label: "Cycle position", passed: false, detail: `Margins ${cycleMarginRatio.toFixed(1)}x above average — above-cycle` });
+  } else {
+    checklist.push({ label: "Cycle position", passed: true, detail: "Margins near or below historical average" });
   }
 
   // Range width
   if (rangeWidth > 0.30) {
     confidence -= 0.15;
     reasons.push(`Fair value range is wide (${(rangeWidth * 100).toFixed(0)}% of midpoint) — methods produce divergent estimates`);
+    checklist.push({ label: "Range width", passed: false, detail: `${(rangeWidth * 100).toFixed(0)}% of midpoint (target: <30%)` });
   } else if (rangeWidth > 0.20) {
     confidence -= 0.05;
+    checklist.push({ label: "Range width", passed: true, detail: `${(rangeWidth * 100).toFixed(0)}% — moderate spread` });
+  } else {
+    checklist.push({ label: "Range width", passed: true, detail: `${(rangeWidth * 100).toFixed(0)}% — tight range` });
   }
 
   // Contributing method disagreement
   if (primaryDisagreement > 0.20) {
     confidence -= 0.15;
     reasons.push(`Contributing valuation methods disagree by ${(primaryDisagreement * 100).toFixed(0)}% — normalized economics, peer comparisons, and historical analysis produce different estimates`);
+    checklist.push({ label: "Method agreement", passed: false, detail: `${(primaryDisagreement * 100).toFixed(0)}% disagreement (target: <20%)` });
   } else if (primaryDisagreement > 0.10) {
     confidence -= 0.05;
+    checklist.push({ label: "Method agreement", passed: true, detail: `${(primaryDisagreement * 100).toFixed(0)}% — moderate agreement` });
+  } else {
+    checklist.push({ label: "Method agreement", passed: true, detail: `${(primaryDisagreement * 100).toFixed(0)}% — strong agreement` });
   }
 
   // History depth
   if (historyDepth <= 5) {
     confidence -= 0.10;
     reasons.push(`Only ${historyDepth} years of history available — minimum for cyclical normalization`);
+    checklist.push({ label: "History depth", passed: false, detail: `${historyDepth} years (target: >5 for cycle analysis)` });
+  } else {
+    checklist.push({ label: "History depth", passed: true, detail: `${historyDepth} years of data` });
   }
 
   // Methods with null values reduce confidence
-  const failedMethods = methods.filter(m => m.perShareValue === null);
-  if (failedMethods.length > 0) {
-    confidence -= failedMethods.length * 0.10;
-    const methodExplanations: Record<string, string> = {
-      normalized_dcf: "Normalized DCF could not run (negative or missing free cash flow data)",
-      reverse_dcf: "Reverse DCF could not run (missing enterprise value or operating data)",
-      relative_valuation: "Relative/peer valuation could not run (no peers with comparable multiples — only price data available, not P/E or P/B)",
-      self_history: "Self-history valuation could not run (requires at least 3 years of gross/operating margin data, which is unavailable for this company's accounting framework)",
-    };
-    for (const m of failedMethods) {
-      reasons.push(methodExplanations[m.method] ?? `${m.method} could not produce a result`);
+  const methodLabels: Record<string, string> = {
+    normalized_dcf: "DCF valuation",
+    reverse_dcf: "Reverse DCF",
+    relative_valuation: "Peer comparison",
+    self_history: "Self-history",
+  };
+  const methodExplanations: Record<string, string> = {
+    normalized_dcf: "Negative or missing free cash flow data",
+    reverse_dcf: "Missing enterprise value or operating data",
+    relative_valuation: "No peers with comparable multiples (P/E or P/B)",
+    self_history: "Requires 3+ years of margin data (unavailable for this accounting framework)",
+  };
+  for (const m of methods) {
+    if (m.weight === 0) continue; // skip diagnostic-only methods like reverse DCF
+    const label = methodLabels[m.method] ?? m.method;
+    if (m.perShareValue === null) {
+      confidence -= 0.10;
+      reasons.push(`${label} could not run: ${methodExplanations[m.method] ?? "unknown reason"}`);
+      checklist.push({ label, passed: false, detail: methodExplanations[m.method] ?? "Could not produce a result" });
+    } else {
+      checklist.push({ label, passed: true, detail: `$${m.perShareValue.toFixed(0)}/share (${(m.effectiveWeight * 100).toFixed(0)}% weight)` });
     }
   }
 
@@ -158,7 +189,7 @@ function computeValuationConfidence(
     reasons.push("All valuation inputs are strong — high confidence in fair value estimate");
   }
 
-  return { score, rating, reasons };
+  return { score, rating, reasons, checklist };
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +383,7 @@ export function synthesizeFairValue(opts: {
     valuationConfidence,
     confidenceRating: confidenceResult.rating,
     confidenceReasons: confidenceResult.reasons,
+    confidenceChecklist: confidenceResult.checklist,
     keyAssumptions,
     valuationReasons,
   };

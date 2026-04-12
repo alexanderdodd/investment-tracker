@@ -7,6 +7,7 @@ export interface StockValuationInsights {
   verdictReason: string;
   confidence: "High" | "Medium" | "Low" | "N/A";
   confidenceReason: string;
+  confidenceChecklist: { label: string; passed: boolean; detail: string }[];
   currentPrice: number | null;
   intrinsicValue: number | null;
   marginOfSafety: string | null;
@@ -93,7 +94,7 @@ export function parseStockValuationInsights(raw: unknown): StockValuationInsight
   }
 
   // Ensure array fields are arrays
-  for (const key of ["keyRisks", "keyDrivers", "sensitivityFactors", "catalysts"] as const) {
+  for (const key of ["keyRisks", "keyDrivers", "sensitivityFactors", "catalysts", "confidenceChecklist"] as const) {
     if (!Array.isArray(sanitized[key])) {
       sanitized[key] = [];
     }

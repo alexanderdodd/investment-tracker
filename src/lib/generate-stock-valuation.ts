@@ -309,6 +309,7 @@ Do not give investment advice. Return ONLY valid JSON.`,
       : `Based on DCF and multiples analysis with ${qa.status === "published" ? "all QA checks passed" : "some data limitations"}`,
     confidence: valuation.confidenceScore > 0.7 ? "High" : valuation.confidenceScore > 0.4 ? "Medium" : "Low",
     confidenceReason: `${(valuation.confidenceScore * 100).toFixed(0)}% confidence based on data quality, method agreement, and cycle position`,
+    confidenceChecklist: [],
     currentPrice: price,
     intrinsicValue: baseCase ? Math.round(baseCase * 100) / 100 : null,
     marginOfSafety: valuation.marginOfSafety !== null
@@ -636,6 +637,7 @@ ${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.va
         structuredInsights.verdictReason = fairValueSynthesis.valuationReasons.join("; ");
         structuredInsights.confidence = confMap[fairValueSynthesis.confidenceRating] ?? "Low";
         structuredInsights.confidenceReason = fairValueSynthesis.confidenceReasons.join("; ");
+        structuredInsights.confidenceChecklist = fairValueSynthesis.confidenceChecklist;
         structuredInsights.intrinsicValue = Math.round(fairValueSynthesis.range.mid);
         structuredInsights.marginOfSafety = fairValueSynthesis.priceVsMid !== 0
           ? `${(fairValueSynthesis.priceVsMid * -100).toFixed(1)}%`

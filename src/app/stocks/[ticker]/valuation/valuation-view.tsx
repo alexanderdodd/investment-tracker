@@ -408,17 +408,37 @@ export function StockValuationView({ ticker }: { ticker: string }) {
                       <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                     </svg>
                   </span>
-                  {insights.confidenceReason && (
-                    <span className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-80 rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-relaxed text-zinc-700 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                      <span className="mb-1 block font-semibold text-zinc-900 dark:text-zinc-100">Why {insights.confidence.toLowerCase()} confidence?</span>
-                      {insights.confidenceReason.split("; ").map((reason, i) => (
-                        <span key={i} className="mt-1 block">
-                          <span className="text-zinc-400 dark:text-zinc-500 mr-1">-</span>
-                          {reason}
-                        </span>
-                      ))}
-                    </span>
-                  )}
+                  <span className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    <span className="mb-2 block font-semibold text-zinc-900 dark:text-zinc-100">Confidence scorecard</span>
+                    {insights.confidenceChecklist && insights.confidenceChecklist.length > 0 ? (
+                      <span className="block space-y-1.5">
+                        {(insights.confidenceChecklist as { label: string; passed: boolean; detail: string }[]).map((item, i) => (
+                          <span key={i} className="flex items-start gap-2 block">
+                            <span className={`mt-0.5 flex-shrink-0 text-sm ${item.passed ? "text-green-500" : "text-red-400"}`}>
+                              {item.passed ? "\u2713" : "\u2717"}
+                            </span>
+                            <span className="block">
+                              <span className={`font-medium ${item.passed ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-900 dark:text-zinc-100"}`}>
+                                {item.label}
+                              </span>
+                              <span className="block text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                                {item.detail}
+                              </span>
+                            </span>
+                          </span>
+                        ))}
+                      </span>
+                    ) : insights.confidenceReason ? (
+                      <span className="block">
+                        {insights.confidenceReason.split("; ").map((reason, i) => (
+                          <span key={i} className="mt-1 block">
+                            <span className="text-zinc-400 dark:text-zinc-500 mr-1">-</span>
+                            {reason}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+                  </span>
                 </span>
               )}
             </div>
