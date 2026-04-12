@@ -2,9 +2,9 @@
 
 ## MICRON TECHNOLOGY, INC. (MU) — Golden baseline report
 
-**Artifact type:** facts-first golden regression artifact
-**As-of market data:** 2026-04-11 00:15 UTC
-**Financial source of truth:** latest 10-Q + latest 10-K + prior official quarterly releases for TTM roll-forward
+**Artifact type:** facts-first golden regression artifact  
+**As-of market data:** 2026-04-11 00:15 UTC  
+**Financial source of truth:** latest 10-Q + latest 10-K + prior official quarterly releases for TTM roll-forward  
 **Publish status:** `FACTS_PUBLISHABLE / VALUATION_VERDICT_WITHHELD`
 
 ---
@@ -73,7 +73,7 @@ This artifact is a frozen baseline for regression testing. It is not a live reco
 | FY2024 | $25.111B | 22.4% | 5.2% | $0.778B | $0.70 | $8.51B |
 | FY2025 | $37.378B | 39.8% | 26.1% | $8.539B | $7.59 | $17.53B |
 
-Five-year average gross margin: **27.18%**
+Five-year average gross margin: **27.18%**  
 Five-year average operating margin: **9.70%**
 
 ### 2.4 Latest balance sheet and share count
@@ -182,7 +182,59 @@ Because current quarter and TTM margins sit far above multi-year annual averages
 
 ---
 
-## 6. Machine-readable baseline expectations
+## 6. Facts-only rendering contract (new mandatory baseline rule)
+
+When the report is in a `FACTS_PUBLISHABLE / VALUATION_VERDICT_WITHHELD` state, the user-facing report may include only:
+
+### Allowed classes
+
+- **Class A — authoritative facts**
+  - filing-derived quarter facts
+  - filing-derived TTM facts
+  - filing-derived annual history
+  - filing-derived balance-sheet facts
+- **Class B — directly traced deterministic derivations**
+  - market cap
+  - enterprise value
+  - trailing P/E
+  - P/B
+  - EV/Revenue
+  - EV/EBIT
+  - EV/FCF
+- **Class D — evidence-backed qualitative claims**
+  - contract duration
+  - customer concentration
+  - segment mix
+  - geographic exposure
+  - competitor references
+  - guidance
+  - only when grounded in an evidence pack
+
+### Forbidden in facts-only state unless separately validated and allowlisted
+
+- fair value
+- target price
+- margin of safety
+- valuation confidence
+- scenario outputs
+- normalized FCF
+- cycle confidence score
+- ROE / ROIC / interest coverage
+- any five-year average if annual-history validation failed
+- any numeric claim without a formula trace or source provenance
+
+### Dependency rule
+
+If any upstream validator that governs a field fails, the field and all sentences depending on it must be suppressed from the rendered report.
+
+Examples:
+- if `HIST-004` fails, suppress 5-year averages and any narrative comparing current margins to those averages
+- if `VAL-002` fails, suppress normalized FCF and cycle-adjusted cash-flow commentary
+- if `TRACE-004` fails, suppress ROE, ROIC, and interest coverage
+
+---
+
+## 7. Machine-readable baseline expectations
 
 ```json
 {
@@ -206,6 +258,10 @@ Because current quarter and TTM margins sit far above multi-year annual averages
     "operating_cash_flow": 30653,
     "capex": 20372,
     "gaap_free_cash_flow": 10281
+  },
+  "annual_history": {
+    "five_year_avg_gross_margin": 27.18,
+    "five_year_avg_operating_margin": 9.70
   },
   "balance_sheet": {
     "cash_and_equivalents": 13908,

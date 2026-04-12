@@ -18,11 +18,17 @@ src/
     periodResolver.ts
     canonicalFacts.ts
     quarterManifest.ts
+    allowedSurfaceRegistry.ts
+    dependencyGraph.ts
   validation/
     rules.ts
     factGate.ts
     valuationGate.ts
+    surfaceGate.ts
     ruleCatalog.ts
+    formulaTraces.ts
+    suppressionAudit.ts
+    negativeControls.ts
   valuation/
     cycleClassifier.ts
     normalization.ts
@@ -34,6 +40,7 @@ src/
     diagnosis.ts
     patchPlanner.ts
     regressionHarness.ts
+    iterationArtifactWriter.ts
   llm/
     evidencePack.ts
     narrative.ts
@@ -41,6 +48,8 @@ src/
   reports/
     renderFactsOnly.ts
     renderFull.ts
+    renderPolicy.ts
+    reportFieldRegistry.ts
 ```
 
 ## 2. Source precedence
@@ -62,11 +71,13 @@ src/
 - do not infer latest quarter from aggregate companyfacts durations
 - store the exact filing accession and period-end used for every field
 - for annual-derived Q4 values, preserve the derivation chain
+- build and persist a `quarterManifest` object for every run
 
 ### Recommended
 
 - parse and preserve XBRL context ids
 - store raw table row and column labels alongside normalized field maps
+- preserve quarter lineage hashes so stale-quarter bugs can be diffed quickly
 
 ### Future
 
@@ -90,8 +101,68 @@ src/
 - replacing missing data with estimates
 - overriding validator failures
 - publishing a verdict when gates fail
+- mentioning a number not present in the surface allowlist
 
-## 5. Evidence pack schema
+## 5. Surface allowlist contract
+
+Before rendering any report, the system must construct an `AllowedSurfaceRegistry` like:
+
+```json
+{
+  "gateStatus": "PUBLISH_FACTS_ONLY",
+  "allowed": [
+    "latest_quarter.revenue",
+    "ttm.revenue",
+    "derived.market_cap",
+    "derived.trailing_pe",
+    "evidence.customer_concentration"
+  ],
+  "denied": [
+    "valuation.fair_value",
+    "valuation.margin_of_safety",
+    "model.normalized_fcf",
+    "model.cycle_confidence"
+  ],
+  "dependencyFailures": {
+    "HIST-004": [
+      "annual_history.five_year_avg_gross_margin",
+      "annual_history.five_year_avg_operating_margin",
+      "narrative.historical_margin_comparison"
+    ]
+  }
+}
+```
+
+The narrative LLM may only reference values in `allowed`.
+
+## 6. Formula trace contract
+
+Every surfaced non-primitive metric must have a trace like:
+
+```json
+{
+  "field": "derived.enterprise_value",
+  "formula": "market_cap + total_debt - total_cash_and_investments",
+  "inputs": [
+    {"field": "derived.market_cap", "value": 474314, "validated": true},
+    {"field": "balance_sheet.total_debt", "value": 10142, "validated": true},
+    {"field": "balance_sheet.total_cash_and_investments", "value": 16627, "validated": true}
+  ],
+  "period_scope": "point_in_time + latest_balance_sheet",
+  "share_basis": null
+}
+```
+
+Do not surface:
+- normalized FCF
+- ROE
+- ROIC
+- interest coverage
+- cycle confidence
+
+unless their formula traces exist and their dependencies all passed.
+
+## 7. Evidence pack schema
 
 ```json
 {
@@ -108,40 +179,75 @@ src/
 }
 ```
 
-## 6. Logging and evidence retention
+## 8. Logging and evidence retention
 
-All pipeline artifacts are persisted to the **Postgres database** (`stock_valuations` table) as JSONB columns. This is the authoritative artifact store — a separate file-based artifact bundle is not required.
+### Dual persistence model
 
-### Mandatory (stored in DB per run)
+All pipeline artifacts must be persisted in two places:
 
-- `canonicalFacts` — all extracted facts with provenance (source type, accession, method)
-- `financialModel` — cycle state, normalization, ratios, margin trends
-- `valuationOutputs` — DCF, multiples, scenarios, verdict, confidence
-- `qualityReport` — QA issues + two-stage gate decision (status, failures)
-- `researchDocument` — full generated report text (narrative + red-team + QA summary)
-- `structuredInsights` — dashboard-ready summaries
-- `sourceAccessions` — filing accession numbers for traceability
+1. **Postgres database** — authoritative runtime artifact store
+2. **file-based iteration bundle** — required for human review and Ralph loop audit
+
+### Mandatory DB persistence (per run)
+
+- `canonicalFacts`
+- `financialModel`
+- `valuationOutputs`
+- `qualityReport`
+- `researchDocument`
+- `structuredInsights`
+- `sourceAccessions`
+- `runManifest`
+- `quarterManifest`
+- `formulaTraces`
+- `suppressionAudit`
+- `artifactInventory`
+- `negativeControlResults`
+
+### Mandatory file-based persistence (per iteration)
+
+Write to `ralph-loop-reports/iteration-{N}/`:
+
+- `generated-report.md`
+- `iteration-changes.md`
+- `evaluation-scorecard.md`
+- `run-manifest.json`
+- `quarter-manifest.json`
+- `formula-traces.json`
+- `suppression-audit.json`
+- `artifact-inventory.json`
+- `negative-control-results.json`
 
 ### Recommended
 
 - provenance graph viewer (reads from DB JSONB)
 - HTML diff view versus golden snapshot
+- report-surface diff versus previous iteration
 
-## 7. Golden regression fixture design
+## 9. Golden regression fixture design
 
 Create a frozen Micron fixture with:
 
 - latest 10-Q accession
 - latest 10-K accession
 - quarter data inputs
-- annual history inputs
+- annual history inputs (FY2021–FY2025)
 - frozen market price snapshot
 - expected canonical facts
 - expected gate state
+- expected annual-history averages
+- expected render allowlist for facts-only state
+
+Create a second fixture:
+
+- **Micron broken negative control**
+- intentionally corrupt latest quarter identity or share-count basis
+- expected gate state: `WITHHOLD_ALL`
+- expected output: diagnostic only
 
 Use the frozen price snapshot for CI so the baseline stays stable. Use live price only in a separate live-smoke job.
 
-## 8. Mandatory vs recommended vs future
+## 10. Mandatory vs recommended vs future
 
 ### Mandatory for next implementation pass
 
@@ -149,18 +255,24 @@ Use the frozen price snapshot for CI so the baseline stays stable. Use live pric
 - hard period identity checks
 - critical-field gate collapse
 - two-stage publish gate
+- surface allowlist and suppression audit
+- formula traces for surfaced non-primitive fields
 - Micron golden regression fixture
+- Micron broken negative-control fixture
 - 5-year history loader for cyclical names
 - deterministic rule engine with DB-persisted artifacts
+- file-based iteration report bundle
 
 ### Recommended next
 
 - more benchmark companies
 - peer-set registry by industry
 - valuation-prerequisite explainability panel
+- explicit render lint for period labels (quarter vs annual vs TTM)
 
 ### Future
 
 - analyst override workflow with full audit trail
 - sector-specific normalization templates
 - automated benchmark expansion
+- semantic diffing of narrative claims against allowlist

@@ -13,6 +13,7 @@ This is the outer improvement loop for the workflow implementation. Its job is t
 - improve the workflow until deterministic facts are correct
 - ensure valuation logic is internally consistent
 - ensure publish gating is safe
+- ensure report-surface behavior is safe
 - prevent regressions with frozen golden cases, starting with Micron
 
 ### Scope
@@ -33,8 +34,11 @@ This is the outer improvement loop for the workflow implementation. Its job is t
 3. companyfacts is reconciliation/fallback, not primary quarter selection
 4. no verdict on broken facts
 5. all critical numbers carry provenance
-6. critical validation failures block publication
-7. cyclical DCF requires adequate validated history or else must be withheld
+6. all surfaced non-primitive numbers carry formula traces
+7. critical validation failures block publication
+8. cyclical DCF requires adequate validated history or else must be withheld
+9. facts-only reports may surface only allowlisted fields whose dependencies all passed
+10. broken-fixture negative controls are mandatory
 
 ### LLM allowed
 
@@ -51,13 +55,14 @@ This is the outer improvement loop for the workflow implementation. Its job is t
 - overriding reconciled values
 - overriding gate decisions
 - inventing peers, valuations, or confidence when prerequisites fail
+- surfacing any number outside the render allowlist
 
 ## 4. Loop inputs
 
 | Input | Type | Required | Notes |
 |---|---|---:|---|
 | `candidate_workflow_ref` | git ref / build id | Yes | exact code under test |
-| `benchmark_suite` | JSON | Yes | includes MU golden fixture |
+| `benchmark_suite` | JSON | Yes | includes MU golden fixture + negative controls |
 | `golden_registry` | directory / object store | Yes | frozen snapshots, expected outputs |
 | `source_adapters` | config | Yes | SEC, market data, local fixtures |
 | `prior_iteration_bundle` | optional path | No | for diffing |
@@ -74,6 +79,12 @@ This is the outer improvement loop for the workflow implementation. Its job is t
 | `candidate_patch.diff` | diff | If patched | code/config change |
 | `publish_matrix.json` | machine-readable | Yes | expected vs actual gate state per benchmark |
 | `acceptance_decision.json` | machine-readable | Yes | accept / retry / escalate |
+| `run_manifest.json` | machine-readable | Yes | exact reproducibility metadata |
+| `quarter_manifest.json` | machine-readable | Yes | quarter lineage used for TTM |
+| `formula_traces.json` | machine-readable | Yes | formula traces for surfaced metrics |
+| `suppression_audit.json` | machine-readable | Yes | failed rules -> suppressed fields/sentences |
+| `artifact_inventory.json` | machine-readable | Yes | all persisted artifact paths / ids / hashes |
+| `negative_control_results.json` | machine-readable | Yes | intentionally broken fixture outcomes |
 
 ## 6. State machine
 
@@ -95,12 +106,22 @@ DETERMINISTIC_FACT_VALIDATION
   │           ├── regress → REJECT_PATCH
   │           └── improve → next iteration
   └── pass → VALUATION_PREREQ_VALIDATION
-               ├── fail → FACTS_ONLY_WITHHELD_ARTIFACTS → AUDIT_FAILURES → LOCALIZE_ROOT_CAUSE
+               ├── fail → FACTS_ONLY_WITHHELD_ARTIFACTS
                │         ↓
-               │       PATCH_CANDIDATE or ACCEPT_WITH_WITHHELD if expected state
-               └── pass → GENERATE_NARRATIVE → RED_TEAM → FINAL_GATE
-                              ├── pass → HARDEN_BASELINE → ACCEPT
-                              └── fail → AUDIT_FAILURES
+               │       FORMULA_TRACE_BUILD
+               │         ↓
+               │       SURFACE_ALLOWLIST_BUILD
+               │         ↓
+               │       SURFACE_VALIDATION
+               │         ├── fail → AUDIT_FAILURES
+               │         └── pass → ACCEPT_WITH_WITHHELD or PATCH_CANDIDATE
+               └── pass → GENERATE_NARRATIVE
+                              ↓
+                            RED_TEAM
+                              ↓
+                            SURFACE_VALIDATION
+                              ├── fail → AUDIT_FAILURES
+                              └── pass → FINAL_GATE → HARDEN_BASELINE → ACCEPT
 ```
 
 ## 7. Iteration steps
@@ -114,6 +135,8 @@ Create a run manifest with:
 - source timestamps
 - environment hash
 - model and prompt versions
+- market data provider and quote timestamp
+- fixture ids and hashes
 
 ### Step 1 — Build authoritative source bundle
 
@@ -122,7 +145,7 @@ For each benchmark:
 - discover latest 10-Q and 10-K
 - download filing HTML / iXBRL / statement tables
 - download market data snapshot
-- store raw sources immutably
+- build immutable source bundle with hashes
 
 ### Step 2 — Extract deterministic facts
 
@@ -163,15 +186,44 @@ If any **valuation prerequisite** fails:
 - mark `valuation_publishable = false`
 - emit facts-only artifact with valuation withheld
 
-### Step 5 — Generate narrative only after gates
+### Step 5 — Build formula traces and surface allowlist
+
+Before rendering any user-facing report:
+
+- build formula traces for every surfaced derived metric
+- classify every candidate field into:
+  - Class A authoritative fact
+  - Class B directly traced deterministic derivation
+  - Class C model / valuation output
+  - Class D evidence-backed qualitative claim
+- compute the render allowlist for the current gate state
+- compute the render denylist based on failed rule dependencies
+
+### Step 6 — Generate narrative only after gates and allowlist
 
 Only if the relevant gates pass:
 
 - LLM gets locked deterministic artifacts
+- LLM receives the render allowlist, not the full raw model object
 - LLM may explain but not alter numbers
 - red-team LLM may challenge but not recompute
 
-### Step 6 — Audit failures
+### Step 7 — Run surface validation
+
+After report rendering, validate:
+
+- no suppressed metric appears
+- no forbidden valuation field appears in a withheld state
+- every surfaced number maps to an allowed fact / derivation / evidence id
+- every surfaced derived metric has a formula trace
+- every surfaced comparison sentence depends only on passed validators
+
+If surface validation fails:
+- treat as a report-safety failure
+- reject publish
+- emit failure artifacts
+
+### Step 8 — Audit failures
 
 Build a structured failure graph:
 
@@ -180,9 +232,11 @@ Build a structured failure graph:
 - observed vs expected values
 - provenance paths
 - benchmark diffs
+- dependency graph
+- suppressed vs leaked fields
 - whether regression introduced new failures
 
-### Step 7 — Localize root cause
+### Step 9 — Localize root cause
 
 Use:
 
@@ -196,20 +250,22 @@ Output ranked hypotheses with:
 - likely module(s)
 - recommended fix class
 
-### Step 8 — Patch candidate
+### Step 10 — Patch candidate
 
 Allowed patch classes:
 
 - parser/source patch
 - mapping patch
 - period resolver patch
+- history loader patch
 - validation patch
+- render-policy patch
 - market data adapter patch
 - prompt patch (narrative-only failures only)
 
 **Rule:** if any deterministic validator failed, a prompt-only patch is invalid.
 
-### Step 9 — Retest and regress
+### Step 11 — Retest and regress
 
 Patch must:
 
@@ -217,14 +273,16 @@ Patch must:
 2. not worsen any previously passing benchmark
 3. preserve or improve gate safety
 4. preserve or improve artifact completeness
+5. preserve or improve report-surface safety
 
-### Step 10 — Harden
+### Step 12 — Harden
 
 If accepted:
 
 - update regression snapshots only through explicit approval
 - record fix signature
 - add a test covering the exact failure mode
+- add or update a negative control if the failure class lacked one
 
 ## 8. Retry, fail, and block semantics
 
@@ -237,6 +295,7 @@ If accepted:
 | repeated identical failure signature across two consecutive iterations | escalate patch priority; require source/parser or validator fix |
 | five iterations without lowering critical-fail count | escalate to human review |
 | any regression in previously passing critical rules | reject candidate patch |
+| any report-surface leak in withheld state | reject candidate patch immediately |
 
 ## 9. Termination criteria
 
@@ -247,9 +306,11 @@ The Ralph loop terminates successfully only when all of the following are true f
 3. zero arithmetic inconsistencies in derived metrics
 4. zero stale-input violations
 5. zero publish-safety violations
-6. all required artifacts emitted
-7. no verdict or confidence leaks into reports where valuation is withheld
-8. for any benchmark where valuation is publishable, valuation prerequisites all pass
+6. zero report-surface violations
+7. all required artifacts emitted
+8. no verdict or confidence leaks into reports where valuation is withheld
+9. every surfaced non-primitive field has a formula trace
+10. every mandatory negative control passes
 
 ## 10. Root-cause hypothesis generation
 
@@ -265,6 +326,10 @@ Use a signature catalog:
 | `SIG_MARKET_CAP_SHARE_BASIS` | market cap inconsistent with price × point-in-time shares | weighted-average shares used incorrectly |
 | `SIG_PE_IMPOSSIBLE` | P/E inconsistent with current price and TTM EPS | wrong EPS basis or stale price |
 | `SIG_HISTORY_SHORT_FOR_CYCLICAL` | fewer than 5 annual periods for cyclical DCF | history loader incomplete; DCF should withhold |
+| `SIG_HISTORY_AVG_CONTAMINATED` | 5Y averages do not match authoritative annual history | history average includes quarters/TTM or wrong year window |
+| `SIG_SURFACE_LEAK_AFTER_WITHHOLD` | facts-only or withheld report contains forbidden fields | render allowlist / suppression audit broken |
+| `SIG_UNTRACED_DERIVED_METRIC` | surfaced derived metric lacks formula trace | formula trace builder incomplete |
+| `SIG_NEGATIVE_CONTROL_MISSING` | no broken-fixture proof for WITHHOLD_ALL | negative-control harness incomplete |
 
 ### LLM second
 
@@ -274,6 +339,8 @@ The diagnoser LLM receives only:
 - expected vs actual diffs
 - provenance chains
 - file/field map
+- suppression audit
+- formula trace coverage report
 
 It returns:
 
@@ -291,98 +358,75 @@ It returns:
 - fixed market price snapshot for golden regression
 - exact expected canonical facts with tolerances
 - expected publish state
+- intentionally broken Micron-derived fixture that must return `WITHHOLD_ALL`
 
 ### Recommended
 
 - add a stable consumer company, a bank, and a utility after MU
+- add a stale-market-data fixture
+- add a malformed-period-order fixture
 
 ### Future
 
 - sector-specific benchmark packs
+- valuation backtesting pack
 
 ## 12. Artifact persistence
 
-All pipeline artifacts are persisted to the **Postgres database** via the `stock_valuations` table. Each run stores the following as JSONB columns:
+### Dual persistence model
 
-- `canonicalFacts` — full extracted facts with provenance
-- `financialModel` — cycle state, normalization, ratios
-- `valuationOutputs` — DCF, multiples, scenarios, verdict
-- `qualityReport` — QA issues + gate decision (includes `gateDecision` with status, failures)
-- `researchDocument` — the complete generated report text
-- `structuredInsights` — dashboard-ready summaries
-- `sourceAccessions` — filing accession numbers for traceability
+Both of the following are mandatory:
 
-The database is the authoritative artifact store. A file-based artifact bundle is **not required** — the DB provides full queryability, auditability, and persistence. All fields needed for forensic review (provenance, gate failures, validation results) are stored in the JSONB columns.
+1. **Postgres database** is the authoritative runtime artifact store.
+2. **File-based iteration report bundle** is mandatory for review, diffing, and offline audit.
 
-### Querying artifacts
+### Database persistence
 
-To inspect a specific run:
+Persist at minimum:
 
-```sql
-SELECT status, "qualityReport"->'gateDecision' as gate,
-       "canonicalFacts"->'quartersUsed' as quarters,
-       "generatedAt"
-FROM stock_valuations
-WHERE ticker = 'MU'
-ORDER BY "generatedAt" DESC
-LIMIT 1;
-```
+- `canonicalFacts`
+- `financialModel`
+- `valuationOutputs`
+- `qualityReport`
+- `researchDocument`
+- `structuredInsights`
+- `sourceAccessions`
+- `runManifest`
+- `quarterManifest`
+- `formulaTraces`
+- `suppressionAudit`
+- `artifactInventory`
+- `negativeControlResults`
+
+### File-based iteration bundle
+
+Every iteration must write to:
+
+`ralph-loop-reports/iteration-{NN}/`
+
+Required files:
+
+- `generated-report.md`
+- `iteration-changes.md`
+- `evaluation-scorecard.md`
+- `run-manifest.json`
+- `quarter-manifest.json`
+- `formula-traces.json`
+- `suppression-audit.json`
+- `artifact-inventory.json`
+- `negative-control-results.json`
 
 ## 13. Mandatory iteration report
 
 After every RALPH loop iteration, a comprehensive human-readable report **must** be written to disk. This is the primary artifact for expert review and is non-negotiable.
 
-### Report location
-
-Write to: `ralph-loop-reports/iteration-{N}/` where `{N}` is the iteration number (zero-padded, e.g. `iteration-01`).
-
-### Required contents
-
-The iteration report folder must contain the following files:
-
-#### 1. `generated-report.md` — The actual generated stock valuation report
-
-This is the **most important artifact**. It is the raw output of the pipeline for the benchmark ticker (e.g. MU) exactly as it would appear to a user in the application. This includes:
-
-- all sections the report renderer would produce (metadata, facts, derived metrics, narrative if generated, valuation if not withheld)
-- the publish status banner (e.g. `FACTS_PUBLISHABLE / VALUATION_VERDICT_WITHHELD`)
-- any warnings or caveats the gate system attached
-
-**This file must be a complete, standalone report** — not a summary or excerpt. A reviewer should be able to read this single file and see exactly what the system would have shown to a user.
-
-#### 2. `iteration-changes.md` — What changed in this iteration
-
-A structured breakdown of:
-
-- **Patch summary:** what code/config/prompt changes were made in this iteration
-- **Files modified:** list of files changed with brief description of each change
-- **Rationale:** why these changes were made (linked to root-cause diagnosis from prior iteration)
-- **Comparison vs previous iteration:** if this is iteration 2+, include:
-  - which previously failing rules now pass
-  - which previously passing rules still pass (regression check)
-  - any new failures introduced
-  - net change in critical-fail count
-  - delta in scorecard (e.g. "12/16 → 14/16 passing")
-
-#### 3. `evaluation-scorecard.md` — Pass/fail for every evaluation parameter
-
-A table showing every validation rule from the deterministic validation framework (Groups A–G) and the acceptance criteria, with:
-
-| Rule ID | Description | Expected | Actual | Status | Notes |
-|---|---|---|---|---|---|
-
-Include:
-
-- every rule from Groups A through G (SRC, PERIOD, TTM, BS, SHARES, MKT, MULT, HIST, VAL rules)
-- every acceptance test from the definition of done (MU-SRC-001, MU-QTR-001, MU-TTM-001, etc.)
-- the gate decisions (facts gate, valuation gate)
-- leak-prevention check (no verdict/confidence/target-price leaks in withheld reports)
-- overall scorecard summary: `{passed}/{total}` rules passing, with breakdown by group
-
 ### Report generation is blocking
 
-The RALPH loop must not proceed to the next iteration until the iteration report has been fully written. This ensures:
+The Ralph loop must not proceed to the next iteration until the iteration report has been fully written and registered in the artifact inventory.
+
+This ensures:
 
 - every iteration is reviewable by a human
 - the generated report is preserved even if later iterations overwrite pipeline state
 - progress is visible and auditable at every step
+- every surfaced report can be checked against formula traces and suppression decisions
