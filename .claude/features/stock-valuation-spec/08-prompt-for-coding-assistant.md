@@ -46,31 +46,42 @@ Build the deterministic filing-first valuation pipeline and Ralph loop described
 
 These are the first targets for the next iterations:
 
-1. **HIST-004**
-   - Fix 5-year averages so they are computed from authoritative annual history only (FY2021–FY2025 for frozen MU)
-   - Expected values:
-     - gross margin average = **27.18%**
-     - operating margin average = **9.70%**
+1. **Narrative suppression leak** (CRITICAL — blocks production readiness)
+   - The LLM narrative surfaces denied fields because `formatModelOutputsForPrompt`
+     feeds all model outputs to the LLM regardless of gate state
+   - **Fix:** Filter the narrative prompt by the suppression audit — do not include
+     denied fields (ROE, ROIC, interest coverage, normalized FCF, cycle confidence)
+     in the data sent to the LLM
+   - **Fix:** Add explicit denied-field instructions to the narrative prompt
+   - **Fix:** Add post-render suppression assertion (SURFACE-007) that hard-fails if
+     any denied-field value appears in the rendered report
+   - See `12-narrative-suppression-and-artifact-integrity.md` for full spec
 
-2. **Surface suppression**
-   - If `HIST-004` fails, suppress:
-     - five-year average metrics
-     - sentences comparing current margins to those averages
-   - If `VAL-002` fails, suppress normalized FCF and related text
-   - If `TRACE-004` fails, suppress ROE, ROIC, interest coverage, cycle confidence
+2. **Formula-trace completeness**
+   - `total_cash_and_investments` trace shows null for `long_term_investments` input —
+     fix the trace builder to include the actual non-null value
+   - EV/EBITDA is surfaced in the report but has no formula trace — add it
+   - Add TRACE-006 (no null inputs for contributing values) and TRACE-007
+     (trace inventory covers all surfaced derived metrics) validation rules
 
-3. **Formula traces**
-   - Every surfaced non-primitive metric must have a formula trace
-   - No trace -> no surface
+3. **Rule-ID semantic stability**
+   - VAL-005 is PASS in scorecard but cited as gate failure reason — contradictory
+   - Add `GATE_TRIGGER` status to the rule result schema
+   - VAL-005 should be `GATE_TRIGGER` (correctly detected cycle peak) not PASS
+   - Gate reasons must distinguish `[FAIL]` from `[GATE_TRIGGER]`
 
-4. **Negative control**
-   - Add intentionally broken Micron-derived fixture
-   - Must return `WITHHOLD_ALL`
+4. **Artifact internal consistency**
+   - Surface-scan claim counts differ across artifacts (45 vs 42 in iteration 6)
+   - All artifacts must reference the same `ScanResult` object
+   - Add ART-CONSISTENCY-001 and ART-CONSISTENCY-002 checks
 
-5. **Strict frozen tolerances**
-   - Frozen point-in-time share count must match exactly:
-     - **1,127,734,051**
-   - Do not allow 1% tolerance on golden share-count tests
+5. **Previously resolved** (iterations 4-6)
+   - HIST-004: 5Y averages correct ✓
+   - Surface suppression audit: built and operational ✓
+   - Formula traces: 13 traces built ✓
+   - Negative control: 10/10 PASS ✓
+   - Frozen tolerances: exact share count match ✓
+   - Surface scanner: claim matching + period labels ✓
 
 ## Use Micron as the first frozen golden regression case
 
@@ -234,12 +245,18 @@ H. Continue until:
 - Do not accept `published_with_warnings` when the correct state is `withheld` or `facts only`.
 - Do not surface untraced derived metrics in a facts-only report.
 - Do not surface historical comparison text if `HIST-004` failed.
+- Do not feed denied fields to the narrative LLM — filter them out of the prompt data.
+- Do not allow a rule to be PASS in the scorecard and simultaneously cited as a gate failure reason.
+- Do not show null for a formula-trace input that actually contributed to the result.
+- Do not surface EV/EBITDA or any derived metric without a formula trace.
+- Do not report different surface-scan claim counts across different artifacts.
 
 ## Implementation preference
 
-- First fix annual-history averaging and report-surface suppression.
-- Then add formula traces and broken negative control.
-- Then tighten frozen tolerances.
+- First make suppression real at render time — filter the LLM prompt and add post-render assertion.
+- Then fix formula-trace completeness (null inputs, EV/EBITDA).
+- Then fix rule-ID stability (GATE_TRIGGER status).
+- Then fix artifact consistency (single scan result object).
 - Then improve peer-set support and eventual valuation logic.
 - Only after those pass, improve narrative richness.
 

@@ -35,6 +35,16 @@
 | `RLOOP-006` | suppression audit present | `suppression-audit.json` exists and matches DB entry |
 | `RLOOP-007` | artifact inventory present | `artifact-inventory.json` exists and lists all iteration artifacts |
 | `RLOOP-008` | negative control results present | `negative-control-results.json` exists and shows expected broken-fixture outcome |
+| `NARR-001` | narrative prompt filtered by suppression audit | denied fields are not present in the LLM prompt data |
+| `NARR-002` | denied-field instruction in narrative prompt | when valuation is withheld, the LLM prompt explicitly lists denied fields by name |
+| `NARR-003` | no denied-field value in rendered report | post-render suppression assertion (SURFACE-007) passes |
+| `NARR-004` | suppression assertion failure handling | if denied fields leak, pipeline downgrades to WITHHOLD_ALL or re-generates narrative |
+| `RULE-001` | rule-ID semantic stability | no rule is simultaneously PASS in the scorecard and cited as a gate failure reason |
+| `RULE-002` | GATE_TRIGGER status for detection rules | VAL-005-type rules use GATE_TRIGGER when they detect a condition that triggers a gate action |
+| `TRACE-006` | no null inputs in formula traces | every input that contributes to a trace result is non-null and sourced |
+| `TRACE-007` | trace inventory covers all surfaced derived metrics | if a derived metric (including EV/EBITDA) appears in the report, it has a formula trace |
+| `ART-CONSISTENCY-001` | claim counts consistent across artifacts | surface-scan counts are identical in inventory, scorecard, and changelog |
+| `ART-CONSISTENCY-002` | rule statuses consistent across artifacts | no contradiction between scorecard statuses and gate-reason citations |
 | `PEER-001` | curated semiconductor seed list | at least 3 semiconductor-adjacent peers defined in registry |
 | `PEER-002` | deterministic peer selection | same inputs produce same peer set (verified by input hash) |
 | `PEER-003` | size and activity filters | peers outside 0.1x–10x market cap range excluded |

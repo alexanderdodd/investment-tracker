@@ -27,6 +27,7 @@ It incorporates the latest improvement ideas and validation requirements discove
 - `09-acceptance-criteria-definition-of-done.md`
 - `10-source-references.md`
 - `11-peer-registry-specification.md`
+- `12-narrative-suppression-and-artifact-integrity.md`
 - `rl-prompt.md`
 - `stock-valuation-ralph-loop-spec-vnext-complete.md`
 

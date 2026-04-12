@@ -126,6 +126,8 @@
 | `TRACE-003` | every surfaced numeric sentence in the report maps to an allowed fact/derived/evidence id | High | report |
 | `TRACE-004` | interest coverage, ROE, ROIC, normalized FCF, and cycle confidence must have formula traces or be suppressed | High | report |
 | `TRACE-005` | formula traces must record period scope and share basis where relevant | Medium | report |
+| `TRACE-006` | every formula trace input that contributes to the result must be non-null and sourced | High | report |
+| `TRACE-007` | every surfaced derived metric in the rendered report must have a formula trace entry | High | report |
 
 ### Group I — Report-surface integrity
 
@@ -137,6 +139,7 @@
 | `SURFACE-004` | historical-comparison text must be suppressed if `HIST-004` fails | High | report |
 | `SURFACE-005` | no annual/quarter/TTM label confusion in surfaced numeric claims | Medium/High | report |
 | `SURFACE-006` | no numeric claim may appear if it is absent from the surface allowlist | High | report |
+| `SURFACE-007` | no denied-field value from the suppression audit appears in the rendered report text | High | report |
 
 ### Group J — Artifact completeness and negative controls
 

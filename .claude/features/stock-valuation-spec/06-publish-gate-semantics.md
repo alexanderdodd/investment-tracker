@@ -67,6 +67,16 @@ If surface validation fails:
 - actual user-facing state becomes `WITHHOLD_ALL`
 - a diagnostic artifact is emitted
 
+### Narrative prompt filtering (mandatory)
+
+The LLM narrative prompt must be filtered by the suppression audit **before** the LLM is called. If a field is in `suppressedFields`, its value must not appear in the data provided to the LLM. The LLM cannot suppress what it can see.
+
+See `12-narrative-suppression-and-artifact-integrity.md` for the full specification.
+
+### Post-render suppression assertion (mandatory)
+
+After the narrative is generated, a hard assertion must verify that no denied-field value appears in the rendered report text. If the assertion fails, the pipeline must either downgrade to `WITHHOLD_ALL` or re-generate the narrative with the offending fields removed from the prompt.
+
 ## 5. Publication classes
 
 Every candidate field must be assigned to one of these classes before rendering:

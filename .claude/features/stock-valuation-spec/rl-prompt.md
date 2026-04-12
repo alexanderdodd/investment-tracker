@@ -58,6 +58,11 @@ Do **not** patch prompts for deterministic failures.
    - no valuation verdict leaks
    - no surface-allowlist violations
    - no untraced derived metrics in generated report
+   - **no denied-field values in rendered report** (SURFACE-007 assertion)
+   - **no null inputs in formula traces for contributing values** (TRACE-006)
+   - **every surfaced derived metric has a formula trace** (TRACE-007)
+   - **no rule is PASS in scorecard and cited as gate failure reason**
+   - **claim counts are consistent across all artifacts**
 
 ### 5. Report — Write iteration artifacts
 
@@ -122,11 +127,43 @@ Do **not** output the promise if there are fixable failures remaining.
    - render-time surface scanner validates all numeric claims in narrative
    - period-label consistency check automated
 
-6. **VAL-004 — Peer registry** (ACTIVE)
-   - See `11-peer-registry-specification.md` for the full spec
-   - Implement curated seed lists for semiconductor peers
-   - Build algorithmic filtering (size, activity, data availability)
-   - Fetch peer multiples (pipeline DB + market data fallback)
-   - Compute peer comparison (median/mean multiples)
-   - Update QA validator to use real peer check
-   - New acceptance criteria: PEER-001 through PEER-012
+6. **Narrative suppression leak** (ACTIVE — HIGHEST PRIORITY)
+   - See `12-narrative-suppression-and-artifact-integrity.md` for the full spec
+   - The LLM narrative still surfaces denied fields (ROE, ROIC, interest coverage,
+     normalized FCF, cycle confidence) because the prompt feeds them all model outputs
+   - **Priority 1:** Filter `formatModelOutputsForPrompt` by suppression audit —
+     do not feed denied fields to the LLM at all
+   - **Priority 2:** Add post-render suppression assertion (SURFACE-007) — hard-fail
+     if any denied field value appears in the rendered report
+   - **Priority 3:** Add explicit denied-field instructions to the narrative prompt
+   - New acceptance criteria: NARR-001 through NARR-004
+
+7. **Formula-trace completeness** (ACTIVE)
+   - `total_cash_and_investments` trace shows null for `long_term_investments`
+     even though the value contributes to the result — fix the trace builder
+   - EV/EBITDA is surfaced in the report but has no formula trace entry — add it
+   - Add TRACE-006 (no null inputs for contributing values) and TRACE-007
+     (trace inventory covers all surfaced derived metrics)
+   - Every surfaced derived metric in the report must have a matching trace
+
+8. **Rule-ID semantic stability** (ACTIVE)
+   - VAL-005 is simultaneously PASS in scorecard and cited as a gate failure reason
+   - Add `GATE_TRIGGER` status: rule ran correctly and detected a condition that
+     triggers a gate action (not a defect, but affects the gate)
+   - VAL-005 should be `GATE_TRIGGER`, not PASS, when it detects cycle peak
+   - Gate reasons must distinguish `[FAIL]` from `[GATE_TRIGGER]`
+   - New acceptance criteria: RULE-001, RULE-002
+
+9. **Artifact internal consistency** (ACTIVE)
+   - Surface-scan claim counts differ across artifacts (45 vs 42)
+   - All artifacts must reference the same scan result object
+   - New acceptance criteria: ART-CONSISTENCY-001, ART-CONSISTENCY-002
+
+10. **VAL-004 — Peer registry** (QUEUED — after items 6-9)
+    - See `11-peer-registry-specification.md` for the full spec
+    - Implement curated seed lists for semiconductor peers
+    - Build algorithmic filtering (size, activity, data availability)
+    - Fetch peer multiples (pipeline DB + market data fallback)
+    - Compute peer comparison (median/mean multiples)
+    - Update QA validator to use real peer check
+    - New acceptance criteria: PEER-001 through PEER-012
