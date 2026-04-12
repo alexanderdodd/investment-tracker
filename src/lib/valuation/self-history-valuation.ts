@@ -50,6 +50,42 @@ export function computeSelfHistoryValuation(
   const opMargins = history.map(h => h.operatingMargin).filter((m): m is number => m !== null);
 
   if (grossMargins.length < 3 || opMargins.length < 3) {
+    // Fallback for sectors without margin data (insurance, financials):
+    // Use ROE-based valuation (P/B approach) if we have equity and earnings
+    const totalEquity = facts.totalEquity.value;
+    const netIncome = facts.ttmNetIncome.value;
+    const shares = facts.sharesOutstanding.value;
+    const bvps = facts.bookValuePerShare.value;
+
+    if (totalEquity && totalEquity > 0 && netIncome && shares && shares > 0 && bvps && bvps > 0) {
+      const roe = netIncome / totalEquity;
+      // For insurance/financials, fair P/B ≈ ROE / cost of equity
+      // Assume cost of equity ~10% as baseline
+      const costOfEquity = 0.10;
+      const justifiedPB = roe > 0 ? roe / costOfEquity : 1.0;
+      // Clamp justified P/B to reasonable range
+      const clampedPB = Math.max(0.5, Math.min(justifiedPB, 4.0));
+
+      const midValue = bvps * clampedPB;
+      const lowValue = bvps * Math.max(0.5, clampedPB * 0.7);
+      const highValue = bvps * Math.min(4.0, clampedPB * 1.3);
+
+      return {
+        method: "self_history",
+        impliedPerShare: midValue > 0 ? midValue : null,
+        historicalRange: midValue > 0 ? { low: lowValue, mid: midValue, high: highValue } : null,
+        details: {
+          medianGrossMargin: 0,
+          medianOperatingMargin: 0,
+          currentGrossMargin: facts.latestQuarterGrossMargin.value,
+          currentOperatingMargin: facts.latestQuarterOperatingMargin.value,
+          cyclePosition: model.cycleState,
+          yearsOfHistory: history.length,
+        },
+        confidence: 0.5, // Lower confidence for ROE-based fallback
+      };
+    }
+
     return {
       method: "self_history",
       impliedPerShare: null,

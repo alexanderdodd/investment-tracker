@@ -110,6 +110,56 @@ async function fetchFromPipelineDb(ticker: string): Promise<PeerMultiples | null
 }
 
 // ---------------------------------------------------------------------------
+// Channel 1.5: Self-compute from EDGAR (lightweight canonical facts)
+// ---------------------------------------------------------------------------
+
+async function fetchFromEdgar(ticker: string): Promise<PeerMultiples | null> {
+  try {
+    // Dynamically import to avoid circular dependencies at load time
+    const { buildCanonicalFacts } = await import("./canonical-facts");
+    const facts = await buildCanonicalFacts(ticker);
+
+    const pe = facts.trailingPE.value;
+    const pb = facts.priceToBook.value;
+    const mcap = facts.marketCap.value;
+
+    // Compute EV multiples
+    const ev = facts.enterpriseValue.value;
+    const opIncome = facts.ttmOperatingIncome.value;
+    const da = facts.ttmDA.value;
+    const revenue = facts.ttmRevenue.value;
+
+    let evEbitda: number | null = null;
+    if (ev && opIncome && da) {
+      const ebitda = opIncome + da;
+      evEbitda = ebitda > 0 ? ev / ebitda : null;
+    }
+
+    let evRevenue: number | null = null;
+    if (ev && revenue && revenue > 0) {
+      evRevenue = ev / revenue;
+    }
+
+    const usable = [pe, pb, evEbitda, evRevenue].filter(v => v !== null).length;
+
+    return {
+      ticker: ticker.toUpperCase(),
+      source: "pipeline" as const,
+      asOf: new Date().toISOString(),
+      marketCap: mcap,
+      trailingPe: pe,
+      priceToBook: pb,
+      evToEbitda: evEbitda,
+      evToRevenue: evRevenue,
+      usableMultipleCount: usable,
+    };
+  } catch (err) {
+    console.warn(`Peer EDGAR fetch failed for ${ticker}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Channel 2: Market data API
 // ---------------------------------------------------------------------------
 
@@ -158,13 +208,19 @@ async function fetchFromMarketData(ticker: string): Promise<PeerMultiples | null
 // ---------------------------------------------------------------------------
 
 export async function fetchPeerMultiples(candidate: PeerCandidate): Promise<PeerMultiples> {
-  // Channel 1: Pipeline DB
+  // Channel 1: Pipeline DB (fastest — already computed)
   const pipelineResult = await fetchFromPipelineDb(candidate.ticker);
   if (pipelineResult && pipelineResult.usableMultipleCount >= 1) {
     return pipelineResult;
   }
 
-  // Channel 2: Market data API (accept if we got a valid response)
+  // Channel 1.5: Self-compute from EDGAR (deterministic, high quality)
+  const edgarResult = await fetchFromEdgar(candidate.ticker);
+  if (edgarResult && edgarResult.usableMultipleCount >= 1) {
+    return edgarResult;
+  }
+
+  // Channel 2: Market data API (fallback — price only)
   const marketResult = await fetchFromMarketData(candidate.ticker);
   if (marketResult) {
     return marketResult;
