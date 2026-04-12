@@ -137,10 +137,17 @@ function computeValuationConfidence(
   }
 
   // Methods with null values reduce confidence
-  const nullMethods = methods.filter(m => m.perShareValue === null).length;
-  if (nullMethods > 0) {
-    confidence -= nullMethods * 0.10;
-    reasons.push(`${nullMethods} valuation method(s) could not produce a result`);
+  const failedMethods = methods.filter(m => m.perShareValue === null);
+  if (failedMethods.length > 0) {
+    confidence -= failedMethods.length * 0.10;
+    const methodLabels: Record<string, string> = {
+      normalized_dcf: "Normalized DCF",
+      reverse_dcf: "Reverse DCF",
+      relative_valuation: "Relative/peer valuation",
+      self_history: "Self-history valuation",
+    };
+    const names = failedMethods.map(m => methodLabels[m.method] ?? m.method).join(", ");
+    reasons.push(`${failedMethods.length} method(s) could not produce a result: ${names}`);
   }
 
   const score = Math.max(0, Math.min(1, confidence));
