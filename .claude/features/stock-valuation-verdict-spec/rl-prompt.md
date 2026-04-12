@@ -111,6 +111,10 @@ Apply one focused patch. Do not patch prompts for deterministic failures.
    - no forbidden fields leak in any withheld state
    - SURFACE-007 suppression assertion passes
    - **RENDER-001: report-gate consistency** — if value publishes, report contains fair value section
+   - **NARR-CLEAN-001: no withheld language in published reports** — narrative must not say "cannot be determined" when value publishes
+   - **NARR-CLEAN-002: narrative references fair value** — report body mentions the range when published
+   - **LABEL-001: no DEEP labels at low confidence** — if confidence < 0.35, label is CHEAP/EXPENSIVE not DEEP_*
+   - **RDCF-REASON-001: confidence reasons don't mention reverse DCF** — describe contributing methods only
    - **RDCF-001: reverse DCF excluded from midpoint** — effective weight = 0
    - **key risks populated** — at least 2 for MU at peak
 
@@ -147,43 +151,26 @@ Output `<promise>RALPH COMPLETE</promise>` when:
 
 Do **not** output the promise if there are fixable failures remaining.
 
-## Known priority issues (from iteration 10 expert review)
+## Known priority issues (from iteration 11 expert review)
 
-See `15-iteration-10-expert-fixes.md` for full specification of each fix.
+See `16-iteration-11-expert-fixes.md` for full specification of each fix.
 
-1. **Report-gate consistency assertion** (HIGHEST PRIORITY)
-   - Add a hard assertion that if valueGateStatus = PUBLISH_FACTS_PLUS_VALUE, then
-     generated-report.md MUST contain fair value range, label, confidence rating, and reasons
-   - If missing, fail the iteration — this is the "what would the user see?" test
-   - Acceptance criteria: RENDER-001 through RENDER-003
+1. **Withheld-language contamination in published reports** (TOP PRIORITY)
+   - When value gate publishes, the LLM narrative still says "fair value cannot be reliably
+     determined" — contradicts the report header which shows fair value
+   - Root cause: narrative prompt still uses withheld-era instructions when value publishes
+   - Fix: update narrative prompt for published-value state, add post-render assertion
+   - Acceptance criteria: NARR-CLEAN-001 through NARR-CLEAN-003
 
-2. **Remove reverse DCF from fair value midpoint** (SECOND PRIORITY)
-   - Reverse DCF is circular (derives from market price) — don't use it for intrinsic value
-   - Keep it in the report as a "Market-implied expectations" diagnostic section
-   - Renormalize remaining weights: DCF 55%, relative 30%, self-history 15%
-   - Expected: range narrows, midpoint moves toward non-circular consensus
-   - Acceptance criteria: RDCF-001 through RDCF-005
+2. **De-intensify label at very low confidence** (SECOND PRIORITY)
+   - DEEP_EXPENSIVE reads more certain than 25% confidence supports
+   - Fix: if confidence < 0.35, collapse DEEP_CHEAP/DEEP_EXPENSIVE to CHEAP/EXPENSIVE
+   - Acceptance criteria: LABEL-001, LABEL-002
 
-3. **Recalibrate relative valuation confidence** (THIRD PRIORITY)
-   - Current 0.88 confidence is too high for curated peer snapshots
-   - Add -0.15 penalty for curated-only (not pipeline-derived) multiples
-   - Increase Samsung conglomerate penalty from 0.35 to 0.45
-   - Cap relative confidence at 0.65 when all peers are curated
-   - Add peer-quality weakness to confidence reasons
-   - Acceptance criteria: PEER-CAL-001 through PEER-CAL-003
-
-4. **Deterministic key risks** (FOURTH PRIORITY)
-   - `keyRisks` is empty when QA passes (desired state)
-   - Derive from cycle state, valuation context, balance sheet, industry
-   - See `14-key-risks-specification.md`
-   - Acceptance criteria: RISK-001 through RISK-003
-
-5. **Spec consistency** (FIFTH PRIORITY)
-   - Reconcile always-publish rule across facts-first spec and verdict spec
-   - Facts gate governs facts publication (unchanged)
-   - Value gate governs valuation publication (new layer)
-   - Hard blocks: <2 valid methods or non-positive midpoint
-   - Everything else is communicated via confidence rating
+3. **Reword reverse DCF confidence reason** (THIRD PRIORITY)
+   - Confidence reason says "DCF vs reverse DCF disagree" but reverse DCF is diagnostic-only
+   - Fix: describe disagreement among contributing methods only
+   - Acceptance criteria: RDCF-REASON-001, RDCF-REASON-002
 
 ## Previously resolved
 
