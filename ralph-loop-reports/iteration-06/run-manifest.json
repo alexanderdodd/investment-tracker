@@ -1,0 +1,16 @@
+{
+  "iteration": 6,
+  "ticker": "MU",
+  "startedAt": "2026-04-12T11:08:15.685Z",
+  "completedAt": "2026-04-12T11:08:15.685Z",
+  "gateStatus": "PUBLISH_FACTS_ONLY",
+  "goldenFixtureResult": "19/19 PASS (added TTM-002)",
+  "brokenFixtureResult": "10/10 PASS",
+  "surfaceScanResult": "PASS (42 claims, 42 matched, 0 unmatched)",
+  "changes": [
+    "Added TTM-002 (gross profit) to golden fixture test — now 19/19",
+    "Built render-time report surface scanner (src/lib/valuation/surface-scanner.ts)",
+    "Integrated surface scanner into pipeline (TRACE-003 / SURFACE-006)",
+    "Scanner extracts dollar amounts, percentages, ratios from narrative and maps to known facts/traces"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "generatedAt": "2026-04-12T11:08:15.684Z",
+  "totalScenarios": 10,
+  "passed": 10,
+  "failed": 0,
+  "scenarios": [
+    {
+      "name": "Missing 10-K filing",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "Missing 10-Q filing",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "Null price",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "Zero shares",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "Null TTM revenue",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "Null TTM net income",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "FCF != OCF - CapEx",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "Null total equity",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "P/E inconsistent",
+      "expected": "WITHHOLD_ALL",
+      "actual": "WITHHOLD_ALL",
+      "pass": true
+    },
+    {
+      "name": "Valid facts but peak cycle",
+      "expected": "PUBLISH_FACTS_ONLY",
+      "actual": "PUBLISH_FACTS_ONLY",
+      "pass": true
+    }
+  ]
+}

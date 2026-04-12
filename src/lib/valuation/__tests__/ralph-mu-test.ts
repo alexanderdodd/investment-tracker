@@ -82,6 +82,7 @@ async function runRalphTest() {
 
   // --- TTM ---
   check("TTM-001", "HIGH", "ttm.revenue", facts.ttmRevenue.value, g.ttm.revenue);
+  check("TTM-002", "HIGH", "ttm.gross_profit", facts.ttmGrossProfit.value, g.ttm.grossProfit);
   check("TTM-003", "HIGH", "ttm.operating_income", facts.ttmOperatingIncome.value, g.ttm.operatingIncome);
   check("TTM-004", "HIGH", "ttm.net_income", facts.ttmNetIncome.value, g.ttm.netIncome);
   check("TTM-006", "HIGH", "ttm.ocf", facts.ttmOCF.value, g.ttm.operatingCashFlow);

@@ -16,6 +16,7 @@ import { runQaValidation } from "./valuation/qa-validators";
 import { generateNarrative, redTeamReview } from "./valuation/narrative";
 import { buildFormulaTraces } from "./valuation/formula-traces";
 import { buildSurfaceAllowlist } from "./valuation/surface-allowlist";
+import { scanReportSurface } from "./valuation/surface-scanner";
 import type { CanonicalFacts, FinancialModelOutputs, ValuationOutputs, QaReport } from "./valuation/types";
 import type { StockValuationInsights } from "./stock-valuation-insights";
 import { generateText } from "ai";
@@ -291,6 +292,15 @@ export async function generateStockValuation(
         `Verdict: ${valuationOutputs.verdict} | DCF: $${valuationOutputs.dcf?.perShareValue.toFixed(2) ?? "N/A"}`
       );
       report(5, "complete");
+    }
+
+    // Run surface scanner on narrative (TRACE-003 / SURFACE-006)
+    const surfaceScan = scanReportSurface(narrative, facts, financialModel, formulaTraces, surfaceAllowlist, valuationOutputs);
+    if (surfaceScan.unmatchedClaims.length > 0) {
+      console.warn(`Surface scan: ${surfaceScan.unmatchedClaims.length} unmatched numeric claims in narrative`);
+      for (const c of surfaceScan.unmatchedClaims) {
+        console.warn(`  L${c.lineNumber}: ${c.raw} (${c.unit}) — "${c.context.substring(0, 80)}"`);
+      }
     }
 
     // Gate status label for the report
