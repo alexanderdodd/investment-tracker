@@ -88,6 +88,19 @@ Output `<promise>RALPH COMPLETE</promise>` when:
 
 Do **not** output the promise if there are fixable failures remaining.
 
+## Known priority issues
+
+1. **Business-model-aware peer scoring** (HIGHEST PRIORITY)
+   - SIC codes produce poor peers for platform companies (Apple gets Dell/HP instead of Microsoft/Google)
+   - Implement multi-signal scoring: gross margin similarity (30%) + SIC match (25%) + market cap proximity (20%) + revenue growth (15%) + sector (10%)
+   - Filter out peers with gross margin difference > 20 percentage points
+   - See `decisions.md` DECISION-003
+
+2. **Peer multiples caching** (SECOND PRIORITY)
+   - Running buildCanonicalFacts for 8 peers adds 40-80 seconds
+   - Cache peer data in DB with 30-day TTL
+   - See `decisions.md` OPEN-002
+
 ## Known constraints
 
 - Korean peers (SK hynix, Samsung) won't have SEC CIKs — curated override handles these

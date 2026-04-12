@@ -111,6 +111,59 @@ Option 1 (DB cache with 30-day TTL). Peer fundamentals don't change faster than 
 
 ---
 
+## DECISION-003: Business-model-aware peer selection (beyond SIC codes)
+
+**Status:** Decided in principle — needs implementation  
+**Date:** 2026-04-12
+
+### Problem
+SIC codes classify what a company *makes*, not how it *makes money*. This produces poor peers for platform/ecosystem companies:
+- Apple (SIC 3571 "Electronic Computers") gets matched with Dell, HP, Lenovo — commodity hardware companies with 20-25% gross margins
+- Apple's actual comparables are Microsoft, Google, Samsung — platform companies with 40-50%+ gross margins and services revenue
+- The resulting peer multiples ($54/share for Apple) are wildly wrong because hardware companies trade at 10-15x P/E while Apple trades at 30x+
+
+### Methodology for better peer selection
+The reasoning that identified this problem used several signals that SIC codes miss:
+
+1. **Gross margin similarity** — the single strongest signal. Companies with similar gross margins tend to have similar business models. Apple (45% GM) should be compared to Microsoft (70% GM) and Google (57% GM), not Dell (22% GM).
+
+2. **Revenue model** — subscription/services vs one-time hardware vs advertising. Companies with recurring revenue trade at higher multiples.
+
+3. **Market cap tier** — mega-caps ($500B+) trade differently from mid-caps. Peer comparisons across tiers are misleading.
+
+4. **Growth profile** — a 5% grower and a 25% grower in the same SIC code are not comparable.
+
+### Decision
+Implement a **multi-signal peer scoring** system that augments SIC codes:
+
+```
+peerScore = 0.25 × sicMatch
+          + 0.30 × grossMarginSimilarity
+          + 0.20 × marketCapProximity
+          + 0.15 × revenueGrowthSimilarity
+          + 0.10 × sectorOverlap
+```
+
+This means:
+- SIC still matters (25%) but is no longer dominant
+- Gross margin similarity is the strongest signal (30%)
+- A company with the "wrong" SIC but similar margins and growth ranks higher than one with the "right" SIC but very different financials
+
+### Implementation approach
+After discovering SIC candidates, score each peer using the subject's canonical facts:
+- Subject gross margin: compare to peer's gross margin (from EDGAR)
+- Subject market cap: compare to peer's market cap
+- Subject revenue growth: compare to peer's revenue growth
+- Filter out peers with gross margin difference > 20 percentage points
+
+### Expert review needed
+- Is gross margin the right primary signal, or should operating margin be used?
+- Should we have a hard floor on margin similarity (e.g., exclude peers with >20pp margin difference)?
+- For companies like Apple that straddle hardware and services, should the system detect "dual-model" companies and weight accordingly?
+- Should the curated override system be used more aggressively for mega-caps where SIC is known to be misleading?
+
+---
+
 ## OPEN-003: Peer set size vs quality tradeoff
 
 **Status:** Open — needs expert input  
