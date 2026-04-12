@@ -55,5 +55,42 @@ export function parseStockValuationInsights(raw: unknown): StockValuationInsight
   ) {
     return null;
   }
-  return raw as StockValuationInsights;
+
+  // Sanitize fields that might be objects/unexpected types from older DB rows
+  const sanitized = { ...data } as Record<string, unknown>;
+
+  // Ensure string fields are actually strings
+  for (const key of ["verdictReason", "confidenceReason", "headline", "businessSummary",
+    "businessModel", "competitivePosition", "industryContext", "revenueGrowth",
+    "profitability", "cashGeneration", "balanceSheetStrength", "capitalAllocation",
+    "accountingQuality", "dcfSummary", "multiplesSummary", "peerComparison",
+    "bullCase", "baseCase", "bearCase", "marginOfSafety"] as const) {
+    if (sanitized[key] !== null && sanitized[key] !== undefined && typeof sanitized[key] !== "string") {
+      sanitized[key] = String(sanitized[key]);
+    }
+  }
+
+  // Ensure currentPrice and intrinsicValue are numbers or null
+  if (sanitized.currentPrice !== null && typeof sanitized.currentPrice !== "number") {
+    const parsed = parseFloat(String(sanitized.currentPrice).replace(/[^0-9.-]/g, ""));
+    sanitized.currentPrice = isNaN(parsed) ? null : parsed;
+  }
+  if (sanitized.intrinsicValue !== null && typeof sanitized.intrinsicValue !== "number") {
+    const parsed = parseFloat(String(sanitized.intrinsicValue).replace(/[^0-9.-]/g, ""));
+    sanitized.intrinsicValue = isNaN(parsed) ? null : parsed;
+  }
+
+  // Ensure confidence is a valid string
+  if (typeof sanitized.confidence !== "string") {
+    sanitized.confidence = "N/A";
+  }
+
+  // Ensure array fields are arrays
+  for (const key of ["keyRisks", "keyDrivers", "sensitivityFactors", "catalysts"] as const) {
+    if (!Array.isArray(sanitized[key])) {
+      sanitized[key] = [];
+    }
+  }
+
+  return sanitized as unknown as StockValuationInsights;
 }
