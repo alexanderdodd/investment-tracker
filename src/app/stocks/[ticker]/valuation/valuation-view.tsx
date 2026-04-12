@@ -96,78 +96,57 @@ function formatMarketCap(val: number | null | undefined): string {
   return "$" + val.toLocaleString();
 }
 
-function PeerComparisonCard({ insights, ticker }: { insights: StockValuationInsights; ticker: string }) {
-  const [expanded, setExpanded] = useState(false);
+function PeerComparisonTable({ insights }: { insights: StockValuationInsights }) {
   const peers = insights.peerDetails ?? [];
+  if (peers.length === 0) return null;
 
   return (
     <Card title="Peer Comparison">
-      <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{insights.peerComparison}</p>
-      {peers.length > 0 && (
-        <div className="mt-3">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1.5 text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors"
-          >
-            <svg
-              className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-90" : ""}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            {expanded ? "Hide" : "Show"} peer details ({peers.length})
-          </button>
-          {expanded && (
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-200 dark:border-zinc-700 text-left text-zinc-500 dark:text-zinc-400">
-                    <th className="pb-2 pr-3 font-medium">Company</th>
-                    <th className="pb-2 px-3 font-medium text-right">Mkt Cap</th>
-                    <th className="pb-2 px-3 font-medium text-right">P/E</th>
-                    <th className="pb-2 px-3 font-medium text-right">P/B</th>
-                    <th className="pb-2 px-3 font-medium text-right">EV/EBITDA</th>
-                    <th className="pb-2 px-3 font-medium text-right">EV/Rev</th>
-                    <th className="pb-2 pl-3 font-medium text-right">Quality</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {peers.map((peer) => (
-                    <tr
-                      key={peer.ticker}
-                      className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
-                      onClick={() => window.open(`/stocks/${peer.ticker}`, "_blank")}
-                      title={`Open ${peer.ticker} analysis`}
-                    >
-                      <td className="py-2 pr-3">
-                        <div className="font-medium text-zinc-900 dark:text-zinc-100">{peer.ticker}</div>
-                        <div className="text-zinc-500 dark:text-zinc-400 truncate max-w-[180px]">{peer.companyName}</div>
-                      </td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{formatMarketCap(peer.marketCap)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.trailingPe)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.priceToBook)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.evToEbitda)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.evToRevenue)}</td>
-                      <td className="py-2 pl-3 text-right">
-                        <span className={`inline-block rounded px-1.5 py-0.5 font-medium ${
-                          peer.role === "primary"
-                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                            : "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                        }`}>
-                          {(peer.qualityScore * 100).toFixed(0)}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+      <p className="mb-4 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{insights.peerComparison}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-200 dark:border-zinc-700 text-left text-zinc-500 dark:text-zinc-400">
+              <th className="pb-2 pr-4 font-medium">Company</th>
+              <th className="pb-2 px-4 font-medium text-right">Mkt Cap</th>
+              <th className="pb-2 px-4 font-medium text-right">P/E</th>
+              <th className="pb-2 px-4 font-medium text-right">P/B</th>
+              <th className="pb-2 px-4 font-medium text-right">EV/EBITDA</th>
+              <th className="pb-2 px-4 font-medium text-right">EV/Rev</th>
+              <th className="pb-2 pl-4 font-medium text-right">Quality</th>
+            </tr>
+          </thead>
+          <tbody>
+            {peers.map((peer) => (
+              <tr
+                key={peer.ticker}
+                className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
+                onClick={() => window.open(`/stocks/${peer.ticker}/valuation`, "_blank")}
+                title={`Open ${peer.ticker} valuation`}
+              >
+                <td className="py-3 pr-4">
+                  <div className="font-medium text-zinc-900 dark:text-zinc-100">{peer.ticker}</div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">{peer.companyName}</div>
+                </td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{formatMarketCap(peer.marketCap)}</td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.trailingPe)}</td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.priceToBook)}</td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.evToEbitda)}</td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.evToRevenue)}</td>
+                <td className="py-3 pl-4 text-right">
+                  <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                    peer.role === "primary"
+                      ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                      : "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                  }`}>
+                    {(peer.qualityScore * 100).toFixed(0)}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Card>
   );
 }
@@ -287,7 +266,7 @@ function ProgressPanel({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function StockValuationView({ ticker, onReportGenerated }: { ticker: string; onReportGenerated?: () => void }) {
+export function StockValuationView({ ticker }: { ticker: string }) {
   const [insights, setInsights] = useState<StockValuationInsights | null>(null);
   const [researchDoc, setResearchDoc] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
@@ -299,7 +278,6 @@ export function StockValuationView({ ticker, onReportGenerated }: { ticker: stri
   const [showHistory, setShowHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: string; generatedAt: string; verdict: string | null; confidence: string | null; intrinsicValue: string | number | null; status: string }[]>([]);
-  const [showScorecard, setShowScorecard] = useState(false);
 
   const loadValuation = useCallback(async () => {
     try {
@@ -406,7 +384,6 @@ export function StockValuationView({ ticker, onReportGenerated }: { ticker: stri
     } finally {
       setGenerating(false);
       loadHistory(); // Refresh history after generation
-      onReportGenerated?.(); // Refresh parent header badges
     }
   };
 
@@ -495,37 +472,31 @@ export function StockValuationView({ ticker, onReportGenerated }: { ticker: stri
             );
           })()}
           {insights.confidence && insights.confidence !== "N/A" && (
-            <span
-              className="relative"
-              onMouseEnter={() => setShowScorecard(true)}
-              onMouseLeave={() => setShowScorecard(false)}
-            >
+            <span className="relative group">
               <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}>
                 {insights.confidence} confidence
                 <svg className="h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                 </svg>
               </span>
-              {showScorecard && (
-                <span className="absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 shadow-lg dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                  <span className="mb-2 block font-semibold text-zinc-900 dark:text-zinc-100">Confidence scorecard</span>
-                  {insights.confidenceChecklist && insights.confidenceChecklist.length > 0 ? (
-                    <span className="block space-y-1.5">
-                      {(insights.confidenceChecklist as { label: string; passed: boolean; detail: string }[]).map((item, i) => (
-                        <span key={i} className="flex items-start gap-2 block">
-                          <span className={`mt-0.5 flex-shrink-0 text-sm ${item.passed ? "text-green-500" : "text-red-400"}`}>
-                            {item.passed ? "\u2713" : "\u2717"}
-                          </span>
-                          <span className="block">
-                            <span className={`font-medium ${item.passed ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-900 dark:text-zinc-100"}`}>{item.label}</span>
-                            <span className="block text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">{item.detail}</span>
-                          </span>
+              <span className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                <span className="mb-2 block font-semibold text-zinc-900 dark:text-zinc-100">Confidence scorecard</span>
+                {insights.confidenceChecklist && insights.confidenceChecklist.length > 0 ? (
+                  <span className="block space-y-1.5">
+                    {(insights.confidenceChecklist as { label: string; passed: boolean; detail: string }[]).map((item, i) => (
+                      <span key={i} className="flex items-start gap-2 block">
+                        <span className={`mt-0.5 flex-shrink-0 text-sm ${item.passed ? "text-green-500" : "text-red-400"}`}>
+                          {item.passed ? "\u2713" : "\u2717"}
                         </span>
-                      ))}
-                    </span>
-                  ) : null}
-                </span>
-              )}
+                        <span className="block">
+                          <span className={`font-medium ${item.passed ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-900 dark:text-zinc-100"}`}>{item.label}</span>
+                          <span className="block text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">{item.detail}</span>
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
+              </span>
             </span>
           )}
           {generatedAt && (
@@ -600,15 +571,15 @@ export function StockValuationView({ ticker, onReportGenerated }: { ticker: stri
       {insights && (
         <>
           {/* Valuation */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card title="DCF Valuation">
               <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{insights.dcfSummary}</p>
             </Card>
             <Card title="Market Multiples">
               <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{insights.multiplesSummary}</p>
             </Card>
-            <PeerComparisonCard insights={insights} ticker={ticker} />
           </div>
+          <PeerComparisonTable insights={insights} />
 
           {/* Business */}
           <Card title="Business Overview">
