@@ -113,7 +113,7 @@
 | `VAL-001` | cycle classification computed from validated history, not LLM opinion | High | valuation |
 | `VAL-002` | normalized base-year FCF documented and reproducible | High | valuation |
 | `VAL-003` | WACC inputs have provenance and calculation trace | High | valuation |
-| `VAL-004` | direct peer set for multiples is deterministically sourced or curated | Medium/High | valuation |
+| `VAL-004` | direct peer set for multiples is deterministically sourced or curated; ≥3 validated peers with usable multiples (see `11-peer-registry-specification.md`) | Medium/High | valuation |
 | `VAL-005` | scenario spread must be reasonable for cyclical names; over-tight bands fail | Medium | valuation |
 | `VAL-006` | if any of `VAL-001..004` fail, verdict withheld | High | valuation |
 

@@ -35,6 +35,18 @@
 | `RLOOP-006` | suppression audit present | `suppression-audit.json` exists and matches DB entry |
 | `RLOOP-007` | artifact inventory present | `artifact-inventory.json` exists and lists all iteration artifacts |
 | `RLOOP-008` | negative control results present | `negative-control-results.json` exists and shows expected broken-fixture outcome |
+| `PEER-001` | curated semiconductor seed list | at least 3 semiconductor-adjacent peers defined in registry |
+| `PEER-002` | deterministic peer selection | same inputs produce same peer set (verified by input hash) |
+| `PEER-003` | size and activity filters | peers outside 0.1x–10x market cap range excluded |
+| `PEER-004` | disallowed peers excluded | no ticker from `disallowedPeers` in final peer set |
+| `PEER-005` | peer multiples fetched | at least 3 peers have P/E or EV/EBITDA values |
+| `PEER-006` | peer comparison computed | median and mean multiples computed and persisted |
+| `PEER-007` | VAL-004 passes for MU | MU peer set has ≥3 validated peers with multiples |
+| `PEER-008` | peer fields in surface allowlist | peer-derived metrics appear only when VAL-004 passes |
+| `PEER-009` | peer formula traces | peer median multiples have formula traces with peer inputs |
+| `PEER-010` | peer artifacts persisted | `peer-comparison.json` in iteration bundle + peer data in DB |
+| `PEER-011` | insufficient peers → withhold | empty or filtered-out peer list causes VAL-004 fail and gate withhold |
+| `PEER-012` | no regression from peers | adding peer support does not break any existing acceptance criteria |
 | `REG-001` | no regression | accepted patch must not worsen any prior passing benchmark |
 | `REG-002` | no surface regression | accepted patch must not introduce new report-surface leaks |
 

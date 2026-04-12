@@ -35,6 +35,10 @@ src/
     dcf.ts
     multiples.ts
     reverseDcf.ts
+    peerRegistry.ts
+    peerResolver.ts
+    peerMultiples.ts
+    peerComparison.ts
   loop/
     ralph.ts
     diagnosis.ts
@@ -263,16 +267,28 @@ Use the frozen price snapshot for CI so the baseline stays stable. Use live pric
 - deterministic rule engine with DB-persisted artifacts
 - file-based iteration report bundle
 
+### Mandatory for next implementation pass
+
+- peer-set registry by industry (see `11-peer-registry-specification.md`)
+  - curated seed lists for semiconductor and other frameworks
+  - algorithmic filtering (size, activity, data availability, exclusions)
+  - peer multiples fetching (pipeline-derived preferred, market data fallback)
+  - peer comparison computation (median/mean) with formula traces
+  - VAL-004 resolution
+
 ### Recommended next
 
 - more benchmark companies
-- peer-set registry by industry
 - valuation-prerequisite explainability panel
+
+### Completed (iteration 6)
+
 - explicit render lint for period labels (quarter vs annual vs TTM)
+- semantic scanning of narrative claims against allowlist
 
 ### Future
 
 - analyst override workflow with full audit trail
 - sector-specific normalization templates
 - automated benchmark expansion
-- semantic diffing of narrative claims against allowlist
+- automated peer discovery from SEC SIC/GICS codes

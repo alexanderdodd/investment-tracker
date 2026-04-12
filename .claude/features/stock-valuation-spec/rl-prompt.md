@@ -103,20 +103,30 @@ Do **not** output the promise if there are fixable failures remaining.
 
 ## Known priority issues to clear first
 
-1. **HIST-004**
+1. **HIST-004** (RESOLVED in iteration 4)
    - five-year averages must match annual-history-only baseline:
      - gross margin 27.18%
      - operating margin 9.70%
 
-2. **Surface suppression**
+2. **Surface suppression** (RESOLVED in iteration 5)
    - no failed-history metrics or dependent commentary in facts-only reports
    - no normalized FCF / ROE / ROIC / interest coverage without trace + allowlist
 
-3. **Broken fixture**
+3. **Broken fixture** (RESOLVED in iteration 5)
    - add and validate `WITHHOLD_ALL`
 
-4. **Artifact completeness**
+4. **Artifact completeness** (RESOLVED in iteration 5)
    - DB + file artifacts must both exist
 
-5. **VAL-004**
-   - peer registry remains an allowed structural fail only if valuation is withheld correctly and no forbidden fields leak
+5. **TRACE-003 / SURFACE-005 / SURFACE-006** (RESOLVED in iteration 6)
+   - render-time surface scanner validates all numeric claims in narrative
+   - period-label consistency check automated
+
+6. **VAL-004 — Peer registry** (ACTIVE)
+   - See `11-peer-registry-specification.md` for the full spec
+   - Implement curated seed lists for semiconductor peers
+   - Build algorithmic filtering (size, activity, data availability)
+   - Fetch peer multiples (pipeline DB + market data fallback)
+   - Compute peer comparison (median/mean multiples)
+   - Update QA validator to use real peer check
+   - New acceptance criteria: PEER-001 through PEER-012
