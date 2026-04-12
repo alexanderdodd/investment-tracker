@@ -36,11 +36,11 @@ const INITIAL_STAGES: Omit<ProgressStage, "totalStages">[] = [
 function verdictColor(verdict: string) {
   switch (verdict) {
     case "Undervalued":
-      return "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400";
+      return "border-green-500/40 bg-green-500/15 text-green-500 dark:text-green-400 font-semibold";
     case "Fair Value":
-      return "border-zinc-500/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400";
+      return "border-blue-500/40 bg-blue-500/15 text-blue-500 dark:text-blue-400 font-semibold";
     case "Overvalued":
-      return "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400";
+      return "border-red-500/40 bg-red-500/15 text-red-500 dark:text-red-400 font-semibold";
     default:
       return "border-zinc-500/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400";
   }
@@ -387,7 +387,7 @@ export function StockValuationView({ ticker }: { ticker: string }) {
           </h1>
           {insights && (
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${verdictColor(insights.verdict)}`}>
+              <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm ${verdictColor(insights.verdict)}`}>
                 {insights.verdict}
               </span>
               {insights.currentPrice && insights.intrinsicValue && (
