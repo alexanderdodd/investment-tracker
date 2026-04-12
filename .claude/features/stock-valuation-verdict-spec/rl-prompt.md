@@ -120,7 +120,7 @@ Apply one focused patch. Do not patch prompts for deterministic failures.
 
 ### 5. Report — Write iteration artifacts
 
-Write to `ralph-loop-reports/iteration-{NN}/`:
+Write to `ralph-loop-reports/stock-valuation/iteration-{NN}/`:
 - `generated-report.md`
 - `iteration-changes.md`
 - `evaluation-scorecard.md`

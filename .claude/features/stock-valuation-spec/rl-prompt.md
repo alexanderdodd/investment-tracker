@@ -66,7 +66,7 @@ Do **not** patch prompts for deterministic failures.
 
 ### 5. Report — Write iteration artifacts
 
-Write to `ralph-loop-reports/iteration-{NN}/` (zero-padded, next number after the latest):
+Write to `ralph-loop-reports/stock-valuation/iteration-{NN}/` (zero-padded, next number after the latest):
 
 - `generated-report.md`
 - `iteration-changes.md`

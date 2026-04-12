@@ -15,6 +15,8 @@ You are implementing automated peer registry creation for the stock valuation pi
 5. Market data client is at `src/lib/market-data/client.ts`.
 6. The fair value synthesis is at `src/lib/valuation/fair-value-synthesis.ts`.
 7. The pipeline is at `src/lib/generate-stock-valuation.ts`.
+8. Previous stock-valuation iterations are at `ralph-loop-reports/stock-valuation/`.
+9. **This feature's iterations go in `ralph-loop-reports/peer-registry/iteration-{NN}/`** starting at iteration-01.
 
 ## Commands
 
@@ -70,7 +72,7 @@ Priority: PREG (regression) > PDSC (discovery) > PMUL (multiples) > PQAL (qualit
 5. `npx tsx scripts/value-stock.ts --ticker MU` — verify MU still works
 6. `npx tsx scripts/value-stock.ts --ticker KO` — verify non-MU ticker gets peers
 
-### 5. Report — Write iteration artifacts
+### 5. Report — Write iteration artifacts to `ralph-loop-reports/peer-registry/iteration-{NN}/`
 
 ### 6. Commit and push
 
