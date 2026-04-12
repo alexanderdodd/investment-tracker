@@ -27,6 +27,10 @@ export interface PeerMultiples {
   evToRevenue: number | null;
   /** How many usable multiples this peer has */
   usableMultipleCount: number;
+  /** Gross margin for business-model similarity scoring */
+  grossMargin: number | null;
+  /** TTM revenue for growth comparison */
+  ttmRevenue: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +97,11 @@ async function fetchFromPipelineDb(ticker: string): Promise<PeerMultiples | null
 
     const usable = [pe, pb, evEbitda, evRevenue].filter(v => v !== null).length;
 
+    // Extract gross margin and revenue for similarity scoring
+    const ttmGP = get(facts, "ttmGrossProfit");
+    const ttmRev = get(facts, "ttmRevenue");
+    const grossMargin = ttmGP && ttmRev && ttmRev > 0 ? ttmGP / ttmRev : null;
+
     return {
       ticker: ticker.toUpperCase(),
       source: "pipeline",
@@ -103,6 +112,8 @@ async function fetchFromPipelineDb(ticker: string): Promise<PeerMultiples | null
       evToEbitda: evEbitda,
       evToRevenue: evRevenue,
       usableMultipleCount: usable,
+      grossMargin,
+      ttmRevenue: ttmRev,
     };
   } catch {
     return null;
@@ -128,6 +139,7 @@ async function fetchFromEdgar(ticker: string): Promise<PeerMultiples | null> {
     const opIncome = facts.ttmOperatingIncome.value;
     const da = facts.ttmDA.value;
     const revenue = facts.ttmRevenue.value;
+    const grossProfit = facts.ttmGrossProfit.value;
 
     let evEbitda: number | null = null;
     if (ev && opIncome && da) {
@@ -139,6 +151,9 @@ async function fetchFromEdgar(ticker: string): Promise<PeerMultiples | null> {
     if (ev && revenue && revenue > 0) {
       evRevenue = ev / revenue;
     }
+
+    // Gross margin for business-model similarity
+    const grossMargin = grossProfit && revenue && revenue > 0 ? grossProfit / revenue : null;
 
     const usable = [pe, pb, evEbitda, evRevenue].filter(v => v !== null).length;
 
@@ -152,6 +167,8 @@ async function fetchFromEdgar(ticker: string): Promise<PeerMultiples | null> {
       evToEbitda: evEbitda,
       evToRevenue: evRevenue,
       usableMultipleCount: usable,
+      grossMargin,
+      ttmRevenue: revenue,
     };
   } catch (err) {
     console.warn(`Peer EDGAR fetch failed for ${ticker}:`, err instanceof Error ? err.message : err);
@@ -196,6 +213,8 @@ async function fetchFromMarketData(ticker: string): Promise<PeerMultiples | null
       evToEbitda: null,
       evToRevenue: null,
       usableMultipleCount: actualMultiples,
+      grossMargin: null,
+      ttmRevenue: null,
     };
   } catch (err) {
     console.warn(`Peer multiples market data failed for ${ticker}:`, err instanceof Error ? err.message : err);
@@ -237,6 +256,8 @@ export async function fetchPeerMultiples(candidate: PeerCandidate): Promise<Peer
     evToEbitda: null,
     evToRevenue: null,
     usableMultipleCount: 0,
+    grossMargin: null,
+    ttmRevenue: null,
   };
 }
 

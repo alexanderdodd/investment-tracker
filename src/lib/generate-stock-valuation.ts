@@ -389,7 +389,11 @@ export async function generateStockValuation(
     report(2, "complete");
 
     // Stage 2b: Dynamic peer registry + relative valuation
-    const dynamicPeerRegistry = await buildPeerRegistry(upperTicker, facts.sic, facts.marketCap.value ?? 0, facts.sector);
+    // Compute subject gross margin for peer similarity scoring
+    const subjectGM = facts.ttmGrossProfit.value && facts.ttmRevenue.value && facts.ttmRevenue.value > 0
+      ? facts.ttmGrossProfit.value / facts.ttmRevenue.value
+      : null;
+    const dynamicPeerRegistry = await buildPeerRegistry(upperTicker, facts.sic, facts.marketCap.value ?? 0, facts.sector, subjectGM);
     console.log(`  Peers: ${dynamicPeerRegistry.peers.length} discovered (${dynamicPeerRegistry.source}), ${dynamicPeerRegistry.quality.usablePeerCount} usable, confidence ${(dynamicPeerRegistry.quality.overallConfidence * 100).toFixed(0)}%`);
 
     const subjectFactsForRelative = {

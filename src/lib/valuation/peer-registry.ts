@@ -300,7 +300,8 @@ export async function buildPeerRegistry(
   ticker: string,
   sic: string,
   marketCap: number,
-  sicDescription?: string
+  sicDescription?: string,
+  subjectGrossMargin?: number | null
 ): Promise<DynamicPeerRegistry> {
   const upper = ticker.toUpperCase();
   const curated = getPeerRegistry(upper);
@@ -343,23 +344,41 @@ export async function buildPeerRegistry(
       ticker: c.ticker, source: "fallback" as const, asOf: generatedAt,
       marketCap: c.marketCap, trailingPe: null, priceToBook: null,
       evToEbitda: null, evToRevenue: null, usableMultipleCount: 0,
+      grossMargin: null, ttmRevenue: null,
     }));
   }
 
   // Score each peer
-  const scores: PeerQualityScore[] = candidates.map((c, i) => scorePeer(c, multiples[i], marketCap));
-  const quality = computeRegistryQuality(scores, multiples);
+  // Score each peer with business-model similarity
+  const allScores: PeerQualityScore[] = candidates.map((c, i) => scorePeer(c, multiples[i], marketCap, subjectGrossMargin));
 
-  // Build peer list
-  const peers = candidates.map((c, i) => ({
-    ticker: c.ticker,
-    companyName: c.companyName,
-    matchLevel: c.matchLevel,
-    marketCap: c.marketCap ?? multiples[i].marketCap,
-    qualityScore: scores[i].qualityScore,
-    role: scores[i].role,
-    multiples: multiples[i],
-  }));
+  // Filter out peers that are too dissimilar (gross margin > 20pp difference)
+  const filtered = allScores.filter(s => s.filtered);
+  if (filtered.length > 0) {
+    console.log(`  Filtered ${filtered.length} peer(s): ${filtered.map(f => `${f.ticker} (${f.filterReason})`).join(", ")}`);
+  }
+
+  const scores = allScores.filter(s => !s.filtered);
+  // Update multiples/candidates to match filtered scores
+  const scoreTickerSet = new Set(scores.map(s => s.ticker));
+  const filteredCandidates = candidates.filter(c => scoreTickerSet.has(c.ticker));
+  const filteredMultiples = multiples.filter(m => scoreTickerSet.has(m.ticker));
+  const quality = computeRegistryQuality(scores, filteredMultiples);
+
+  // Build peer list from filtered candidates
+  const peers = filteredCandidates.map((c) => {
+    const origIdx = candidates.indexOf(c);
+    const scoreIdx = scores.findIndex(s => s.ticker === c.ticker);
+    return {
+      ticker: c.ticker,
+      companyName: c.companyName,
+      matchLevel: c.matchLevel,
+      marketCap: c.marketCap ?? multiples[origIdx]?.marketCap ?? null,
+      qualityScore: scoreIdx >= 0 ? scores[scoreIdx].qualityScore : 0,
+      role: scoreIdx >= 0 ? scores[scoreIdx].role : "secondary" as const,
+      multiples: multiples[origIdx],
+    };
+  });
 
   // Sort by quality score descending
   peers.sort((a, b) => b.qualityScore - a.qualityScore);
