@@ -10,6 +10,7 @@
 import { generateText } from "ai";
 import { openrouter } from "../ai";
 import type { CanonicalFacts, FinancialModelOutputs, ValuationOutputs, QaReport } from "./types";
+import type { FairValueSynthesis } from "./fair-value-synthesis";
 
 const NARRATIVE_MODEL = "anthropic/claude-sonnet-4";
 const REDTEAM_MODEL = "anthropic/claude-sonnet-4";
@@ -122,7 +123,8 @@ export async function generateNarrative(
   valuation: ValuationOutputs,
   qa: QaReport,
   onProgress?: (label: string) => void,
-  suppressedFields?: string[]
+  suppressedFields?: string[],
+  fairValueSynthesis?: FairValueSynthesis
 ): Promise<string> {
   const factsText = formatFactsForPrompt(facts);
   const modelText = formatModelOutputsForPrompt(model, suppressedFields);
@@ -132,14 +134,49 @@ export async function generateNarrative(
 
   onProgress?.("Writing analyst narrative");
 
-  // Respect the publish gate: if valuation is withheld, do NOT provide
-  // valuation outputs (DCF value, verdict, margin of safety, scenarios) to the LLM
-  const valuationWithheld = qa.gateDecision && !qa.gateDecision.valuationPublishable;
+  // Determine which narrative mode to use
+  const valuePublished = fairValueSynthesis !== undefined;
+  const valuationWithheld = !valuePublished && qa.gateDecision && !qa.gateDecision.valuationPublishable;
 
   let valuationText: string;
   let valuationInstructions: string;
 
-  if (valuationWithheld) {
+  if (valuePublished && fairValueSynthesis) {
+    // Value gate published — include fair value context
+    valuationText = `FAIR VALUE ASSESSMENT — PUBLISHED
+Fair Value Range: $${fairValueSynthesis.range.low.toFixed(2)} — $${fairValueSynthesis.range.mid.toFixed(2)} — $${fairValueSynthesis.range.high.toFixed(2)}
+Label: ${fairValueSynthesis.label}
+Current Price: $${fairValueSynthesis.currentPrice.toFixed(2)} (${fairValueSynthesis.priceVsMid > 0 ? "+" : ""}${(fairValueSynthesis.priceVsMid * 100).toFixed(1)}% vs midpoint)
+Confidence: ${fairValueSynthesis.confidenceRating} (${(fairValueSynthesis.valuationConfidence * 100).toFixed(0)}%)
+${fairValueSynthesis.confidenceReasons.map(r => `- ${r}`).join("\n")}
+
+Method contributions:
+${fairValueSynthesis.methods.filter(m => m.effectiveWeight > 0).map(m => `  ${m.method}: $${m.perShareValue?.toFixed(2) ?? "N/A"} (weight: ${(m.effectiveWeight * 100).toFixed(0)}%)`).join("\n")}
+
+MARKET MULTIPLES:
+  P/E: ${valuation.multiples.current.pe?.toFixed(1) ?? "N/A"}x | P/B: ${valuation.multiples.current.pb?.toFixed(1) ?? "N/A"}x | EV/EBITDA: ${valuation.multiples.current.evEbitda?.toFixed(1) ?? "N/A"}x`;
+
+    valuationInstructions = `
+VALUATION CONTEXT — FAIR VALUE PUBLISHED:
+A fair value range has been computed and published for this company. You MUST reference it in your analysis.
+
+The system labels this stock as ${fairValueSynthesis.label} with ${fairValueSynthesis.confidenceRating} confidence.
+
+You MUST:
+- Reference the fair value range ($${fairValueSynthesis.range.low.toFixed(0)} - $${fairValueSynthesis.range.mid.toFixed(0)} - $${fairValueSynthesis.range.high.toFixed(0)})
+- Explain what the ${fairValueSynthesis.label} label means for investors
+- Discuss why confidence is ${fairValueSynthesis.confidenceRating} and what drives the uncertainty
+- Note the key assumptions behind the valuation methods
+
+You MUST NOT:
+- Say "fair value cannot be determined" or "valuation withheld" — the fair value HAS been determined
+- Invent different fair value numbers — use only the range provided above
+- Provide buy/sell recommendations — only discuss valuation context
+- Overstate the precision of the midpoint — the confidence rating captures the uncertainty
+
+Write the report as a FACTS, VALUATION, AND ANALYSIS report.`;
+
+  } else if (valuationWithheld) {
     valuationText = `VALUATION STATUS: WITHHELD
 The valuation gate has determined that a fair-value verdict cannot be published for this company at this time.
 Reasons: ${qa.gateDecision.valuationGateFailures.join("; ")}

@@ -122,10 +122,10 @@ function computeValuationConfidence(
     confidence -= 0.05;
   }
 
-  // Primary method disagreement
+  // Contributing method disagreement
   if (primaryDisagreement > 0.20) {
     confidence -= 0.15;
-    reasons.push(`Primary methods (DCF vs reverse DCF) disagree by ${(primaryDisagreement * 100).toFixed(0)}% — normalised economics vs market-implied economics diverge significantly`);
+    reasons.push(`Contributing valuation methods disagree by ${(primaryDisagreement * 100).toFixed(0)}% — normalized economics, peer comparisons, and historical analysis produce different estimates`);
   } else if (primaryDisagreement > 0.10) {
     confidence -= 0.05;
   }
@@ -304,6 +304,12 @@ export function synthesizeFairValue(opts: {
   } else if (currentPrice > high) {
     label = "EXPENSIVE";
     if (currentPrice > high * 1.15) label = "DEEP_EXPENSIVE";
+  }
+
+  // LABEL-001: De-intensify DEEP labels when confidence is very low
+  if (valuationConfidence < 0.35) {
+    if (label === "DEEP_CHEAP") label = "CHEAP";
+    if (label === "DEEP_EXPENSIVE") label = "EXPENSIVE";
   }
 
   // Build reasons

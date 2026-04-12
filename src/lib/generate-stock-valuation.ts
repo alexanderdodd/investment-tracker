@@ -375,8 +375,21 @@ export async function generateStockValuation(
       report(5, "running");
       redTeam = "Skipped — facts gate did not pass.";
       report(5, "complete");
+    } else if (valueGate.valuePublishable) {
+      // Value gate passes — publish facts + fair value assessment
+      // Pass fair value context to the LLM so it can explain the assessment
+      report(4, "running");
+      narrative = await generateNarrative(facts, financialModel, valuationOutputs, qaReport, undefined, suppressionAudit.suppressedFields, fairValueSynthesis);
+      report(4, "complete");
+      report(5, "running");
+      redTeam = await redTeamReview(
+        narrative,
+        `Price: $${facts.currentPrice.value} | EPS: $${facts.ttmDilutedEPS.value} | P/E: ${facts.trailingPE.value}`,
+        `Value gate: ${valueGate.status} | Label: ${fairValueSynthesis.label} | Confidence: ${fairValueSynthesis.confidenceRating} (${(fairValueSynthesis.valuationConfidence * 100).toFixed(0)}%)`
+      );
+      report(5, "complete");
     } else if (!gate.valuationPublishable) {
-      // Gate 2 failed — publish facts only, no valuation verdict
+      // Both old gate and value gate say withhold — facts only
       // Pass suppressed fields so the LLM never sees denied data
       report(4, "running");
       narrative = await generateNarrative(facts, financialModel, valuationOutputs, qaReport, undefined, suppressionAudit.suppressedFields);
@@ -402,8 +415,27 @@ export async function generateStockValuation(
       report(5, "complete");
     }
 
+    // NARR-CLEAN-001: Check for withheld-language contamination when value is published
+    if (valueGate.valuePublishable) {
+      const withheldPhrases = [
+        "fair value cannot be reliably determined",
+        "fair value assessment cannot be",
+        "no fair value provided",
+        "valuation withheld",
+        "valuation status: withheld",
+        "cannot be determined at this time",
+        "cannot be reliably determined",
+        "a traditional fair value assessment cannot",
+      ];
+      const narrativeLower = narrative.toLowerCase();
+      const contamination = withheldPhrases.filter(p => narrativeLower.includes(p.toLowerCase()));
+      if (contamination.length > 0) {
+        console.warn(`NARR-CLEAN-001: Withheld-language contamination in published-value report: ${contamination.join("; ")}`);
+      }
+    }
+
     // Run surface scanner on narrative (TRACE-003 / SURFACE-005 / SURFACE-006)
-    const surfaceScan = scanReportSurface(narrative, facts, financialModel, formulaTraces, surfaceAllowlist, valuationOutputs, suppressionAudit);
+    const surfaceScan = scanReportSurface(narrative, facts, financialModel, formulaTraces, surfaceAllowlist, valuationOutputs, suppressionAudit, valueGate.valuePublishable ? fairValueSynthesis : undefined);
     if (surfaceScan.unmatchedClaims.length > 0) {
       console.warn(`Surface scan: ${surfaceScan.unmatchedClaims.length} unmatched numeric claims in narrative`);
       for (const c of surfaceScan.unmatchedClaims) {

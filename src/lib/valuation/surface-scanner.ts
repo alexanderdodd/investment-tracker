@@ -15,6 +15,7 @@
 import type { CanonicalFacts, FinancialModelOutputs, ValuationOutputs } from "./types";
 import type { FormulaTrace } from "./formula-traces";
 import type { SurfaceAllowlist, SuppressionAudit } from "./surface-allowlist";
+import type { FairValueSynthesis } from "./fair-value-synthesis";
 
 export interface NumericClaim {
   raw: string;
@@ -50,7 +51,7 @@ export interface ScanResult {
 }
 
 // Known values that are allowed in any report (dates, counts, etc.)
-const STRUCTURAL_NUMBERS = new Set([2, 3, 4, 5, 10, 12, 15, 20, 25, 30, 40, 45, 50, 52, 53, 60, 75, 100]);
+const STRUCTURAL_NUMBERS = new Set([2, 3, 4, 5, 10, 12, 15, 20, 25, 30, 35, 36, 40, 45, 50, 52, 53, 60, 75, 100]);
 
 /**
  * Detect if a claim is a qualitative/editorial estimate (Class D) rather than
@@ -85,15 +86,15 @@ function extractNumericClaims(text: string): NumericClaim[] {
         line.startsWith("[") || line.trim() === "") continue;
 
     // Dollar amounts: $23.86 billion, $420.59, $10.28 billion
-    const dollarPattern = /\$([0-9,]+(?:\.[0-9]+)?)\s*(billion|million|trillion|B|M|T)?/gi;
+    const dollarPattern = /\$([0-9,]+(?:\.[0-9]+)?)\s*(billion|million|trillion)?\b/gi;
     let match;
     while ((match = dollarPattern.exec(line)) !== null) {
       const numStr = match[1].replace(/,/g, "");
       let value = parseFloat(numStr);
       const suffix = (match[2] || "").toLowerCase();
-      if (suffix === "billion" || suffix === "b") value *= 1e9;
-      else if (suffix === "million" || suffix === "m") value *= 1e6;
-      else if (suffix === "trillion" || suffix === "t") value *= 1e12;
+      if (suffix === "billion") value *= 1e9;
+      else if (suffix === "million") value *= 1e6;
+      else if (suffix === "trillion") value *= 1e12;
       claims.push({
         raw: match[0],
         value,
@@ -139,7 +140,8 @@ function buildKnownValues(
   facts: CanonicalFacts,
   model: FinancialModelOutputs,
   traces: FormulaTrace[],
-  valuation?: ValuationOutputs
+  valuation?: ValuationOutputs,
+  fairValue?: FairValueSynthesis
 ): Map<string, string[]> {
   // Map from "value key" to field names
   const registry = new Map<string, string[]>();
@@ -335,6 +337,37 @@ function buildKnownValues(
     }
     if (trace.field === "derived.ev_to_fcf" && trace.result !== null) {
       addRatio(trace.result, "derived.ev_to_fcf");
+    }
+  }
+
+  // Fair value synthesis values (when published)
+  if (fairValue) {
+    addDollar(fairValue.range.low, "fair_value.low");
+    addDollar(fairValue.range.mid, "fair_value.mid");
+    addDollar(fairValue.range.high, "fair_value.high");
+    // Also register as raw per-share values (LLM writes "$36" not "$35.97B")
+    addVal(`d:${fairValue.range.low}`, "fair_value.low_pershare");
+    addVal(`d:${fairValue.range.low.toFixed(0)}`, "fair_value.low_pershare");
+    addVal(`d:${fairValue.range.mid}`, "fair_value.mid_pershare");
+    addVal(`d:${fairValue.range.mid.toFixed(0)}`, "fair_value.mid_pershare");
+    addVal(`d:${fairValue.range.high}`, "fair_value.high_pershare");
+    addVal(`d:${fairValue.range.high.toFixed(0)}`, "fair_value.high_pershare");
+    // Register ratios as both ratio and percentage forms (LLM may write 3.24x or 324%)
+    addPercent(fairValue.priceVsMid, "fair_value.price_vs_mid");
+    addVal(`p:${(fairValue.priceVsMid * 100).toFixed(0)}`, "fair_value.price_vs_mid_pct");
+    addVal(`p:${(fairValue.priceVsMid * 100).toFixed(1)}`, "fair_value.price_vs_mid_pct");
+    addPercent(fairValue.rangeWidth, "fair_value.range_width");
+    addVal(`p:${(fairValue.rangeWidth * 100).toFixed(0)}`, "fair_value.range_width_pct");
+    addVal(`p:${(fairValue.rangeWidth * 100).toFixed(1)}`, "fair_value.range_width_pct");
+    addPercent(fairValue.primaryMethodDisagreement, "fair_value.method_disagreement");
+    addVal(`p:${(fairValue.primaryMethodDisagreement * 100).toFixed(0)}`, "fair_value.method_disagreement_pct");
+    addPercent(fairValue.valuationConfidence, "fair_value.confidence");
+    for (const m of fairValue.methods) {
+      if (m.perShareValue !== null) addDollar(m.perShareValue, `fair_value.method.${m.method}`);
+      if (m.effectiveWeight > 0) {
+        addPercent(m.effectiveWeight, `fair_value.weight.${m.method}`);
+        addVal(`p:${(m.effectiveWeight * 100).toFixed(0)}`, `fair_value.weight_pct.${m.method}`);
+      }
     }
   }
 
@@ -572,10 +605,11 @@ export function scanReportSurface(
   traces: FormulaTrace[],
   allowlist: SurfaceAllowlist,
   valuation?: ValuationOutputs,
-  suppressionAudit?: SuppressionAudit
+  suppressionAudit?: SuppressionAudit,
+  fairValue?: FairValueSynthesis
 ): ScanResult {
   const claims = extractNumericClaims(reportText);
-  const knownValues = buildKnownValues(facts, model, traces, valuation);
+  const knownValues = buildKnownValues(facts, model, traces, valuation, fairValue);
   const allowedFields = new Set(allowlist.allowed);
 
   const matchDetails: { claim: NumericClaim; matchedTo: string }[] = [];
