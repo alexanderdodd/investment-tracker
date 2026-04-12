@@ -28,6 +28,7 @@ export interface CanonicalFacts {
   ticker: string;
   companyName: string;
   cik: string;
+  sic: string;
   sector: string;
   industry: string;
   fiscalYearEnd: string;

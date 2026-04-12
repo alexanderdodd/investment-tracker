@@ -158,6 +158,7 @@ export async function buildCanonicalFacts(ticker: string): Promise<CanonicalFact
     ticker: upperTicker,
     companyName,
     cik,
+    sic: submissions.sic || "",
     sector: submissions.sicDescription || "Unknown",
     industry: submissions.sicDescription || "Unknown",
     fiscalYearEnd,

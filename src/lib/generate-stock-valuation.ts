@@ -17,7 +17,7 @@ import { generateNarrative, redTeamReview } from "./valuation/narrative";
 import { buildFormulaTraces } from "./valuation/formula-traces";
 import { buildSurfaceAllowlist } from "./valuation/surface-allowlist";
 import { scanReportSurface } from "./valuation/surface-scanner";
-import { getPeerRegistry, computeRelativeValuation } from "./valuation/peer-registry";
+import { getPeerRegistry, computeRelativeValuation, buildPeerRegistry, computeRelativeValuationFromDynamic } from "./valuation/peer-registry";
 import { computeSelfHistoryValuation } from "./valuation/self-history-valuation";
 import { synthesizeFairValue, evaluateValueGate } from "./valuation/fair-value-synthesis";
 import type { CanonicalFacts, FinancialModelOutputs, ValuationOutputs, QaReport } from "./valuation/types";
@@ -311,9 +311,11 @@ export async function generateStockValuation(
     const valuationOutputs = runValuationEngine(facts, financialModel, framework);
     report(2, "complete");
 
-    // Stage 2b: Fair value synthesis (peer registry + relative + self-history)
-    const peerRegistry = getPeerRegistry(upperTicker);
-    const relativeValuation = peerRegistry ? computeRelativeValuation(peerRegistry, {
+    // Stage 2b: Dynamic peer registry + relative valuation
+    const dynamicPeerRegistry = await buildPeerRegistry(upperTicker, facts.sic, facts.marketCap.value ?? 0, facts.sector);
+    console.log(`  Peers: ${dynamicPeerRegistry.peers.length} discovered (${dynamicPeerRegistry.source}), ${dynamicPeerRegistry.quality.usablePeerCount} usable, confidence ${(dynamicPeerRegistry.quality.overallConfidence * 100).toFixed(0)}%`);
+
+    const subjectFactsForRelative = {
       enterpriseValue: facts.enterpriseValue.value ?? 0,
       ttmRevenue: facts.ttmRevenue.value ?? 0,
       ttmOperatingIncome: facts.ttmOperatingIncome.value ?? 0,
@@ -323,7 +325,8 @@ export async function generateStockValuation(
       totalDebt: facts.totalDebt.value ?? 0,
       totalCashAndInvestments: facts.totalCashAndInvestments.value ?? 0,
       priceToBook: facts.priceToBook.value,
-    }) : null;
+    };
+    const relativeValuation = computeRelativeValuationFromDynamic(dynamicPeerRegistry, subjectFactsForRelative);
     const selfHistoryResult = computeSelfHistoryValuation(facts, financialModel, valuationOutputs.multiples);
 
     // Compute cycle margin ratio for confidence model

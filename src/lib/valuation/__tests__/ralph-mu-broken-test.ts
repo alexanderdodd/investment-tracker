@@ -20,6 +20,7 @@ function buildValidFacts(): CanonicalFacts {
     ticker: "MU",
     companyName: "MICRON TECHNOLOGY INC",
     cik: "0000723125",
+    sic: "3674",
     sector: "Semiconductors",
     industry: "Memory",
     fiscalYearEnd: "September",

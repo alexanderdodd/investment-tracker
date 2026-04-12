@@ -1,10 +1,11 @@
 /**
- * Deterministic peer / relative framework registry.
+ * Peer registry module.
  *
- * Provides curated peer sets per company archetype. No runtime ad-hoc peer
- * invention — the registry is static and versioned.
+ * Provides both curated (static) and dynamic (SIC-based) peer registries.
+ * Dynamic registries are built via peer-discovery + peer-multiples + peer-quality.
+ * Curated registries take priority when they exist.
  *
- * See: .claude/features/stock-valuation-verdict-spec/05-peer-registry-and-relative-framework.md
+ * See: .claude/features/peer-registry-creation/
  */
 
 // ---------------------------------------------------------------------------
@@ -262,5 +263,218 @@ export function computeRelativeValuation(
     weightedPerShare,
     confidence,
     caveats: registry.caveats,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic peer registry builder
+// ---------------------------------------------------------------------------
+
+import { discoverPeers } from "./peer-discovery";
+import { fetchAllPeerMultiples, type PeerMultiples } from "./peer-multiples";
+import { scorePeer, computeRegistryQuality, type PeerQualityScore, type RegistryQuality } from "./peer-quality";
+
+export interface DynamicPeerRegistry {
+  subjectTicker: string;
+  source: "curated" | "dynamic";
+  generatedAt: string;
+  peers: {
+    ticker: string;
+    companyName: string;
+    matchLevel: string;
+    marketCap: number | null;
+    qualityScore: number;
+    role: "primary" | "secondary";
+    multiples: PeerMultiples;
+  }[];
+  quality: RegistryQuality;
+  /** The curated registry if it exists (used for relative valuation) */
+  curatedRegistry: PeerRegistry | null;
+}
+
+/**
+ * Build a peer registry for any ticker.
+ * Uses curated registry if available, otherwise discovers peers via SIC codes.
+ */
+export async function buildPeerRegistry(
+  ticker: string,
+  sic: string,
+  marketCap: number,
+  sicDescription?: string
+): Promise<DynamicPeerRegistry> {
+  const upper = ticker.toUpperCase();
+  const curated = getPeerRegistry(upper);
+  const generatedAt = new Date().toISOString();
+
+  // Discover peers via SIC
+  let candidates: Awaited<ReturnType<typeof discoverPeers>>;
+  try {
+    candidates = await discoverPeers(upper, sic, marketCap, sicDescription);
+  } catch (err) {
+    console.warn(`Peer discovery failed for ${upper}:`, err);
+    candidates = [];
+  }
+
+  if (candidates.length === 0 && !curated) {
+    return {
+      subjectTicker: upper,
+      source: "dynamic",
+      generatedAt,
+      peers: [],
+      quality: {
+        overallConfidence: 0,
+        peerCount: 0,
+        usablePeerCount: 0,
+        averagePeerQuality: 0,
+        qualityTier: "weak",
+        reasons: ["No peers discovered via SIC code matching"],
+      },
+      curatedRegistry: null,
+    };
+  }
+
+  // Fetch multiples for candidates
+  let multiples: PeerMultiples[];
+  try {
+    multiples = await fetchAllPeerMultiples(candidates);
+  } catch (err) {
+    console.warn(`Peer multiples fetch failed for ${upper}:`, err);
+    multiples = candidates.map(c => ({
+      ticker: c.ticker, source: "fallback" as const, asOf: generatedAt,
+      marketCap: c.marketCap, trailingPe: null, priceToBook: null,
+      evToEbitda: null, evToRevenue: null, usableMultipleCount: 0,
+    }));
+  }
+
+  // Score each peer
+  const scores: PeerQualityScore[] = candidates.map((c, i) => scorePeer(c, multiples[i], marketCap));
+  const quality = computeRegistryQuality(scores, multiples);
+
+  // Build peer list
+  const peers = candidates.map((c, i) => ({
+    ticker: c.ticker,
+    companyName: c.companyName,
+    matchLevel: c.matchLevel,
+    marketCap: c.marketCap ?? multiples[i].marketCap,
+    qualityScore: scores[i].qualityScore,
+    role: scores[i].role,
+    multiples: multiples[i],
+  }));
+
+  // Sort by quality score descending
+  peers.sort((a, b) => b.qualityScore - a.qualityScore);
+
+  return {
+    subjectTicker: upper,
+    source: curated ? "curated" : "dynamic",
+    generatedAt,
+    peers,
+    quality,
+    curatedRegistry: curated,
+  };
+}
+
+/**
+ * Compute relative valuation from a dynamic peer registry.
+ * Uses peer multiples to derive implied per-share values.
+ */
+export function computeRelativeValuationFromDynamic(
+  registry: DynamicPeerRegistry,
+  subjectFacts: {
+    enterpriseValue: number;
+    ttmRevenue: number;
+    ttmOperatingIncome: number;
+    ttmDA: number;
+    totalEquity: number;
+    sharesOutstanding: number;
+    totalDebt: number;
+    totalCashAndInvestments: number;
+    priceToBook: number | null;
+  }
+): RelativeValuationResult {
+  // If curated registry exists, use the original function
+  if (registry.curatedRegistry) {
+    return computeRelativeValuation(registry.curatedRegistry, subjectFacts);
+  }
+
+  const perShareValues: RelativeValuationResult["perShareValues"] = [];
+  const shares = subjectFacts.sharesOutstanding;
+  const ebitda = subjectFacts.ttmOperatingIncome + subjectFacts.ttmDA;
+
+  for (const peer of registry.peers) {
+    const m = peer.multiples;
+    if (m.usableMultipleCount === 0) continue;
+
+    const qualityAdj = peer.qualityScore;
+
+    // P/E implied value
+    if (m.trailingPe !== null && m.trailingPe > 0 && m.trailingPe < 200) {
+      // Need subject's EPS
+      const subjectEV = subjectFacts.enterpriseValue;
+      const bvps = subjectFacts.totalEquity / shares;
+      // Use P/B for implied per-share if P/E needs EPS we don't have here
+    }
+
+    // P/B implied value
+    if (m.priceToBook !== null && m.priceToBook > 0 && subjectFacts.totalEquity > 0) {
+      const bvps = subjectFacts.totalEquity / shares;
+      const impliedPerShare = bvps * m.priceToBook;
+      if (impliedPerShare > 0) {
+        perShareValues.push({
+          metric: `P/B via ${peer.companyName || peer.ticker}`,
+          value: impliedPerShare,
+          weight: qualityAdj,
+          source: peer.ticker,
+        });
+      }
+    }
+
+    // EV/EBITDA implied value (if available from pipeline)
+    if (m.evToEbitda !== null && m.evToEbitda > 0 && ebitda > 0) {
+      const impliedEV = ebitda * m.evToEbitda;
+      const impliedEquity = impliedEV - subjectFacts.totalDebt + subjectFacts.totalCashAndInvestments;
+      const impliedPerShare = impliedEquity / shares;
+      if (impliedPerShare > 0) {
+        perShareValues.push({
+          metric: `EV/EBITDA via ${peer.companyName || peer.ticker}`,
+          value: impliedPerShare,
+          weight: qualityAdj,
+          source: peer.ticker,
+        });
+      }
+    }
+
+    // EV/Revenue implied value (if available)
+    if (m.evToRevenue !== null && m.evToRevenue > 0 && subjectFacts.ttmRevenue > 0) {
+      const impliedEV = subjectFacts.ttmRevenue * m.evToRevenue;
+      const impliedEquity = impliedEV - subjectFacts.totalDebt + subjectFacts.totalCashAndInvestments;
+      const impliedPerShare = impliedEquity / shares;
+      if (impliedPerShare > 0) {
+        perShareValues.push({
+          metric: `EV/Revenue via ${peer.companyName || peer.ticker}`,
+          value: impliedPerShare,
+          weight: qualityAdj,
+          source: peer.ticker,
+        });
+      }
+    }
+  }
+
+  // Weighted average
+  let totalWeight = 0;
+  let weightedSum = 0;
+  for (const pv of perShareValues) {
+    weightedSum += pv.value * pv.weight;
+    totalWeight += pv.weight;
+  }
+  const weightedPerShare = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+  return {
+    method: "relative_valuation",
+    peerRegistryVersion: registry.source === "curated" ? "curated" : "dynamic-sic-v1",
+    perShareValues,
+    weightedPerShare,
+    confidence: registry.quality.overallConfidence,
+    caveats: registry.quality.reasons,
   };
 }
