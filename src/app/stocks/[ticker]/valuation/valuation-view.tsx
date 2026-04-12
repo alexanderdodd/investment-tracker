@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   type StockValuationInsights,
   parseStockValuationInsights,
@@ -211,19 +211,6 @@ export function StockValuationView({ ticker, onReportGenerated }: { ticker: stri
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: string; generatedAt: string; verdict: string | null; confidence: string | null; intrinsicValue: string | number | null; status: string }[]>([]);
   const [showScorecard, setShowScorecard] = useState(false);
-  const scorecardRef = useRef<HTMLSpanElement>(null);
-
-  // Close scorecard on click outside
-  useEffect(() => {
-    if (!showScorecard) return;
-    const handler = (e: MouseEvent) => {
-      if (scorecardRef.current && !scorecardRef.current.contains(e.target as Node)) {
-        setShowScorecard(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showScorecard]);
 
   const loadValuation = useCallback(async () => {
     try {
@@ -419,17 +406,17 @@ export function StockValuationView({ ticker, onReportGenerated }: { ticker: stri
             );
           })()}
           {insights.confidence && insights.confidence !== "N/A" && (
-            <span className="relative" ref={scorecardRef}>
-              <button
-                type="button"
-                onClick={() => setShowScorecard(v => !v)}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}
-              >
+            <span
+              className="relative"
+              onMouseEnter={() => setShowScorecard(true)}
+              onMouseLeave={() => setShowScorecard(false)}
+            >
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}>
                 {insights.confidence} confidence
                 <svg className="h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                 </svg>
-              </button>
+              </span>
               {showScorecard && (
                 <span className="absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 shadow-lg dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                   <span className="mb-2 block font-semibold text-zinc-900 dark:text-zinc-100">Confidence scorecard</span>
