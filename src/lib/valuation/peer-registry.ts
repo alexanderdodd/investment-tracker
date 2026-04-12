@@ -245,15 +245,27 @@ export function computeRelativeValuation(
   const avgPenalty = allPeers.reduce((s, p) => s + p.qualityPenalty, 0) / allPeers.length;
   confidence -= avgPenalty * 0.5;
 
-  // Penalty for curated-only multiples (not live pipeline-derived)
+  // Curated multiples: penalty based on staleness, not existence.
+  // Bloomberg/Reuters consensus is professional-grade data — the concern is
+  // how old the snapshot is, not that it exists.
   const allCurated = allPeers.every(p => p.curatedMultiples !== undefined);
   if (allCurated) {
-    confidence -= 0.15;
-  }
+    // Check freshness of curated data
+    const now = Date.now();
+    const ages = allPeers
+      .filter(p => p.curatedMultiples?.asOf)
+      .map(p => now - new Date(p.curatedMultiples!.asOf).getTime());
+    const maxAgeMs = ages.length > 0 ? Math.max(...ages) : Infinity;
+    const maxAgeDays = maxAgeMs / (24 * 60 * 60 * 1000);
 
-  // Cap at 0.65 when all peers use curated snapshots
-  if (allCurated) {
-    confidence = Math.min(confidence, 0.65);
+    if (maxAgeDays > 180) {
+      // Stale curated data (>6 months) — significant penalty
+      confidence -= 0.15;
+    } else if (maxAgeDays > 90) {
+      // Aging curated data (3-6 months) — moderate penalty
+      confidence -= 0.08;
+    }
+    // Fresh curated data (<90 days) — no penalty; professional consensus is reliable
   }
 
   confidence = Math.max(0, Math.min(1, confidence));

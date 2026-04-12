@@ -269,6 +269,27 @@ See `19-method-agreement.md` Part B.
 
 ---
 
+## DECISION-007: Curated peer multiples — staleness-based penalty, not existence-based
+
+**Status:** Decided — implemented  
+**Date:** 2026-04-12
+
+### Problem
+Curated Bloomberg/Reuters consensus multiples were penalized with -0.15 confidence + 0.65 cap simply for being curated rather than pipeline-computed. This dragged MU's peer quality to "medium" and applied a -0.15 penalty in the overall confidence scorecard, even though the data is professional-grade and fresh.
+
+### Decision
+Replace the blanket curated penalty with a staleness check:
+- **Fresh (<90 days)**: no penalty — professional consensus is reliable
+- **Aging (90-180 days)**: -0.08 — data may be one quarter behind
+- **Stale (>180 days)**: -0.15 — two+ quarters old, significant risk of outdated multiples
+
+Remove the 0.65 confidence cap entirely. Curated data quality should be judged by age, not by whether it came from a curated registry.
+
+### Impact
+MU peer confidence: 0.65 → 0.87 (fresh Bloomberg data, no staleness penalty, only conglomerate quality penalties remain). Overall MU confidence: 50% (LOW) → 65% (MEDIUM).
+
+---
+
 ## OPEN-003: Peer set size vs quality tradeoff
 
 **Status:** Open — needs expert input  
