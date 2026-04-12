@@ -210,7 +210,6 @@ export function StockValuationView({ ticker }: { ticker: string }) {
   const [showHistory, setShowHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: string; generatedAt: string; verdict: string | null; confidence: string | null; intrinsicValue: string | number | null; status: string }[]>([]);
-  const [livePrice, setLivePrice] = useState<{ price: number; previousClose: number | null; timestamp: string } | null>(null);
 
   const loadValuation = useCallback(async () => {
     try {
@@ -238,24 +237,10 @@ export function StockValuationView({ ticker }: { ticker: string }) {
     }
   }, [ticker]);
 
-  const loadLivePrice = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/stocks/${ticker}/price`);
-      if (res.ok) {
-        const data = await res.json();
-        setLivePrice({ price: data.price, previousClose: data.previousClose, timestamp: data.timestamp });
-      }
-    } catch { /* ignore */ }
-  }, [ticker]);
-
   useEffect(() => {
     loadValuation();
     loadHistory();
-    loadLivePrice();
-    // Refresh live price every 60 seconds
-    const interval = setInterval(loadLivePrice, 60_000);
-    return () => clearInterval(interval);
-  }, [loadValuation, loadHistory, loadLivePrice]);
+  }, [loadValuation, loadHistory]);
 
   const triggerValuation = async () => {
     setGenerating(true);
@@ -394,122 +379,65 @@ export function StockValuationView({ ticker }: { ticker: string }) {
   // Report exists — show it
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
+      {/* Valuation summary bar */}
+      {insights && insights.verdict !== "Withheld" && (
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {insights?.companyName ?? ticker}
-          </h1>
-          {insights && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm ${verdictColor(insights.verdict)}`}>
-                {insights.verdict}
-              </span>
-              {insights.currentPrice && insights.intrinsicValue && (() => {
-                const price = Number(insights.currentPrice);
-                const mid = Number(insights.intrinsicValue);
-                const low = Number(insights.fairValueLow) || mid * 0.7;
-                const high = Number(insights.fairValueHigh) || mid * 1.3;
-                const inRange = price >= low && price <= high;
-                const aboveRange = price > high;
-                const belowRange = price < low;
-                const pctAbove = high > 0 ? ((price - high) / high * 100) : 0;
-                const pctBelow = low > 0 ? ((low - price) / low * 100) : 0;
-                return (
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {aboveRange ? (
-                      <>
-                        <span className="font-medium text-red-500 dark:text-red-400">
-                          {pctAbove.toFixed(0)}% above
-                        </span>
-                        {" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})
-                      </>
-                    ) : belowRange ? (
-                      <>
-                        <span className="font-medium text-green-500 dark:text-green-400">
-                          {pctBelow.toFixed(0)}% below
-                        </span>
-                        {" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-medium text-blue-500 dark:text-blue-400">Within</span>
-                        {" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})
-                      </>
-                    )}
-                  </span>
-                );
-              })()}
-              {insights.confidence && insights.confidence !== "N/A" && (
-                <span className="relative group">
-                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}>
-                    {insights.confidence} confidence
-                    <svg className="h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                    </svg>
-                  </span>
-                  <span className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    <span className="mb-2 block font-semibold text-zinc-900 dark:text-zinc-100">Confidence scorecard</span>
-                    {insights.confidenceChecklist && insights.confidenceChecklist.length > 0 ? (
-                      <span className="block space-y-1.5">
-                        {(insights.confidenceChecklist as { label: string; passed: boolean; detail: string }[]).map((item, i) => (
-                          <span key={i} className="flex items-start gap-2 block">
-                            <span className={`mt-0.5 flex-shrink-0 text-sm ${item.passed ? "text-green-500" : "text-red-400"}`}>
-                              {item.passed ? "\u2713" : "\u2717"}
-                            </span>
-                            <span className="block">
-                              <span className={`font-medium ${item.passed ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-900 dark:text-zinc-100"}`}>
-                                {item.label}
-                              </span>
-                              <span className="block text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
-                                {item.detail}
-                              </span>
-                            </span>
-                          </span>
-                        ))}
-                      </span>
-                    ) : insights.confidenceReason ? (
-                      <span className="block">
-                        {insights.confidenceReason.split("; ").map((reason, i) => (
-                          <span key={i} className="mt-1 block">
-                            <span className="text-zinc-400 dark:text-zinc-500 mr-1">-</span>
-                            {reason}
-                          </span>
-                        ))}
-                      </span>
-                    ) : null}
-                  </span>
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{ticker}</p>
-          {insights?.sector && (
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">{insights.sector}</span>
-          )}
-          {livePrice && (() => {
-            const change = livePrice.previousClose ? livePrice.price - livePrice.previousClose : 0;
-            const changePct = livePrice.previousClose ? (change / livePrice.previousClose) * 100 : 0;
-            const up = change >= 0;
+          {insights.currentPrice && insights.intrinsicValue && (() => {
+            const price = Number(insights.currentPrice);
+            const mid = Number(insights.intrinsicValue);
+            const low = Number(insights.fairValueLow) || mid * 0.7;
+            const high = Number(insights.fairValueHigh) || mid * 1.3;
+            const aboveRange = price > high;
+            const belowRange = price < low;
+            const pctAbove = high > 0 ? ((price - high) / high * 100) : 0;
+            const pctBelow = low > 0 ? ((low - price) / low * 100) : 0;
             return (
-              <span className="inline-flex items-center gap-1.5 text-xs">
-                <span className="font-semibold text-zinc-800 dark:text-zinc-100">${livePrice.price.toFixed(2)}</span>
-                <span className={up ? "text-green-500" : "text-red-500"}>
-                  {up ? "+" : ""}{change.toFixed(2)} ({up ? "+" : ""}{changePct.toFixed(1)}%)
-                </span>
-                <span className="text-zinc-400 dark:text-zinc-500">live</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                {aboveRange ? (
+                  <><span className="font-medium text-red-500 dark:text-red-400">{pctAbove.toFixed(0)}% above</span>{" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})</>
+                ) : belowRange ? (
+                  <><span className="font-medium text-green-500 dark:text-green-400">{pctBelow.toFixed(0)}% below</span>{" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})</>
+                ) : (
+                  <><span className="font-medium text-blue-500 dark:text-blue-400">Within</span>{" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})</>
+                )}
               </span>
             );
           })()}
+          {insights.confidence && insights.confidence !== "N/A" && (
+            <span className="relative group">
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}>
+                {insights.confidence} confidence
+                <svg className="h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                </svg>
+              </span>
+              <span className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                <span className="mb-2 block font-semibold text-zinc-900 dark:text-zinc-100">Confidence scorecard</span>
+                {insights.confidenceChecklist && insights.confidenceChecklist.length > 0 ? (
+                  <span className="block space-y-1.5">
+                    {(insights.confidenceChecklist as { label: string; passed: boolean; detail: string }[]).map((item, i) => (
+                      <span key={i} className="flex items-start gap-2 block">
+                        <span className={`mt-0.5 flex-shrink-0 text-sm ${item.passed ? "text-green-500" : "text-red-400"}`}>
+                          {item.passed ? "\u2713" : "\u2717"}
+                        </span>
+                        <span className="block">
+                          <span className={`font-medium ${item.passed ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-900 dark:text-zinc-100"}`}>{item.label}</span>
+                          <span className="block text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">{item.detail}</span>
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
+              </span>
+            </span>
+          )}
           {generatedAt && (
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
               Report from {new Date(generatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} at {new Date(generatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
         </div>
-      </div>
+      )}
 
       {/* Headline */}
       {insights?.headline && (
