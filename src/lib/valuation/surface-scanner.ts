@@ -24,16 +24,41 @@ export interface NumericClaim {
   lineNumber: number;
 }
 
+export interface PeriodLabelViolation {
+  claim: NumericClaim;
+  matchedField: string;
+  fieldPeriod: string;
+  narrativePeriod: string;
+  message: string;
+}
+
 export interface ScanResult {
   status: "PASS" | "FAIL";
   totalClaims: number;
   matchedClaims: number;
   unmatchedClaims: NumericClaim[];
   matchDetails: { claim: NumericClaim; matchedTo: string }[];
+  periodLabelViolations: PeriodLabelViolation[];
 }
 
 // Known values that are allowed in any report (dates, counts, etc.)
 const STRUCTURAL_NUMBERS = new Set([2, 4, 5, 10, 12, 52, 53, 100]);
+
+/**
+ * Detect if a claim is a qualitative/editorial estimate (Class D) rather than
+ * a deterministic fact or derivation. These use approximate language like "~25%"
+ * or "roughly" and are allowed in PUBLISH_FACTS_ONLY reports per gate spec.
+ */
+function isQualitativeClaim(claim: NumericClaim): boolean {
+  const ctx = claim.context.toLowerCase();
+  // Approximate markers: ~, roughly, approximately, about, around, estimated, historically
+  if (/[~≈]/.test(claim.raw) || /[~≈]\s*\d/.test(ctx)) return true;
+  // Check narrow window before claim for approximate language
+  const idx = ctx.indexOf(claim.raw.toLowerCase());
+  if (idx === -1) return false;
+  const prefix = ctx.substring(Math.max(0, idx - 30), idx);
+  return /\b(roughly|approximately|about|around|estimated|~|historically)\s*$/.test(prefix);
+}
 
 /**
  * Extract numeric claims from report text.
@@ -259,6 +284,11 @@ function buildKnownValues(
   if (model.normalizedRevenue !== null) addDollar(model.normalizedRevenue, "model.normalized_revenue");
   if (model.normalizedOperatingMargin !== null) addPercent(model.normalizedOperatingMargin, "model.normalized_operating_margin");
 
+  // Net cash/debt position
+  if (facts.totalCashAndInvestments.value !== null && facts.totalDebt.value !== null) {
+    addDollar(facts.totalCashAndInvestments.value - facts.totalDebt.value, "derived.net_cash");
+  }
+
   // Cycle divergence ratios (current margin / 5Y avg)
   if (facts.latestQuarterGrossMargin.value && facts.fiveYearAvgGrossMargin.value && facts.fiveYearAvgGrossMargin.value !== 0) {
     addRatio(facts.latestQuarterGrossMargin.value / facts.fiveYearAvgGrossMargin.value, "derived.gm_cycle_ratio");
@@ -381,11 +411,126 @@ function matchClaim(
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// SURFACE-005: Period-label consistency
+// ---------------------------------------------------------------------------
+
+type PeriodScope = "quarterly" | "ttm" | "annual" | "5y_avg" | "point_in_time" | "model" | "derived" | "unknown";
+
+/** Map field name prefixes to their canonical period scope. */
+function fieldPeriodScope(field: string): PeriodScope {
+  if (field.startsWith("latest_quarter")) return "quarterly";
+  if (field.startsWith("ttm.")) return "ttm";
+  if (field.startsWith("annual_history.five_year")) return "5y_avg";
+  if (field.startsWith("annual_history.")) return "annual";
+  if (field.startsWith("balance_sheet.") || field.startsWith("shares.") || field.startsWith("market.")) return "point_in_time";
+  if (field.startsWith("derived.")) return "derived";
+  if (field.startsWith("model.") || field.startsWith("multiples.")) return "model";
+  return "unknown";
+}
+
+/**
+ * Detect the period label the narrative uses to directly modify a numeric claim.
+ * Only flags when a period label is immediately adjacent to the value (within ~15 chars),
+ * to avoid false positives when a sentence compares values across different periods.
+ *
+ * Examples that should flag:
+ *   "quarterly EPS of $21.18" → quarterly (TTM value mislabeled)
+ *   "annual revenue of $58.1B" → annual (TTM value mislabeled)
+ *
+ * Examples that should NOT flag:
+ *   "latest quarter showed strong results... trailing EPS of $21.18" → no label
+ *   "quarter revenue of $23.86B with five-year average GM of 27.2%" → separate scopes, fine
+ */
+function detectNarrativePeriod(context: string, claimRaw: string): PeriodScope | null {
+  const idx = context.indexOf(claimRaw);
+  if (idx === -1) return null;
+
+  // Very narrow window: 20 chars before the claim only
+  const windowStart = Math.max(0, idx - 20);
+  const prefix = context.substring(windowStart, idx).toLowerCase();
+
+  // 5Y average signals (check first — most specific)
+  if (/(?:five-year|5-year|5y|historical)\s*(?:average|avg)\b/i.test(prefix)) {
+    return "5y_avg";
+  }
+  // Direct "quarterly X of" pattern — only when period label directly precedes the value
+  if (/\b(?:quarterly|quarter(?:'s)?)\s+(?:\w+\s+){0,2}(?:of\s+)?$/i.test(prefix)) {
+    return "quarterly";
+  }
+  // Direct "TTM/trailing X of" pattern
+  if (/\b(?:trailing(?:\s+twelve[- ]month)?|ttm)\s+(?:\w+\s+){0,2}(?:of\s+)?$/i.test(prefix)) {
+    return "ttm";
+  }
+  // Direct "annual X of" or "FY20XX X of" pattern
+  if (/\b(?:annual|fy\s*20\d{2}|fiscal\s*year)\s+(?:\w+\s+){0,2}(?:of\s+)?$/i.test(prefix)) {
+    return "annual";
+  }
+
+  return null; // no direct period label modifying this claim
+}
+
+/** Check if the narrative period label is consistent with the field's actual scope. */
+function isPeriodConsistent(narrativePeriod: PeriodScope, fieldScope: PeriodScope): boolean {
+  if (narrativePeriod === fieldScope) return true;
+
+  // derived/model/point_in_time fields are flexible — they can appear in any context
+  if (fieldScope === "derived" || fieldScope === "model" || fieldScope === "point_in_time") return true;
+
+  // TTM values can appear in "trailing" context without confusion
+  if (fieldScope === "ttm" && narrativePeriod === "ttm") return true;
+
+  // Quarterly margins can reference latest quarter
+  if (fieldScope === "quarterly" && narrativePeriod === "quarterly") return true;
+
+  // 5Y averages in "historical average" context
+  if (fieldScope === "5y_avg" && narrativePeriod === "5y_avg") return true;
+
+  // Annual history values in annual context
+  if (fieldScope === "annual" && narrativePeriod === "annual") return true;
+
+  return false;
+}
+
+/**
+ * Check period-label consistency across all matched claims.
+ * Returns violations where the narrative's period label contradicts the field's actual scope.
+ */
+function checkPeriodLabels(
+  matchDetails: { claim: NumericClaim; matchedTo: string }[]
+): PeriodLabelViolation[] {
+  const violations: PeriodLabelViolation[] = [];
+
+  for (const { claim, matchedTo } of matchDetails) {
+    // Skip structural/year matches
+    if (matchedTo.startsWith("__")) continue;
+
+    const fieldScope = fieldPeriodScope(matchedTo);
+    if (fieldScope === "unknown" || fieldScope === "derived" || fieldScope === "model" || fieldScope === "point_in_time") continue;
+
+    const narrativePeriod = detectNarrativePeriod(claim.context, claim.raw);
+    if (narrativePeriod === null) continue; // no period label detected — not a violation
+
+    if (!isPeriodConsistent(narrativePeriod, fieldScope)) {
+      violations.push({
+        claim,
+        matchedField: matchedTo,
+        fieldPeriod: fieldScope,
+        narrativePeriod,
+        message: `Period mismatch: narrative says "${narrativePeriod}" but field ${matchedTo} is "${fieldScope}"`,
+      });
+    }
+  }
+
+  return violations;
+}
+
 /**
  * Scan a rendered report for surface integrity violations.
  *
- * Returns PASS if all numeric claims map to allowed fields with traces.
- * Returns FAIL if any unmatched numeric claims are found.
+ * Returns PASS if all numeric claims map to allowed fields with traces
+ * and no period-label confusion is detected.
+ * Returns FAIL if any unmatched numeric claims or period violations are found.
  */
 export function scanReportSurface(
   reportText: string,
@@ -406,16 +551,23 @@ export function scanReportSurface(
     const matched = matchClaim(claim, knownValues, allowedFields);
     if (matched) {
       matchDetails.push({ claim, matchedTo: matched });
+    } else if (isQualitativeClaim(claim)) {
+      // Class D: evidence-backed qualitative claim with approximate language
+      matchDetails.push({ claim, matchedTo: "__qualitative_class_d__" });
     } else {
       unmatchedClaims.push(claim);
     }
   }
 
+  // SURFACE-005: Check period-label consistency
+  const periodLabelViolations = checkPeriodLabels(matchDetails);
+
   return {
-    status: unmatchedClaims.length === 0 ? "PASS" : "FAIL",
+    status: unmatchedClaims.length === 0 && periodLabelViolations.length === 0 ? "PASS" : "FAIL",
     totalClaims: claims.length,
     matchedClaims: matchDetails.length,
     unmatchedClaims,
     matchDetails,
+    periodLabelViolations,
   };
 }

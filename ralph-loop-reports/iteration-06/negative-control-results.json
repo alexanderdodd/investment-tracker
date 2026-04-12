@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-04-12T11:08:15.684Z",
+  "generatedAt": "2026-04-12T11:20:48.691Z",
   "totalScenarios": 10,
   "passed": 10,
   "failed": 0,
   "scenarios": [
     {
-      "name": "Missing 10-K filing",
+      "name": "Missing 10-K",
       "expected": "WITHHOLD_ALL",
       "actual": "WITHHOLD_ALL",
       "pass": true
     },
     {
-      "name": "Missing 10-Q filing",
+      "name": "Missing 10-Q",
       "expected": "WITHHOLD_ALL",
       "actual": "WITHHOLD_ALL",
       "pass": true
@@ -59,7 +59,7 @@
       "pass": true
     },
     {
-      "name": "Valid facts but peak cycle",
+      "name": "Valid facts peak cycle",
       "expected": "PUBLISH_FACTS_ONLY",
       "actual": "PUBLISH_FACTS_ONLY",
       "pass": true

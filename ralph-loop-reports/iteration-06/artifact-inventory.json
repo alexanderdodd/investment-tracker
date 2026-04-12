@@ -1,6 +1,6 @@
 {
   "iteration": 6,
-  "generatedAt": "2026-04-12T11:08:15.685Z",
+  "generatedAt": "2026-04-12T11:20:48.692Z",
   "artifacts": [
     {
       "name": "generated-report.md",
@@ -55,8 +55,15 @@
   },
   "surfaceScan": {
     "status": "PASS",
-    "totalClaims": 42,
-    "matchedClaims": 42,
-    "unmatchedClaims": 0
+    "totalClaims": 45,
+    "matchedClaims": 45,
+    "unmatchedClaims": 0,
+    "periodLabelViolations": 0
+  },
+  "acceptanceCriteria": {
+    "total": 31,
+    "passed": 31,
+    "notTested": 0,
+    "failed": 0
   }
 }

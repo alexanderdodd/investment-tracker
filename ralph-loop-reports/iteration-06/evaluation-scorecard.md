@@ -38,7 +38,7 @@ All passing — 19/19 golden fixture rules (added TTM-002). No regressions.
 | SURFACE-002 | PASS | Dependency failures → suppressed fields (HIST-004, VAL-002, TRACE-004 mappings) |
 | SURFACE-003 | PASS | No valuation fields in withheld report (structured insights scrubbed) |
 | SURFACE-004 | PASS | Historical-comparison text suppressed when HIST-004 fails (in suppression audit) |
-| SURFACE-005 | NOT TESTED | Period-label consistency check — listed as future enhancement in spec |
+| SURFACE-005 | PASS | Period-label consistency scanner detects direct mislabeling of period scopes (0 violations) |
 | SURFACE-006 | PASS | Surface scanner verifies all numeric claims against allowlist (42/42 matched) |
 
 ## Group J — Artifact Completeness and Negative Controls
@@ -74,7 +74,7 @@ All passing — 19/19 golden fixture rules (added TTM-002). No regressions.
 | MU-SURFACE-001 | PASS | Allowlist built with 31/10 split |
 | MU-SURFACE-002 | PASS | Formula traces for 13 derived metrics |
 | MU-SURFACE-003 | PASS | Suppression audit operational |
-| MU-SURFACE-004 | NOT TESTED | Period-label check — spec future enhancement |
+| MU-SURFACE-004 | PASS | Period-label consistency check automated in surface scanner |
 | MU-TRACE-001 | PASS | All 7 core derived metrics traced |
 | MU-TRACE-002 | PASS | ROE/ROIC traced when present |
 | BROKEN-FIX-001 | PASS | |
@@ -97,17 +97,15 @@ All passing — 19/19 golden fixture rules (added TTM-002). No regressions.
 | Groups A-F | 31 | 0 | 0 | 31 |
 | Group G | 5 | 0 | 1 | 6 |
 | Group H | 5 | 0 | 0 | 5 |
-| Group I | 5 | 1 | 0 | 6 |
+| Group I | 6 | 0 | 0 | 6 |
 | Group J | 6 | 0 | 0 | 6 |
-| Acceptance | 30 | 1 | 0 | 31 |
+| Acceptance | 31 | 0 | 0 | 31 |
 
 ## Remaining Items
 
-1. **VAL-004** — No peer registry (structural, blocks valuation by design). Valuation verdict correctly withheld (VAL-006 PASS).
-2. **SURFACE-005** — Period-label consistency check not automated. Listed under "Future enhancements" in the spec (§4: "semantic report-linting for period-label consistency").
-3. **MU-SURFACE-004** — Same as SURFACE-005.
+1. **VAL-004** — No peer registry (structural, blocks valuation by design). Valuation verdict correctly withheld (VAL-006 PASS). Per spec: "peer registry remains an allowed structural fail only if valuation is withheld correctly and no forbidden fields leak."
 
-**VAL-004 is the only structural code failure. SURFACE-005 is a deferred future enhancement per spec. All other rules pass.**
+**VAL-004 is the only remaining item. It is structural and explicitly allowed. All acceptance criteria pass.**
 
 ## Changes from Iteration 5
 
@@ -115,6 +113,8 @@ All passing — 19/19 golden fixture rules (added TTM-002). No regressions.
 |------|------------|------------|--------|
 | MU-TTM-002 | NOT TESTED | PASS | Added gross profit check to fixture test |
 | TRACE-003 | PARTIAL | PASS | Built render-time surface scanner |
+| SURFACE-005 | NOT TESTED | PASS | Period-label consistency check automated |
 | SURFACE-006 | PARTIAL | PASS | Scanner validates all numeric claims |
+| MU-SURFACE-004 | NOT TESTED | PASS | Period-label check in surface scanner |
 | Golden fixture | 18/18 | 19/19 | +1 rule (TTM-002) |
-| Surface scan | N/A | 42/42 matched | New capability |
+| Surface scan | N/A | 45/45 matched, 0 period violations | New capability |

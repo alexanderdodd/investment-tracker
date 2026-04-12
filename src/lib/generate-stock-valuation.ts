@@ -294,12 +294,19 @@ export async function generateStockValuation(
       report(5, "complete");
     }
 
-    // Run surface scanner on narrative (TRACE-003 / SURFACE-006)
+    // Run surface scanner on narrative (TRACE-003 / SURFACE-005 / SURFACE-006)
     const surfaceScan = scanReportSurface(narrative, facts, financialModel, formulaTraces, surfaceAllowlist, valuationOutputs);
     if (surfaceScan.unmatchedClaims.length > 0) {
       console.warn(`Surface scan: ${surfaceScan.unmatchedClaims.length} unmatched numeric claims in narrative`);
       for (const c of surfaceScan.unmatchedClaims) {
         console.warn(`  L${c.lineNumber}: ${c.raw} (${c.unit}) — "${c.context.substring(0, 80)}"`);
+      }
+    }
+    if (surfaceScan.periodLabelViolations.length > 0) {
+      console.warn(`Surface scan: ${surfaceScan.periodLabelViolations.length} period-label violations`);
+      for (const v of surfaceScan.periodLabelViolations) {
+        console.warn(`  L${v.claim.lineNumber}: ${v.message}`);
+        console.warn(`    Claim: ${v.claim.raw} in: "${v.claim.context.substring(0, 120)}"`);
       }
     }
 
