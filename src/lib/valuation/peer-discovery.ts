@@ -28,6 +28,48 @@ export interface PeerCandidate {
 }
 
 // ---------------------------------------------------------------------------
+// Simplify SIC description for EDGAR full-text search
+// ---------------------------------------------------------------------------
+
+function simplifySectorSearch(sicDescription: string): string {
+  // Map verbose SIC descriptions to simpler search terms that match filing text
+  const simplifications: Record<string, string> = {
+    "Fire, Marine & Casualty Insurance": "property casualty insurance",
+    "Pharmaceutical Preparations": "pharmaceutical",
+    "Semiconductors & Related Devices": "semiconductor",
+    "Electronic Computers": "computer hardware",
+    "Retail-Drug Stores and Proprietary Stores": "retail pharmacy",
+    "Services-Prepackaged Software": "software",
+    "Services-Computer Programming, Data Processing": "technology services",
+    "National Commercial Banks-State": "commercial banking",
+    "State Commercial Banks-Federal Reserve": "commercial banking",
+    "Crude Petroleum & Natural Gas": "oil gas exploration",
+    "Electric Services": "electric utility",
+    "Telephone Communications": "telecommunications",
+  };
+
+  if (simplifications[sicDescription]) {
+    return simplifications[sicDescription];
+  }
+
+  // Generic simplification: take the most distinctive words
+  // Remove common prefixes like "Services-", "Retail-", etc.
+  let simplified = sicDescription
+    .replace(/^(Services|Retail|Wholesale)-/i, "")
+    .replace(/[&,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // If still long, take just the first two meaningful words
+  const words = simplified.split(" ").filter(w => w.length > 3 && !["and", "the", "for", "with"].includes(w.toLowerCase()));
+  if (words.length > 2) {
+    simplified = words.slice(0, 2).join(" ");
+  }
+
+  return simplified;
+}
+
+// ---------------------------------------------------------------------------
 // SIC-based company ticker map with SIC codes
 // ---------------------------------------------------------------------------
 
@@ -108,9 +150,11 @@ export async function discoverPeers(
 
   if (subjectSic.length >= 4) {
     // Use EDGAR full-text search to find companies in the same sector
-    // Search by SIC description (sector name) since the API doesn't have direct SIC filter
+    // Simplify the sector name for better search results
     try {
-      const sectorForSearch = subjectSicDescription || subjectSic;
+      const rawSector = subjectSicDescription || subjectSic;
+      // Extract the most distinctive keyword(s) from the SIC description
+      const sectorForSearch = simplifySectorSearch(rawSector);
       const searchUrl = `https://efts.sec.gov/LATEST/search-index?q=%22${encodeURIComponent(sectorForSearch)}%22&forms=10-K&dateRange=custom&startdt=2025-06-01&enddt=2026-12-31&from=0&size=50`;
       const res = await fetch(searchUrl, {
         headers: { "User-Agent": "investment-tracker/1.0 research@example.com" },
