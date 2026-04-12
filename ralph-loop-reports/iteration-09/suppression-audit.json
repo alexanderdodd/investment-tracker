@@ -1,0 +1,33 @@
+{
+  "gateStatus": "PUBLISH_FACTS_ONLY",
+  "failedRules": [
+    "VAL-005 [GATE_TRIGGER]",
+    "VAL-005 [GATE_TRIGGER]"
+  ],
+  "suppressedFields": [
+    "valuation.fair_value",
+    "valuation.target_price",
+    "valuation.margin_of_safety",
+    "valuation.confidence",
+    "valuation.scenarios",
+    "model.normalized_fcf",
+    "model.cycle_confidence",
+    "model.roe",
+    "model.roic",
+    "model.interest_coverage"
+  ],
+  "suppressionReasons": {
+    "valuation.fair_value": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "valuation.target_price": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "valuation.margin_of_safety": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "valuation.confidence": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "valuation.scenarios": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "model.normalized_fcf": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "model.cycle_confidence": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "model.roe": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "model.roic": "Class C not allowed in PUBLISH_FACTS_ONLY",
+    "model.interest_coverage": "Class C not allowed in PUBLISH_FACTS_ONLY"
+  },
+  "allowedFieldCount": 31,
+  "deniedFieldCount": 10
+}

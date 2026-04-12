@@ -1,0 +1,17 @@
+{
+  "iteration": 9,
+  "ticker": "MU",
+  "generatedAt": "2026-04-12T12:56:24.066Z",
+  "gateStatus": "PUBLISH_FACTS_ONLY",
+  "valueGateStatus": "PUBLISH_FACTS_ONLY",
+  "fairValue": {
+    "low": 35.972079358474964,
+    "mid": 144.98160160994593,
+    "high": 375.376575,
+    "label": "EXPENSIVE",
+    "confidence": 0.4
+  },
+  "goldenFixture": "19/19",
+  "brokenFixture": "10/10",
+  "valuationTests": "10/10"
+}

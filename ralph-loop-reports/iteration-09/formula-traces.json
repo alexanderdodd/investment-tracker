@@ -1,0 +1,288 @@
+[
+  {
+    "field": "derived.market_cap",
+    "formula": "price × point_in_time_shares",
+    "result": 474313664510.08997,
+    "inputs": [
+      {
+        "field": "market.current_price",
+        "value": 420.59,
+        "validated": true
+      },
+      {
+        "field": "shares.point_in_time",
+        "value": 1127734051,
+        "validated": true
+      }
+    ],
+    "periodScope": "point_in_time",
+    "shareBasis": "point_in_time_shares"
+  },
+  {
+    "field": "derived.enterprise_value",
+    "formula": "market_cap + total_debt - total_cash_and_investments",
+    "result": 467828664510.08997,
+    "inputs": [
+      {
+        "field": "derived.market_cap",
+        "value": 474313664510.08997,
+        "validated": true
+      },
+      {
+        "field": "balance_sheet.total_debt",
+        "value": 10142000000,
+        "validated": true
+      },
+      {
+        "field": "balance_sheet.total_cash_and_investments",
+        "value": 16627000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "point_in_time + latest_balance_sheet",
+    "shareBasis": null
+  },
+  {
+    "field": "derived.trailing_pe",
+    "formula": "price / ttm_diluted_eps",
+    "result": 19.85788479697828,
+    "inputs": [
+      {
+        "field": "market.current_price",
+        "value": 420.59,
+        "validated": true
+      },
+      {
+        "field": "ttm.diluted_eps",
+        "value": 21.18,
+        "validated": true
+      }
+    ],
+    "periodScope": "TTM",
+    "shareBasis": "weighted_average_diluted"
+  },
+  {
+    "field": "derived.book_value_per_share",
+    "formula": "total_equity / point_in_time_shares",
+    "result": 64.2518508115882,
+    "inputs": [
+      {
+        "field": "balance_sheet.total_equity",
+        "value": 72459000000,
+        "validated": true
+      },
+      {
+        "field": "shares.point_in_time",
+        "value": 1127734051,
+        "validated": true
+      }
+    ],
+    "periodScope": "point_in_time",
+    "shareBasis": "point_in_time_shares"
+  },
+  {
+    "field": "derived.price_to_book",
+    "formula": "price / book_value_per_share",
+    "result": 6.545959294360811,
+    "inputs": [
+      {
+        "field": "market.current_price",
+        "value": 420.59,
+        "validated": true
+      },
+      {
+        "field": "derived.book_value_per_share",
+        "value": 64.2518508115882,
+        "validated": true
+      }
+    ],
+    "periodScope": "point_in_time",
+    "shareBasis": "point_in_time_shares"
+  },
+  {
+    "field": "derived.ev_to_revenue",
+    "formula": "enterprise_value / ttm_revenue",
+    "result": 8.049496111600165,
+    "inputs": [
+      {
+        "field": "derived.enterprise_value",
+        "value": 467828664510.08997,
+        "validated": true
+      },
+      {
+        "field": "ttm.revenue",
+        "value": 58119000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "TTM",
+    "shareBasis": null
+  },
+  {
+    "field": "derived.ev_to_ebit",
+    "formula": "enterprise_value / ttm_operating_income",
+    "result": 16.65226256531964,
+    "inputs": [
+      {
+        "field": "derived.enterprise_value",
+        "value": 467828664510.08997,
+        "validated": true
+      },
+      {
+        "field": "ttm.operating_income",
+        "value": 28094000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "TTM",
+    "shareBasis": null
+  },
+  {
+    "field": "derived.ev_to_fcf",
+    "formula": "enterprise_value / ttm_gaap_free_cash_flow",
+    "result": 45.504198473892615,
+    "inputs": [
+      {
+        "field": "derived.enterprise_value",
+        "value": 467828664510.08997,
+        "validated": true
+      },
+      {
+        "field": "ttm.gaap_free_cash_flow",
+        "value": 10281000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "TTM",
+    "shareBasis": null
+  },
+  {
+    "field": "derived.ev_to_ebitda",
+    "formula": "enterprise_value / (ttm_operating_income + ttm_depreciation_amortization)",
+    "result": 12.700656020363512,
+    "inputs": [
+      {
+        "field": "derived.enterprise_value",
+        "value": 467828664510.08997,
+        "validated": true
+      },
+      {
+        "field": "ttm.operating_income",
+        "value": 28094000000,
+        "validated": true
+      },
+      {
+        "field": "ttm.depreciation_amortization",
+        "value": 8741000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "TTM",
+    "shareBasis": null
+  },
+  {
+    "field": "derived.gaap_free_cash_flow",
+    "formula": "ttm_ocf - ttm_capex",
+    "result": 10281000000,
+    "inputs": [
+      {
+        "field": "ttm.operating_cash_flow",
+        "value": 30653000000,
+        "validated": true
+      },
+      {
+        "field": "ttm.capex",
+        "value": 20372000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "TTM",
+    "shareBasis": null
+  },
+  {
+    "field": "derived.total_cash_and_investments",
+    "formula": "cash + short_term_investments + long_term_investments",
+    "result": 16627000000,
+    "inputs": [
+      {
+        "field": "balance_sheet.cash",
+        "value": 13908000000,
+        "validated": true
+      },
+      {
+        "field": "balance_sheet.short_term_investments",
+        "value": 681000000,
+        "validated": true
+      },
+      {
+        "field": "balance_sheet.long_term_investments",
+        "value": 2038000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "point_in_time",
+    "shareBasis": null
+  },
+  {
+    "field": "derived.total_debt",
+    "formula": "current_debt + long_term_debt",
+    "result": 10142000000,
+    "inputs": [
+      {
+        "field": "balance_sheet.current_debt",
+        "value": 585000000,
+        "validated": true
+      },
+      {
+        "field": "balance_sheet.long_term_debt",
+        "value": 9557000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "point_in_time",
+    "shareBasis": null
+  },
+  {
+    "field": "model.roe",
+    "formula": "ttm_net_income / total_equity",
+    "result": 0.3327536951931437,
+    "inputs": [
+      {
+        "field": "ttm.net_income",
+        "value": 24111000000,
+        "validated": true
+      },
+      {
+        "field": "balance_sheet.total_equity",
+        "value": 72459000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "TTM / point_in_time",
+    "shareBasis": null
+  },
+  {
+    "field": "model.roic",
+    "formula": "nopat / invested_capital",
+    "result": 0.3364091914996817,
+    "inputs": [
+      {
+        "field": "ttm.operating_income",
+        "value": 28094000000,
+        "validated": true
+      },
+      {
+        "field": "balance_sheet.total_equity",
+        "value": 72459000000,
+        "validated": true
+      },
+      {
+        "field": "balance_sheet.total_debt",
+        "value": 10142000000,
+        "validated": true
+      }
+    ],
+    "periodScope": "TTM / point_in_time",
+    "shareBasis": null
+  }
+]

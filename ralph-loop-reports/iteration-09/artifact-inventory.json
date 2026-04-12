@@ -1,0 +1,18 @@
+{
+  "iteration": 9,
+  "generatedAt": "2026-04-12T12:56:24.067Z",
+  "artifacts": [
+    "generated-report.md",
+    "evaluation-scorecard.md",
+    "iteration-changes.md",
+    "run-manifest.json",
+    "quarter-manifest.json",
+    "formula-traces.json",
+    "suppression-audit.json",
+    "artifact-inventory.json",
+    "negative-control-results.json",
+    "peer-registry.json",
+    "valuation-methods.json",
+    "fair-value-synthesis.json"
+  ]
+}

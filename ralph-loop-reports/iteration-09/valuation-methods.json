@@ -1,0 +1,21 @@
+{
+  "dcf": {
+    "perShareValue": 53.20898188402536,
+    "wacc": 0.09677531208020865,
+    "normalized": true
+  },
+  "reverseDcf": {
+    "impliedRevenueGrowth": null,
+    "impliedOperatingMargin": 0.5777550954985279,
+    "interpretation": "Market implies 57.8% FCF margin, vs current 17.7% and 5Y avg operating margin 9.7%."
+  },
+  "relative": {
+    "weightedPerShare": 158.04528488416426,
+    "confidence": 0.8833333333333333
+  },
+  "selfHistory": {
+    "low": 37.86534669313154,
+    "mid": 181.0624528609148,
+    "high": 248.22294596465449
+  }
+}
