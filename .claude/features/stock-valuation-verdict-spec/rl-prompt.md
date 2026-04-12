@@ -110,6 +110,9 @@ Apply one focused patch. Do not patch prompts for deterministic failures.
    - valuation label is mechanically derived
    - no forbidden fields leak in any withheld state
    - SURFACE-007 suppression assertion passes
+   - **RENDER-001: report-gate consistency** — if value publishes, report contains fair value section
+   - **RDCF-001: reverse DCF excluded from midpoint** — effective weight = 0
+   - **key risks populated** — at least 2 for MU at peak
 
 ### 5. Report — Write iteration artifacts
 
@@ -144,38 +147,48 @@ Output `<promise>RALPH COMPLETE</promise>` when:
 
 Do **not** output the promise if there are fixable failures remaining.
 
-## Known priority issues
+## Known priority issues (from iteration 10 expert review)
 
-1. **Key risks empty** (FIRST PRIORITY)
-   - The `keyRisks` field in structured insights is only populated from QA issues
-   - When QA passes (desired state), Key Risks section is empty on the dashboard
-   - Must derive risks deterministically from cycle state, valuation context, balance sheet
+See `15-iteration-10-expert-fixes.md` for full specification of each fix.
+
+1. **Report-gate consistency assertion** (HIGHEST PRIORITY)
+   - Add a hard assertion that if valueGateStatus = PUBLISH_FACTS_PLUS_VALUE, then
+     generated-report.md MUST contain fair value range, label, confidence rating, and reasons
+   - If missing, fail the iteration — this is the "what would the user see?" test
+   - Acceptance criteria: RENDER-001 through RENDER-003
+
+2. **Remove reverse DCF from fair value midpoint** (SECOND PRIORITY)
+   - Reverse DCF is circular (derives from market price) — don't use it for intrinsic value
+   - Keep it in the report as a "Market-implied expectations" diagnostic section
+   - Renormalize remaining weights: DCF 55%, relative 30%, self-history 15%
+   - Expected: range narrows, midpoint moves toward non-circular consensus
+   - Acceptance criteria: RDCF-001 through RDCF-005
+
+3. **Recalibrate relative valuation confidence** (THIRD PRIORITY)
+   - Current 0.88 confidence is too high for curated peer snapshots
+   - Add -0.15 penalty for curated-only (not pipeline-derived) multiples
+   - Increase Samsung conglomerate penalty from 0.35 to 0.45
+   - Cap relative confidence at 0.65 when all peers are curated
+   - Add peer-quality weakness to confidence reasons
+   - Acceptance criteria: PEER-CAL-001 through PEER-CAL-003
+
+4. **Deterministic key risks** (FOURTH PRIORITY)
+   - `keyRisks` is empty when QA passes (desired state)
+   - Derive from cycle state, valuation context, balance sheet, industry
    - See `14-key-risks-specification.md`
-   - New acceptance criteria: RISK-001 through RISK-005
+   - Acceptance criteria: RISK-001 through RISK-003
 
-2. **VAL-004 / Peer registry** (RESOLVED in iteration 8)
-   - No peer registry exists yet — this blocks everything
-   - Build deterministic peer/relative framework for MU
-   - SK hynix, Samsung (with conglomerate penalty), WDC, self-history
-   - See `05-peer-registry-and-relative-framework.md`
+5. **Spec consistency** (FIFTH PRIORITY)
+   - Reconcile always-publish rule across facts-first spec and verdict spec
+   - Facts gate governs facts publication (unchanged)
+   - Value gate governs valuation publication (new layer)
+   - Hard blocks: <2 valid methods or non-positive midpoint
+   - Everything else is communicated via confidence rating
 
-2. **Valuation method stack** (SECOND PRIORITY)
-   - Current valuation engine exists but methods need refinement for publication
-   - Normalized FCFF DCF with cycle-adjusted inputs
-   - Reverse DCF interpretation
-   - Relative valuation from peer framework
-   - Self-history comparison
+## Previously resolved
 
-3. **Fair value synthesis** (THIRD PRIORITY)
-   - Combine method outputs into `low`, `mid`, `high`
-   - Weighted by method confidence and data quality
-   - Range width check (≤ 40% of midpoint)
-
-4. **Value gate** (FOURTH PRIORITY)
-   - Add third gate stage after facts gate and before action gate
-   - Enforce range width, method disagreement, confidence thresholds
-
-5. **Calibration** (FIFTH PRIORITY)
-   - Expert-reviewed envelope for MU fair value
-   - Historical snapshot directional sanity
-   - Sensitivity stability
+- **VAL-004 / Peer registry** — RESOLVED in iteration 8 (curated MU peer set)
+- **Valuation method stack** — RESOLVED in iteration 8 (4 methods)
+- **Fair value synthesis** — RESOLVED in iteration 8 (weighted range + label)
+- **Value gate** — RESOLVED in iteration 10 (always-publish with confidence)
+- **Calibration** — RESOLVED in iteration 9 (envelope + directional checks)

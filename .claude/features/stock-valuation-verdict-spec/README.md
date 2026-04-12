@@ -16,6 +16,11 @@ This bundle defines the next phase of the stock valuation workflow:
 4. Implement valuation publication only after the new value gate and action gate pass.
 5. Use MU first; generalize later by company archetype, not by copying MU logic.
 
+## Additional specs (added during implementation)
+
+- `14-key-risks-specification.md` — Deterministic key risk derivation
+- `15-iteration-10-expert-fixes.md` — Expert review fixes: report consistency, reverse DCF removal, peer calibration
+
 ## Safety posture
 
 - filing-first
