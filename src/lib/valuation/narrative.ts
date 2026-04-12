@@ -52,16 +52,38 @@ DATA QUALITY: ${facts.dataQualityNotes.join("; ") || "No issues"}
 MISSING XBRL FIELDS: ${facts.missingFields.join(", ") || "None"}`;
 }
 
-function formatModelOutputsForPrompt(model: FinancialModelOutputs): string {
+function formatModelOutputsForPrompt(model: FinancialModelOutputs, suppressedFields?: string[]): string {
+  const suppressed = new Set(suppressedFields ?? []);
   const f = (v: number | null, decimals = 2) => v !== null ? v.toFixed(decimals) : "N/A";
   const fPct = (v: number | null) => v !== null ? `${(v * 100).toFixed(1)}%` : "N/A";
 
-  return `FINANCIAL MODEL OUTPUTS
-  Cycle State: ${model.cycleState} (confidence: ${f(model.cycleConfidence, 1)})
-  Cash Conversion: ${f(model.cashConversionRatio)}x | ROE: ${fPct(model.roe)} | ROIC: ${fPct(model.roic)}
-  Debt/Equity: ${f(model.debtToEquity)} | Debt/EBITDA: ${f(model.debtToEbitda)}x | Interest Coverage: ${f(model.interestCoverage)}x
-  Capex Intensity: ${fPct(model.capexIntensity)} | SBC/Revenue: ${fPct(model.sbcAsPercentOfRevenue)}
-  Normalized Op Margin: ${fPct(model.normalizedOperatingMargin)} | Normalized FCF: ${model.normalizedFCF !== null ? `$${(model.normalizedFCF / 1e9).toFixed(2)}B` : "N/A"}`;
+  const lines: string[] = ["FINANCIAL MODEL OUTPUTS"];
+  lines.push(`  Cycle State: ${model.cycleState}`);
+  lines.push(`  Cash Conversion: ${f(model.cashConversionRatio)}x`);
+
+  if (!suppressed.has("model.roe"))
+    lines.push(`  ROE: ${fPct(model.roe)}`);
+  if (!suppressed.has("model.roic"))
+    lines.push(`  ROIC: ${fPct(model.roic)}`);
+
+  lines.push(`  Debt/Equity: ${f(model.debtToEquity)}`);
+  lines.push(`  Debt/EBITDA: ${f(model.debtToEbitda)}x`);
+
+  if (!suppressed.has("model.interest_coverage"))
+    lines.push(`  Interest Coverage: ${f(model.interestCoverage)}x`);
+
+  lines.push(`  Capex Intensity: ${fPct(model.capexIntensity)}`);
+  lines.push(`  SBC/Revenue: ${fPct(model.sbcAsPercentOfRevenue)}`);
+
+  if (!suppressed.has("model.normalized_fcf")) {
+    lines.push(`  Normalized Op Margin: ${fPct(model.normalizedOperatingMargin)}`);
+    lines.push(`  Normalized FCF: ${model.normalizedFCF !== null ? `$${(model.normalizedFCF / 1e9).toFixed(2)}B` : "N/A"}`);
+  }
+
+  // Never include cycle confidence score — it implies valuation usability
+  // (cycle state is included as qualitative context, but the numeric score is denied)
+
+  return lines.join("\n");
 }
 
 function formatValuationForPrompt(val: ValuationOutputs, price: number | null): string {
@@ -99,10 +121,11 @@ export async function generateNarrative(
   model: FinancialModelOutputs,
   valuation: ValuationOutputs,
   qa: QaReport,
-  onProgress?: (label: string) => void
+  onProgress?: (label: string) => void,
+  suppressedFields?: string[]
 ): Promise<string> {
   const factsText = formatFactsForPrompt(facts);
-  const modelText = formatModelOutputsForPrompt(model);
+  const modelText = formatModelOutputsForPrompt(model, suppressedFields);
   const qaText = qa.issues.length > 0
     ? `QA ISSUES:\n${qa.issues.map(i => `  [${i.severity.toUpperCase()}] ${i.location}: ${i.error}`).join("\n")}`
     : "QA: All checks passed.";
@@ -124,6 +147,27 @@ Reasons: ${qa.gateDecision.valuationGateFailures.join("; ")}
 MARKET MULTIPLES (publishable — these are derived from reconciled facts, not a valuation opinion):
   P/E: ${valuation.multiples.current.pe?.toFixed(1) ?? "N/A"}x | P/B: ${valuation.multiples.current.pb?.toFixed(1) ?? "N/A"}x | EV/EBITDA: ${valuation.multiples.current.evEbitda?.toFixed(1) ?? "N/A"}x`;
 
+    // Build denied-field instruction block from suppression audit
+    const deniedFieldNames = (suppressedFields ?? []).map(f => {
+      const labels: Record<string, string> = {
+        "model.roe": "ROE (return on equity)",
+        "model.roic": "ROIC (return on invested capital)",
+        "model.interest_coverage": "Interest coverage ratio",
+        "model.normalized_fcf": "Normalized free cash flow or normalized FCF",
+        "model.cycle_confidence": "Cycle confidence score or level",
+        "valuation.fair_value": "Fair value",
+        "valuation.target_price": "Target price",
+        "valuation.margin_of_safety": "Margin of safety",
+        "valuation.confidence": "Valuation confidence score",
+        "valuation.scenarios": "Bull/base/bear scenario price targets",
+      };
+      return labels[f] ?? f;
+    });
+
+    const deniedFieldBlock = deniedFieldNames.length > 0
+      ? `\nDENIED FIELDS — DO NOT MENTION OR COMPUTE THESE IN YOUR REPORT:\n${deniedFieldNames.map(n => `- ${n}`).join("\n")}\n\nThese fields have been suppressed by the deterministic gate. You MUST NOT:\n- Reference their values, even approximately\n- Compute or derive them from other available data\n- Use phrases like "return on equity" or "return on invested capital" with percentages\n- Mention normalized free cash flow or cycle confidence scores\n- State or imply interest coverage ratios\nIf you find yourself calculating net income / equity or similar, STOP — that metric is denied.\n`
+      : "";
+
     valuationInstructions = `
 CRITICAL INSTRUCTION — VALUATION WITHHELD:
 The valuation verdict has been withheld by the deterministic gate. You MUST NOT include any of the following in your report:
@@ -134,7 +178,7 @@ The valuation verdict has been withheld by the deterministic gate. You MUST NOT 
 - Investment conclusions (buy, sell, hold)
 - Confidence scores related to valuation
 - Bull/base/bear scenario price targets
-
+${deniedFieldBlock}
 You MAY discuss:
 - The reconciled financial facts and market multiples
 - The company's financial health, profitability, and cash generation

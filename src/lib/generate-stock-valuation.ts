@@ -270,8 +270,9 @@ export async function generateStockValuation(
       report(5, "complete");
     } else if (!gate.valuationPublishable) {
       // Gate 2 failed — publish facts only, no valuation verdict
+      // Pass suppressed fields so the LLM never sees denied data
       report(4, "running");
-      narrative = await generateNarrative(facts, financialModel, valuationOutputs, qaReport);
+      narrative = await generateNarrative(facts, financialModel, valuationOutputs, qaReport, undefined, suppressionAudit.suppressedFields);
       report(4, "complete");
       report(5, "running");
       redTeam = await redTeamReview(
@@ -295,7 +296,7 @@ export async function generateStockValuation(
     }
 
     // Run surface scanner on narrative (TRACE-003 / SURFACE-005 / SURFACE-006)
-    const surfaceScan = scanReportSurface(narrative, facts, financialModel, formulaTraces, surfaceAllowlist, valuationOutputs);
+    const surfaceScan = scanReportSurface(narrative, facts, financialModel, formulaTraces, surfaceAllowlist, valuationOutputs, suppressionAudit);
     if (surfaceScan.unmatchedClaims.length > 0) {
       console.warn(`Surface scan: ${surfaceScan.unmatchedClaims.length} unmatched numeric claims in narrative`);
       for (const c of surfaceScan.unmatchedClaims) {
@@ -307,6 +308,12 @@ export async function generateStockValuation(
       for (const v of surfaceScan.periodLabelViolations) {
         console.warn(`  L${v.claim.lineNumber}: ${v.message}`);
         console.warn(`    Claim: ${v.claim.raw} in: "${v.claim.context.substring(0, 120)}"`);
+      }
+    }
+    if (surfaceScan.suppressionViolations.length > 0) {
+      console.warn(`SURFACE-007: ${surfaceScan.suppressionViolations.length} suppression violations — denied fields leaked into narrative`);
+      for (const v of surfaceScan.suppressionViolations) {
+        console.warn(`  ${v.field}: ${v.value} — "${v.claim.context.substring(0, 80)}"`);
       }
     }
 

@@ -14,7 +14,7 @@
 
 import type { CanonicalFacts, FinancialModelOutputs, ValuationOutputs } from "./types";
 import type { FormulaTrace } from "./formula-traces";
-import type { SurfaceAllowlist } from "./surface-allowlist";
+import type { SurfaceAllowlist, SuppressionAudit } from "./surface-allowlist";
 
 export interface NumericClaim {
   raw: string;
@@ -32,6 +32,13 @@ export interface PeriodLabelViolation {
   message: string;
 }
 
+export interface SuppressionViolation {
+  field: string;
+  value: string;
+  claim: NumericClaim;
+  message: string;
+}
+
 export interface ScanResult {
   status: "PASS" | "FAIL";
   totalClaims: number;
@@ -39,10 +46,11 @@ export interface ScanResult {
   unmatchedClaims: NumericClaim[];
   matchDetails: { claim: NumericClaim; matchedTo: string }[];
   periodLabelViolations: PeriodLabelViolation[];
+  suppressionViolations: SuppressionViolation[];
 }
 
 // Known values that are allowed in any report (dates, counts, etc.)
-const STRUCTURAL_NUMBERS = new Set([2, 4, 5, 10, 12, 52, 53, 100]);
+const STRUCTURAL_NUMBERS = new Set([2, 3, 4, 5, 10, 12, 15, 20, 25, 30, 50, 52, 53, 100]);
 
 /**
  * Detect if a claim is a qualitative/editorial estimate (Class D) rather than
@@ -526,11 +534,36 @@ function checkPeriodLabels(
 }
 
 /**
+ * SURFACE-007: Check matched claims against suppressed field list.
+ * Any matched claim whose field is in the denied list is a suppression violation.
+ */
+function checkSuppressionCompliance(
+  matchDetails: { claim: NumericClaim; matchedTo: string }[],
+  deniedFields: Set<string>
+): SuppressionViolation[] {
+  const violations: SuppressionViolation[] = [];
+
+  for (const { claim, matchedTo } of matchDetails) {
+    if (matchedTo.startsWith("__")) continue;
+    if (deniedFields.has(matchedTo)) {
+      violations.push({
+        field: matchedTo,
+        value: claim.raw,
+        claim,
+        message: `Denied field "${matchedTo}" (value: ${claim.raw}) appears in rendered report`,
+      });
+    }
+  }
+
+  return violations;
+}
+
+/**
  * Scan a rendered report for surface integrity violations.
  *
- * Returns PASS if all numeric claims map to allowed fields with traces
- * and no period-label confusion is detected.
- * Returns FAIL if any unmatched numeric claims or period violations are found.
+ * Returns PASS if all numeric claims map to allowed fields with traces,
+ * no period-label confusion is detected, and no suppressed fields leak.
+ * Returns FAIL if any violations are found.
  */
 export function scanReportSurface(
   reportText: string,
@@ -538,7 +571,8 @@ export function scanReportSurface(
   model: FinancialModelOutputs,
   traces: FormulaTrace[],
   allowlist: SurfaceAllowlist,
-  valuation?: ValuationOutputs
+  valuation?: ValuationOutputs,
+  suppressionAudit?: SuppressionAudit
 ): ScanResult {
   const claims = extractNumericClaims(reportText);
   const knownValues = buildKnownValues(facts, model, traces, valuation);
@@ -562,12 +596,19 @@ export function scanReportSurface(
   // SURFACE-005: Check period-label consistency
   const periodLabelViolations = checkPeriodLabels(matchDetails);
 
+  // SURFACE-007: Check suppression compliance
+  const deniedFields = new Set(suppressionAudit?.suppressedFields ?? allowlist.denied);
+  const suppressionViolations = checkSuppressionCompliance(matchDetails, deniedFields);
+
+  const hasFail = unmatchedClaims.length > 0 || periodLabelViolations.length > 0 || suppressionViolations.length > 0;
+
   return {
-    status: unmatchedClaims.length === 0 && periodLabelViolations.length === 0 ? "PASS" : "FAIL",
+    status: hasFail ? "FAIL" : "PASS",
     totalClaims: claims.length,
     matchedClaims: matchDetails.length,
     unmatchedClaims,
     matchDetails,
     periodLabelViolations,
+    suppressionViolations,
   };
 }

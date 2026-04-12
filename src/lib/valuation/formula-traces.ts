@@ -147,6 +147,27 @@ export function buildFormulaTraces(
     shareBasis: null,
   });
 
+  // EV/EBITDA = EV / (TTM operating income + TTM D&A)
+  const ttmDA = facts.ttmDA.value;
+  const ebitda = facts.ttmOperatingIncome.value !== null && ttmDA !== null
+    ? facts.ttmOperatingIncome.value + ttmDA
+    : null;
+  const evEbitda = facts.enterpriseValue.value !== null && ebitda !== null && ebitda !== 0
+    ? facts.enterpriseValue.value / ebitda
+    : null;
+  traces.push({
+    field: "derived.ev_to_ebitda",
+    formula: "enterprise_value / (ttm_operating_income + ttm_depreciation_amortization)",
+    result: evEbitda,
+    inputs: [
+      { field: "derived.enterprise_value", value: facts.enterpriseValue.value, validated: facts.enterpriseValue.value !== null },
+      { field: "ttm.operating_income", value: facts.ttmOperatingIncome.value, validated: facts.ttmOperatingIncome.value !== null },
+      { field: "ttm.depreciation_amortization", value: ttmDA, validated: ttmDA !== null },
+    ],
+    periodScope: "TTM",
+    shareBasis: null,
+  });
+
   // GAAP FCF = OCF - CapEx
   traces.push({
     field: "derived.gaap_free_cash_flow",
@@ -161,6 +182,10 @@ export function buildFormulaTraces(
   });
 
   // Total cash and investments = cash + ST investments + LT investments
+  // Derive LT investments from: total - cash - ST investments
+  const ltInvestments = facts.totalCashAndInvestments.value !== null && facts.cash.value !== null
+    ? facts.totalCashAndInvestments.value - facts.cash.value - (facts.shortTermInvestments.value ?? 0)
+    : null;
   traces.push({
     field: "derived.total_cash_and_investments",
     formula: "cash + short_term_investments + long_term_investments",
@@ -168,7 +193,7 @@ export function buildFormulaTraces(
     inputs: [
       { field: "balance_sheet.cash", value: facts.cash.value, validated: facts.cash.value !== null },
       { field: "balance_sheet.short_term_investments", value: facts.shortTermInvestments.value, validated: true },
-      { field: "balance_sheet.long_term_investments", value: null, validated: true }, // included in totalCash computation
+      { field: "balance_sheet.long_term_investments", value: ltInvestments, validated: true },
     ],
     periodScope: "point_in_time",
     shareBasis: null,

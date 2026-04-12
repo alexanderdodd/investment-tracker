@@ -1,0 +1,25 @@
+{
+  "iteration": 7,
+  "ticker": "MU",
+  "generatedAt": "2026-04-12T11:47:40.954Z",
+  "gateStatus": "PUBLISH_FACTS_ONLY",
+  "goldenFixtureResult": "19/19 PASS",
+  "brokenFixtureResult": "10/10 PASS",
+  "surfaceScan": {
+    "status": "PASS",
+    "totalClaims": 29,
+    "matchedClaims": 29,
+    "unmatchedClaims": 0,
+    "periodLabelViolations": 0,
+    "suppressionViolations": 0
+  },
+  "changes": [
+    "NARR-001: Narrative prompt filtered by suppression audit",
+    "NARR-002: Denied-field instruction block added",
+    "NARR-003/SURFACE-007: Post-render suppression assertion",
+    "TRACE-006: Fixed null long_term_investments",
+    "TRACE-007: Added EV/EBITDA trace",
+    "RULE-001/002: VAL-005 tagged [GATE_TRIGGER]",
+    "ART-CONSISTENCY: Single ScanResult"
+  ]
+}

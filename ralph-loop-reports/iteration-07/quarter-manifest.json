@@ -1,0 +1,15 @@
+{
+  "ticker": "MU",
+  "generatedAt": "2026-04-12T11:47:40.954Z",
+  "quartersUsed": "Q3 FY25 + Q4 FY25 + Q1 FY26 + Q2 FY26",
+  "latestQuarterlyFiling": {
+    "accession": "0000723125-26-000006",
+    "periodEnd": "2026-02-26",
+    "filedDate": "2026-03-19"
+  },
+  "latestAnnualFiling": {
+    "accession": "0000723125-25-000028",
+    "periodEnd": "2025-08-28",
+    "filedDate": "2025-10-03"
+  }
+}

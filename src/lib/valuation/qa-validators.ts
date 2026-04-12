@@ -146,11 +146,14 @@ function validateCycleAndHistoryForValuation(
   const latestOpMargin = facts.latestQuarterOperatingMargin.value;
   const avgOpMargin = facts.fiveYearAvgOperatingMargin.value;
 
+  // VAL-005: Cycle divergence check — tagged as GATE_TRIGGER because detecting
+  // a cycle peak is correct behavior, not a defect. The gate uses this to withhold
+  // the valuation verdict, but the check itself "passed" (correctly identified the condition).
   if (latestGrossMargin !== null && avgGrossMargin !== null && avgGrossMargin > 0) {
     const ratio = latestGrossMargin / avgGrossMargin;
     if (ratio > 2.0) {
       failures.push(
-        `VAL-005: Latest gross margin (${(latestGrossMargin * 100).toFixed(1)}%) is ${ratio.toFixed(1)}x the 5Y average (${(avgGrossMargin * 100).toFixed(1)}%) — cycle-normalized DCF too assumption-sensitive for reliable verdict`
+        `VAL-005 [GATE_TRIGGER]: Latest gross margin (${(latestGrossMargin * 100).toFixed(1)}%) is ${ratio.toFixed(1)}x the 5Y average (${(avgGrossMargin * 100).toFixed(1)}%) — cycle-normalized DCF too assumption-sensitive for reliable verdict`
       );
     }
   }
@@ -159,7 +162,7 @@ function validateCycleAndHistoryForValuation(
     const ratio = latestOpMargin / avgOpMargin;
     if (ratio > 3.0) {
       failures.push(
-        `VAL-005: Latest operating margin (${(latestOpMargin * 100).toFixed(1)}%) is ${ratio.toFixed(1)}x the 5Y average (${(avgOpMargin * 100).toFixed(1)}%) — extreme cycle divergence`
+        `VAL-005 [GATE_TRIGGER]: Latest operating margin (${(latestOpMargin * 100).toFixed(1)}%) is ${ratio.toFixed(1)}x the 5Y average (${(avgOpMargin * 100).toFixed(1)}%) — extreme cycle divergence`
       );
     }
   }
