@@ -133,10 +133,8 @@ async function fetchFromMarketData(ticker: string): Promise<PeerMultiples | null
       }
     } catch { /* ignore */ }
 
-    // Count usable data points
-    const hasPrice = md.price > 0;
-    const hasMcap = md.marketCap > 0;
-    const usable = [pe, pb].filter(v => v !== null).length + (hasPrice && !hasMcap ? 1 : 0) + (hasMcap ? 1 : 0);
+    // Count actual valuation multiples (not just price/market cap)
+    const actualMultiples = [pe, pb].filter(v => v !== null).length;
 
     return {
       ticker: ticker.toUpperCase(),
@@ -147,8 +145,7 @@ async function fetchFromMarketData(ticker: string): Promise<PeerMultiples | null
       priceToBook: pb,
       evToEbitda: null,
       evToRevenue: null,
-      // At minimum, having a current price means we're a real active stock
-      usableMultipleCount: Math.max(hasPrice ? 1 : 0, usable),
+      usableMultipleCount: actualMultiples,
     };
   } catch (err) {
     console.warn(`Peer multiples market data failed for ${ticker}:`, err instanceof Error ? err.message : err);
@@ -167,9 +164,9 @@ export async function fetchPeerMultiples(candidate: PeerCandidate): Promise<Peer
     return pipelineResult;
   }
 
-  // Channel 2: Market data API (accept if we got any usable data)
+  // Channel 2: Market data API (accept if we got a valid response)
   const marketResult = await fetchFromMarketData(candidate.ticker);
-  if (marketResult && marketResult.usableMultipleCount >= 1) {
+  if (marketResult) {
     return marketResult;
   }
 

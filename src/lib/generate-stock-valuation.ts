@@ -595,6 +595,16 @@ ${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.va
     try {
       structuredInsights = await buildStructuredInsights(facts, financialModel, valuationOutputs, qaReport, narrative);
 
+      // Update peer comparison with actual peer registry data
+      if (structuredInsights && dynamicPeerRegistry.peers.length > 0) {
+        const peerNames = dynamicPeerRegistry.peers.slice(0, 5).map(p => p.companyName || p.ticker);
+        const usableCount = dynamicPeerRegistry.quality.usablePeerCount;
+        const qualityTier = dynamicPeerRegistry.quality.qualityTier;
+        structuredInsights.peerComparison = usableCount > 0
+          ? `${dynamicPeerRegistry.peers.length} peers identified (${qualityTier} quality): ${peerNames.join(", ")}. ${usableCount} with comparable multiples data.`
+          : `${dynamicPeerRegistry.peers.length} peers identified: ${peerNames.join(", ")}. Limited multiples data available for comparison.`;
+      }
+
       // Enforce leak prevention based on effective gate status
       // The new value gate may allow publication even when old gate withholds valuation
       const effectiveValuePublishable = valueGate.valuePublishable;
