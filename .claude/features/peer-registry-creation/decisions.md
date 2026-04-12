@@ -164,6 +164,53 @@ After discovering SIC candidates, score each peer using the subject's canonical 
 
 ---
 
+## DECISION-004: Midpoint-anchored range with outlier dampening (target ≤30% width)
+
+**Status:** Decided — implemented  
+**Date:** 2026-04-12
+
+### Problem
+The fair value synthesis used an outer-envelope approach: `low = min(all method lows) × 0.95`, `high = max(all method highs) × 1.05`. When methods disagreed significantly (e.g., DCF $528 vs Peer $4447 for Allstate), the range was $263–$4669 — a 230% width that is useless for investment decisions.
+
+The spec (09-validation-framework) already said to withhold value when width > 40%, but the code only applied a -0.15 confidence penalty.
+
+### Options considered
+1. **Just enforce the withhold rule** — easy but means most stocks get no value (most have some method disagreement)
+2. **Trim outlier methods entirely** — removes data, reduces to effectively single-method
+3. **Midpoint-anchored range with outlier dampening** — keep all methods but reduce outlier influence exponentially, derive range from dispersion around midpoint
+
+### Decision
+**Option 3: Three-layer fix.**
+
+**Layer 1 — Outlier dampening:** Before computing the weighted midpoint, methods that deviate >50% from a preliminary consensus get exponentially dampened weights. A method at 8× the consensus has its weight reduced to <1%. This prevents a single divergent method from dominating.
+
+**Layer 2 — Midpoint-anchored range:** Instead of min/max across all bounds, compute the weighted standard deviation (σ) of method values around the midpoint. The half-width is `max(σ, dcfSensitivitySpread)`. DCF sensitivity spread is capped at 30% of midpoint to prevent unrealistic grid corners from widening the range.
+
+**Layer 3 — Hard cap at 30%:** If the range still exceeds 30% of midpoint after dampening and σ computation, clamp to ±15% of midpoint. Set `rangeClamped = true` for transparency.
+
+### Impact
+- MU (before): $35.97–$260.63 (226% width) → MU (after): $79.42–$107.45 (30% width)
+- Allstate (before): $263–$4669 (230% width) → now capped at ≤30%
+- Agreeing methods (e.g., DCF $100, Peer $105, Self $98) → ~28% width, no clamping needed
+- Single method (DCF only) → uses sensitivity grid spread, ~28% width
+
+### Traceability
+New fields in `FairValueSynthesis`:
+- `rangeClamped: boolean` — whether the 30% cap was applied
+- `rawRangeWidth: number` — pre-clamping width for audit
+- `preDampeningMethods[]` — original values and weights before dampening
+
+### Tests
+6 new tests (RANGE-001 through RANGE-006) in `fair-value-consistency-test.ts`:
+- RANGE-001: 8× disagreement → width ≤30%
+- RANGE-002: outlier peer gets lower weight than DCF
+- RANGE-003: pre-dampening audit trail recorded
+- RANGE-004: rangeClamped flag set on extreme disagreement
+- RANGE-005: agreeing methods → tight range, no clamping
+- RANGE-006: single method → reasonable range from sensitivity grid
+
+---
+
 ## OPEN-003: Peer set size vs quality tradeoff
 
 **Status:** Open — needs expert input  

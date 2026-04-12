@@ -38,6 +38,12 @@ export interface FairValueSynthesis {
   };
   /** Width as fraction of midpoint: (high - low) / mid */
   rangeWidth: number;
+  /** Whether the range was clamped to the 30% cap */
+  rangeClamped: boolean;
+  /** Raw range width before clamping */
+  rawRangeWidth: number;
+  /** Pre-dampening method values for audit trail */
+  preDampeningMethods: { method: string; originalValue: number; dampenedWeight: number; originalWeight: number }[];
   /** CHEAP / FAIR / EXPENSIVE / WITHHELD */
   label: ValuationLabel;
   /** Current price used for label derivation */
@@ -124,12 +130,8 @@ function computeValuationConfidence(
     checklist.push({ label: "Cycle position", passed: true, detail: "Margins near or below historical average" });
   }
 
-  // Range width
-  if (rangeWidth > 0.30) {
-    confidence -= 0.15;
-    reasons.push(`Fair value range is wide (${(rangeWidth * 100).toFixed(0)}% of midpoint) — methods produce divergent estimates`);
-    checklist.push({ label: "Range width", passed: false, detail: `${(rangeWidth * 100).toFixed(0)}% of midpoint (target: <30%)` });
-  } else if (rangeWidth > 0.20) {
+  // Range width (post-clamping, always ≤30%)
+  if (rangeWidth > 0.20) {
     confidence -= 0.05;
     checklist.push({ label: "Range width", passed: true, detail: `${(rangeWidth * 100).toFixed(0)}% — moderate spread` });
   } else {
@@ -272,8 +274,47 @@ export function synthesizeFairValue(opts: {
     effectiveWeight: 0,
   });
 
-  // Compute effective weights (weight × confidence, renormalized)
+  // -----------------------------------------------------------------------
+  // Layer 0: Compute preliminary midpoint (before outlier dampening)
+  // -----------------------------------------------------------------------
   const validMethods = methods.filter(m => m.perShareValue !== null && m.perShareValue > 0 && m.confidence > 0);
+  const totalRawWeight0 = validMethods.reduce((s, m) => s + m.weight * m.confidence, 0);
+
+  let mid0 = 0;
+  if (totalRawWeight0 > 0) {
+    for (const m of validMethods) {
+      mid0 += m.perShareValue! * ((m.weight * m.confidence) / totalRawWeight0);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Layer 1: Outlier dampening — exponentially reduce weight of methods
+  // that deviate >50% from consensus midpoint
+  // -----------------------------------------------------------------------
+  const preDampeningMethods: FairValueSynthesis["preDampeningMethods"] = [];
+  const DAMPENING_THRESHOLD = 0.50; // 50% deviation triggers dampening
+
+  for (const m of validMethods) {
+    if (mid0 > 0) {
+      const dev = Math.abs(m.perShareValue! - mid0) / mid0;
+      const originalWeight = m.weight;
+      if (dev > DAMPENING_THRESHOLD) {
+        // Exponential dampening: halve weight per 50% deviation beyond threshold
+        const exponent = (dev - DAMPENING_THRESHOLD) / 0.50;
+        m.weight = m.weight * Math.pow(0.5, exponent);
+      }
+      preDampeningMethods.push({
+        method: m.method,
+        originalValue: m.perShareValue!,
+        dampenedWeight: m.weight,
+        originalWeight,
+      });
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Compute effective weights with dampened weights
+  // -----------------------------------------------------------------------
   const totalRawWeight = validMethods.reduce((s, m) => s + m.weight * m.confidence, 0);
 
   for (const m of methods) {
@@ -282,33 +323,58 @@ export function synthesizeFairValue(opts: {
     }
   }
 
-  // Compute weighted mid value
+  // Compute weighted mid value (post-dampening)
   let mid = 0;
   for (const m of validMethods) {
     mid += m.perShareValue! * m.effectiveWeight;
   }
 
-  // Compute range from contributing method spread + DCF sensitivity
-  const contributingValues = validMethods.filter(m => m.weight > 0).map(m => m.perShareValue!);
-  const minMethod = contributingValues.length > 0 ? Math.min(...contributingValues) : mid;
-  const maxMethod = contributingValues.length > 0 ? Math.max(...contributingValues) : mid;
+  // -----------------------------------------------------------------------
+  // Layer 2: Midpoint-anchored range using weighted σ
+  // -----------------------------------------------------------------------
 
-  // Use DCF sensitivity grid for additional range info
-  let dcfLow = dcfValue ?? mid;
-  let dcfHigh = dcfValue ?? mid;
+  // Weighted standard deviation of method values around mid
+  let weightedVariance = 0;
+  for (const m of validMethods) {
+    if (m.weight > 0) {
+      weightedVariance += m.effectiveWeight * Math.pow(m.perShareValue! - mid, 2);
+    }
+  }
+  const sigma = Math.sqrt(weightedVariance);
+
+  // DCF sensitivity spread (bounded at 30% of mid)
+  let dcfSpread = 0;
   if (dcf?.sensitivityGrid && dcf.sensitivityGrid.length > 0) {
     const gridValues = dcf.sensitivityGrid.map(s => s.perShareValue);
-    dcfLow = Math.min(...gridValues);
-    dcfHigh = Math.max(...gridValues);
+    const rawDcfSpread = Math.max(...gridValues) - Math.min(...gridValues);
+    dcfSpread = Math.min(rawDcfSpread, 0.30 * mid) / 2;
   }
 
-  // Self-history range
-  const selfLow = selfHistory?.historicalRange?.low ?? mid;
-  const selfHigh = selfHistory?.historicalRange?.high ?? mid;
+  // Raw half-width: use whichever is larger — σ or DCF spread
+  let halfWidth = Math.max(sigma, dcfSpread);
 
-  // Blend ranges
-  const low = Math.max(0, Math.min(minMethod, dcfLow, selfLow) * 0.95);
-  const high = Math.max(maxMethod, dcfHigh, selfHigh) * 1.05;
+  // For single-method case, use DCF sensitivity grid or a minimum 10% spread
+  if (validMethods.filter(m => m.weight > 0).length <= 1) {
+    halfWidth = Math.max(halfWidth, mid * 0.10);
+  }
+
+  // -----------------------------------------------------------------------
+  // Layer 3: Hard cap at 30% of midpoint
+  // -----------------------------------------------------------------------
+  let rawLow = Math.max(0, mid - halfWidth);
+  let rawHigh = mid + halfWidth;
+  const rawRangeWidth = mid > 0 ? (rawHigh - rawLow) / mid : 999;
+  let rangeClamped = false;
+
+  if (rawRangeWidth > 0.30 && mid > 0) {
+    halfWidth = 0.15 * mid;
+    rawLow = mid - halfWidth;
+    rawHigh = mid + halfWidth;
+    rangeClamped = true;
+  }
+
+  const low = Math.max(0, rawLow);
+  const high = rawHigh;
   const rangeWidth = mid > 0 ? (high - low) / mid : 999;
 
   // Method disagreement — compare contributing methods (those with weight > 0)
@@ -375,6 +441,9 @@ export function synthesizeFairValue(opts: {
   return {
     range: { low, mid, high, currency: "USD" },
     rangeWidth,
+    rangeClamped,
+    rawRangeWidth,
+    preDampeningMethods,
     label,
     currentPrice,
     priceVsMid,

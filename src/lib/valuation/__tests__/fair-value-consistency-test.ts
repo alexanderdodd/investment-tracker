@@ -212,6 +212,99 @@ console.log("=== RDCF excluded from midpoint ===\n");
 }
 
 // ---------------------------------------------------------------------------
+// RANGE-001..006: Range tightening (spec 18)
+// ---------------------------------------------------------------------------
+
+console.log("=== RANGE-001: Range width hard cap ===\n");
+
+// Test: extreme method disagreement still produces ≤30% range
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: mockReverseDcf(),
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "EV/Revenue", value: 800, weight: 1, source: "test" }], weightedPerShare: 800, confidence: 0.8, caveats: [] },
+    selfHistory: { method: "self_history", impliedPerShare: 90, historicalRange: { low: 60, mid: 90, high: 120 }, details: { medianGrossMargin: 0.30, medianOperatingMargin: 0.15, currentGrossMargin: 0.30, currentOperatingMargin: 0.15, cyclePosition: "mid_cycle", yearsOfHistory: 8 }, confidence: 0.7 },
+    currentPrice: 150, cycleMarginRatio: 1.0, historyDepth: 8,
+  });
+  test("RANGE-001", synth.rangeWidth <= 0.301,
+    `8x method disagreement (DCF $100 vs Peer $800): range width should be ≤30%, got ${(synth.rangeWidth * 100).toFixed(1)}%`);
+}
+
+console.log("=== RANGE-002: Outlier dampening ===\n");
+
+// Test: outlier method gets dampened
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "EV/Revenue", value: 500, weight: 1, source: "test" }], weightedPerShare: 500, confidence: 0.8, caveats: [] },
+    selfHistory: { method: "self_history", impliedPerShare: 110, historicalRange: { low: 80, mid: 110, high: 140 }, details: { medianGrossMargin: 0.30, medianOperatingMargin: 0.15, currentGrossMargin: 0.30, currentOperatingMargin: 0.15, cyclePosition: "mid_cycle", yearsOfHistory: 8 }, confidence: 0.7 },
+    currentPrice: 120, cycleMarginRatio: 1.0, historyDepth: 8,
+  });
+  // Peer at $500 is 4-5x the other two methods — should be heavily dampened
+  const peerMethod = synth.methods.find(m => m.method === "relative_valuation");
+  const dcfMethod = synth.methods.find(m => m.method === "normalized_dcf");
+  test("RANGE-002", peerMethod!.effectiveWeight < dcfMethod!.effectiveWeight,
+    `Outlier peer ($500 vs DCF $100) should have lower effective weight than DCF: peer ${(peerMethod!.effectiveWeight * 100).toFixed(1)}% vs DCF ${(dcfMethod!.effectiveWeight * 100).toFixed(1)}%`);
+}
+
+console.log("=== RANGE-003: Pre-dampening audit trail ===\n");
+
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/E", value: 400, weight: 1, source: "test" }], weightedPerShare: 400, confidence: 0.8, caveats: [] },
+    selfHistory: null,
+    currentPrice: 150, cycleMarginRatio: 1.0, historyDepth: 7,
+  });
+  test("RANGE-003a", synth.preDampeningMethods.length >= 2,
+    `Pre-dampening methods should be recorded, got ${synth.preDampeningMethods.length} entries`);
+  const peerAudit = synth.preDampeningMethods.find(m => m.method === "relative_valuation");
+  test("RANGE-003b", peerAudit !== undefined && peerAudit.dampenedWeight < peerAudit.originalWeight,
+    `Dampened peer weight (${peerAudit?.dampenedWeight.toFixed(3)}) should be < original (${peerAudit?.originalWeight.toFixed(3)})`);
+}
+
+console.log("=== RANGE-004: rangeClamped flag ===\n");
+
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/E", value: 1000, weight: 1, source: "test" }], weightedPerShare: 1000, confidence: 0.8, caveats: [] },
+    selfHistory: null,
+    currentPrice: 200, cycleMarginRatio: 1.0, historyDepth: 7,
+  });
+  test("RANGE-004", synth.rangeClamped === true,
+    `10x disagreement should trigger range clamping, rangeClamped=${synth.rangeClamped}`);
+}
+
+console.log("=== RANGE-005: Agreeing methods produce tight range ===\n");
+
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: mockReverseDcf(),
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/E", value: 105, weight: 1, source: "test" }], weightedPerShare: 105, confidence: 0.8, caveats: [] },
+    selfHistory: { method: "self_history", impliedPerShare: 98, historicalRange: { low: 85, mid: 98, high: 115 }, details: { medianGrossMargin: 0.30, medianOperatingMargin: 0.15, currentGrossMargin: 0.30, currentOperatingMargin: 0.15, cyclePosition: "mid_cycle", yearsOfHistory: 8 }, confidence: 0.7 },
+    currentPrice: 100, cycleMarginRatio: 1.0, historyDepth: 8,
+  });
+  test("RANGE-005a", synth.rangeWidth < 0.30,
+    `Agreeing methods (DCF $100, Peer $105, Self $98) should produce tight range, got ${(synth.rangeWidth * 100).toFixed(1)}%`);
+  test("RANGE-005b", synth.rangeClamped === false,
+    `Agreeing methods should not need clamping, rangeClamped=${synth.rangeClamped}`);
+}
+
+console.log("=== RANGE-006: Single method produces reasonable range ===\n");
+
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: null, selfHistory: null,
+    currentPrice: 100, cycleMarginRatio: 1.0, historyDepth: 7,
+  });
+  test("RANGE-006a", synth.rangeWidth <= 0.30,
+    `Single method range should be ≤30%, got ${(synth.rangeWidth * 100).toFixed(1)}%`);
+  test("RANGE-006b", synth.rangeWidth >= 0.10,
+    `Single method range should be ≥10% (from sensitivity grid), got ${(synth.rangeWidth * 100).toFixed(1)}%`);
+}
+
+// ---------------------------------------------------------------------------
 // Print results
 // ---------------------------------------------------------------------------
 
