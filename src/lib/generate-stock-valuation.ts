@@ -303,12 +303,10 @@ Do not give investment advice. Return ONLY valid JSON.`,
     ticker: facts.ticker,
     companyName: facts.companyName,
     sector: facts.sector,
-    verdict: valuation.verdict === "Highly Uncertain" ? "Fair Value" : valuation.verdict,
-    verdictReason: valuation.verdict === "Highly Uncertain"
-      ? "Valuation methods produced widely different results — high uncertainty"
-      : `Based on DCF and multiples analysis with ${qa.status === "published" ? "all QA checks passed" : "some data limitations"}`,
-    confidence: valuation.confidenceScore > 0.7 ? "High" : valuation.confidenceScore > 0.4 ? "Medium" : "Low",
-    confidenceReason: `${(valuation.confidenceScore * 100).toFixed(0)}% confidence based on data quality, method agreement, and cycle position`,
+    verdict: "Withheld" as const, // Placeholder — overridden by fair value synthesis below
+    verdictReason: "",
+    confidence: "N/A" as const, // Placeholder — overridden below
+    confidenceReason: "",
     confidenceChecklist: [],
     currentPrice: price,
     intrinsicValue: baseCase ? Math.round(baseCase * 100) / 100 : null,
