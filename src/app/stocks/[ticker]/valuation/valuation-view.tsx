@@ -96,78 +96,57 @@ function formatMarketCap(val: number | null | undefined): string {
   return "$" + val.toLocaleString();
 }
 
-function PeerComparisonCard({ insights, ticker }: { insights: StockValuationInsights; ticker: string }) {
-  const [expanded, setExpanded] = useState(false);
+function PeerComparisonTable({ insights }: { insights: StockValuationInsights }) {
   const peers = insights.peerDetails ?? [];
+  if (peers.length === 0) return null;
 
   return (
     <Card title="Peer Comparison">
-      <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{insights.peerComparison}</p>
-      {peers.length > 0 && (
-        <div className="mt-3">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1.5 text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors"
-          >
-            <svg
-              className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-90" : ""}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            {expanded ? "Hide" : "Show"} peer details ({peers.length})
-          </button>
-          {expanded && (
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-200 dark:border-zinc-700 text-left text-zinc-500 dark:text-zinc-400">
-                    <th className="pb-2 pr-3 font-medium">Company</th>
-                    <th className="pb-2 px-3 font-medium text-right">Mkt Cap</th>
-                    <th className="pb-2 px-3 font-medium text-right">P/E</th>
-                    <th className="pb-2 px-3 font-medium text-right">P/B</th>
-                    <th className="pb-2 px-3 font-medium text-right">EV/EBITDA</th>
-                    <th className="pb-2 px-3 font-medium text-right">EV/Rev</th>
-                    <th className="pb-2 pl-3 font-medium text-right">Quality</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {peers.map((peer) => (
-                    <tr
-                      key={peer.ticker}
-                      className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
-                      onClick={() => window.open(`/stocks/${peer.ticker}`, "_blank")}
-                      title={`Open ${peer.ticker} analysis`}
-                    >
-                      <td className="py-2 pr-3">
-                        <div className="font-medium text-zinc-900 dark:text-zinc-100">{peer.ticker}</div>
-                        <div className="text-zinc-500 dark:text-zinc-400 truncate max-w-[180px]">{peer.companyName}</div>
-                      </td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{formatMarketCap(peer.marketCap)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.trailingPe)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.priceToBook)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.evToEbitda)}</td>
-                      <td className="py-2 px-3 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.evToRevenue)}</td>
-                      <td className="py-2 pl-3 text-right">
-                        <span className={`inline-block rounded px-1.5 py-0.5 font-medium ${
-                          peer.role === "primary"
-                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                            : "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                        }`}>
-                          {(peer.qualityScore * 100).toFixed(0)}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+      <p className="mb-4 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{insights.peerComparison}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-200 dark:border-zinc-700 text-left text-zinc-500 dark:text-zinc-400">
+              <th className="pb-2 pr-4 font-medium">Company</th>
+              <th className="pb-2 px-4 font-medium text-right">Mkt Cap</th>
+              <th className="pb-2 px-4 font-medium text-right">P/E</th>
+              <th className="pb-2 px-4 font-medium text-right">P/B</th>
+              <th className="pb-2 px-4 font-medium text-right">EV/EBITDA</th>
+              <th className="pb-2 px-4 font-medium text-right">EV/Rev</th>
+              <th className="pb-2 pl-4 font-medium text-right">Quality</th>
+            </tr>
+          </thead>
+          <tbody>
+            {peers.map((peer) => (
+              <tr
+                key={peer.ticker}
+                className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
+                onClick={() => window.open(`/stocks/${peer.ticker}/valuation`, "_blank")}
+                title={`Open ${peer.ticker} valuation`}
+              >
+                <td className="py-3 pr-4">
+                  <div className="font-medium text-zinc-900 dark:text-zinc-100">{peer.ticker}</div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">{peer.companyName}</div>
+                </td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{formatMarketCap(peer.marketCap)}</td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.trailingPe)}</td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.priceToBook)}</td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.evToEbitda)}</td>
+                <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.evToRevenue)}</td>
+                <td className="py-3 pl-4 text-right">
+                  <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                    peer.role === "primary"
+                      ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                      : "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                  }`}>
+                    {(peer.qualityScore * 100).toFixed(0)}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Card>
   );
 }
@@ -592,15 +571,15 @@ export function StockValuationView({ ticker }: { ticker: string }) {
       {insights && (
         <>
           {/* Valuation */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card title="DCF Valuation">
               <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{insights.dcfSummary}</p>
             </Card>
             <Card title="Market Multiples">
               <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{insights.multiplesSummary}</p>
             </Card>
-            <PeerComparisonCard insights={insights} ticker={ticker} />
           </div>
+          <PeerComparisonTable insights={insights} />
 
           {/* Business */}
           <Card title="Business Overview">
