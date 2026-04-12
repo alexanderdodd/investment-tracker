@@ -10,15 +10,6 @@ import { sectorToSlug } from "@/lib/sectors";
 
 type Tab = "overview" | "valuation";
 
-function confidenceColor(confidence: string) {
-  switch (confidence) {
-    case "High": return "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400";
-    case "Medium": return "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
-    case "Low": return "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400";
-    default: return "border-zinc-500/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400";
-  }
-}
-
 function verdictColor(verdict: string) {
   switch (verdict) {
     case "Undervalued": return "border-green-500/40 bg-green-500/15 text-green-500 dark:text-green-400 font-semibold";
@@ -98,18 +89,11 @@ export default function StockPage() {
                 )}
               </span>
             )}
-            {/* Valuation badge */}
+            {/* Valuation verdict badge (confidence shown in valuation tab only) */}
             {insights && insights.verdict !== "Withheld" && (
-              <>
-                <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm ${verdictColor(insights.verdict)}`}>
-                  {insights.verdict}
-                </span>
-                {insights.confidence && insights.confidence !== "N/A" && (
-                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${confidenceColor(insights.confidence)}`}>
-                    {insights.confidence} conf.
-                  </span>
-                )}
-              </>
+              <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm ${verdictColor(insights.verdict)}`}>
+                {insights.verdict}
+              </span>
             )}
           </div>
           <div className="mt-1 flex items-center gap-3">
