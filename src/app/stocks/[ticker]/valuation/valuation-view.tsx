@@ -46,6 +46,19 @@ function verdictColor(verdict: string) {
   }
 }
 
+function confidenceColor(confidence: string) {
+  switch (confidence) {
+    case "High":
+      return "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400";
+    case "Medium":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    case "Low":
+      return "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400";
+    default:
+      return "border-zinc-500/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400";
+  }
+}
+
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -371,6 +384,27 @@ export function StockValuationView({ ticker }: { ticker: string }) {
               {insights.marginOfSafety && (
                 <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
                   ({insights.marginOfSafety})
+                </span>
+              )}
+              {insights.confidence && insights.confidence !== "N/A" && (
+                <span className="relative group">
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}>
+                    {insights.confidence} confidence
+                    <svg className="h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                    </svg>
+                  </span>
+                  {insights.confidenceReason && (
+                    <span className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-80 rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-relaxed text-zinc-700 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                      <span className="mb-1 block font-semibold text-zinc-900 dark:text-zinc-100">Why {insights.confidence.toLowerCase()} confidence?</span>
+                      {insights.confidenceReason.split("; ").map((reason, i) => (
+                        <span key={i} className="mt-1 block">
+                          <span className="text-zinc-400 dark:text-zinc-500 mr-1">-</span>
+                          {reason}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </span>
               )}
             </div>
