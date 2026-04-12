@@ -154,23 +154,32 @@ Output `<promise>RALPH COMPLETE</promise>` when:
 
 Do **not** output the promise if there are fixable failures remaining.
 
-## Known priority issues (from iteration 11 expert review)
+## Known priority issues
 
-See `16-iteration-11-expert-fixes.md` for full specification of each fix.
+1. **Fair value range far too wide — must be ≤30% of midpoint** (TOP PRIORITY)
+   - Current range for ALL ($263–$4669) is 230% of midpoint — unusable
+   - Root cause: outer-envelope range construction (min/max across all methods) + no outlier dampening
+   - Full spec: `18-range-tightening.md`
+   - Fix has three layers:
+     a. Outlier dampening: exponentially reduce weight of methods that deviate >50% from consensus
+     b. Midpoint-anchored range: replace min/max envelope with weighted σ around midpoint
+     c. Hard cap at 30% of midpoint
+   - Also enforce value gate: withhold when pre-dampened disagreement >100%
+   - Acceptance criteria: range width ≤30% for ALL and MU, method agreement reflected in scorecard
 
-1. **Withheld-language contamination in published reports** (TOP PRIORITY)
+3. **Withheld-language contamination in published reports**
    - When value gate publishes, the LLM narrative still says "fair value cannot be reliably
      determined" — contradicts the report header which shows fair value
    - Root cause: narrative prompt still uses withheld-era instructions when value publishes
    - Fix: update narrative prompt for published-value state, add post-render assertion
    - Acceptance criteria: NARR-CLEAN-001 through NARR-CLEAN-003
 
-2. **De-intensify label at very low confidence** (SECOND PRIORITY)
+4. **De-intensify label at very low confidence**
    - DEEP_EXPENSIVE reads more certain than 25% confidence supports
    - Fix: if confidence < 0.35, collapse DEEP_CHEAP/DEEP_EXPENSIVE to CHEAP/EXPENSIVE
    - Acceptance criteria: LABEL-001, LABEL-002
 
-3. **Reword reverse DCF confidence reason** (THIRD PRIORITY)
+5. **Reword reverse DCF confidence reason**
    - Confidence reason says "DCF vs reverse DCF disagree" but reverse DCF is diagnostic-only
    - Fix: describe disagreement among contributing methods only
    - Acceptance criteria: RDCF-REASON-001, RDCF-REASON-002
