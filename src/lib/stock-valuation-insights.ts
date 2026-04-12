@@ -10,6 +10,8 @@ export interface StockValuationInsights {
   confidenceChecklist: { label: string; passed: boolean; detail: string }[];
   currentPrice: number | null;
   intrinsicValue: number | null;
+  fairValueLow: number | null;
+  fairValueHigh: number | null;
   marginOfSafety: string | null;
 
   // Headline
@@ -76,6 +78,15 @@ export function parseStockValuationInsights(raw: unknown): StockValuationInsight
         sanitized[key] = String(val);
       }
     }
+  }
+
+  // Ensure range fields are numbers or null
+  for (const key of ["fairValueLow", "fairValueHigh"] as const) {
+    if (sanitized[key] !== null && sanitized[key] !== undefined && typeof sanitized[key] !== "number") {
+      const parsed = parseFloat(String(sanitized[key]).replace(/[^0-9.-]/g, ""));
+      sanitized[key] = isNaN(parsed) ? null : parsed;
+    }
+    if (sanitized[key] === undefined) sanitized[key] = null;
   }
 
   // Ensure currentPrice and intrinsicValue are numbers or null

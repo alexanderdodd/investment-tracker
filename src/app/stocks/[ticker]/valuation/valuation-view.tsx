@@ -393,6 +393,8 @@ export function StockValuationView({ ticker }: { ticker: string }) {
               {insights.currentPrice && insights.intrinsicValue && (() => {
                 const price = Number(insights.currentPrice);
                 const fv = Number(insights.intrinsicValue);
+                const low = Number(insights.fairValueLow) || fv * 0.7;
+                const high = Number(insights.fairValueHigh) || fv * 1.3;
                 const pctDiff = fv > 0 ? Math.abs((price - fv) / fv * 100) : 0;
                 const above = price > fv;
                 return (
@@ -473,6 +475,57 @@ export function StockValuationView({ ticker }: { ticker: string }) {
           </p>
         </div>
       )}
+
+      {/* Fair Value Range Visual */}
+      {insights?.currentPrice && insights?.intrinsicValue && (() => {
+        const price = Number(insights.currentPrice);
+        const mid = Number(insights.intrinsicValue);
+        const low = Number(insights.fairValueLow) || mid * 0.7;
+        const high = Number(insights.fairValueHigh) || mid * 1.3;
+        const scaleMax = Math.max(price, high) * 1.15;
+        const lowPct = (low / scaleMax) * 100;
+        const highPct = (high / scaleMax) * 100;
+        const midPct = (mid / scaleMax) * 100;
+        const pricePct = (price / scaleMax) * 100;
+
+        return (
+          <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-4">Fair value range</p>
+            <div className="relative h-10">
+              <div className="absolute inset-x-0 top-4 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800" />
+              <div
+                className="absolute top-4 h-2 rounded-full bg-gradient-to-r from-green-500/30 via-green-500/50 to-green-500/30"
+                style={{ left: `${lowPct}%`, width: `${highPct - lowPct}%` }}
+              />
+              <div className="absolute top-2.5 flex flex-col items-center" style={{ left: `${midPct}%`, transform: "translateX(-50%)" }}>
+                <div className="h-5 w-0.5 bg-green-500 dark:bg-green-400" />
+              </div>
+              <div className="absolute top-2 flex flex-col items-center" style={{ left: `${pricePct}%`, transform: "translateX(-50%)" }}>
+                <div className="h-6 w-0.5 bg-zinc-100 dark:bg-zinc-300" />
+              </div>
+            </div>
+            <div className="relative mt-2 h-5 text-[10px]">
+              <span className="absolute text-green-600 dark:text-green-400" style={{ left: `${lowPct}%`, transform: "translateX(-50%)" }}>
+                ${low.toFixed(0)}
+              </span>
+              <span className="absolute font-semibold text-green-600 dark:text-green-400" style={{ left: `${midPct}%`, transform: "translateX(-50%)" }}>
+                ${mid.toFixed(0)}
+              </span>
+              <span className="absolute text-green-600 dark:text-green-400" style={{ left: `${highPct}%`, transform: "translateX(-50%)" }}>
+                ${high.toFixed(0)}
+              </span>
+              <span className="absolute font-bold text-zinc-700 dark:text-zinc-200" style={{ left: `${pricePct}%`, transform: "translateX(-50%)" }}>
+                ${price.toFixed(0)}
+              </span>
+            </div>
+            <div className="mt-3 flex items-center gap-4 text-[10px] text-zinc-400 dark:text-zinc-500">
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded bg-green-500/40" /> Fair value range</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-0.5 bg-green-500" /> Midpoint est.</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-0.5 bg-zinc-300 dark:bg-zinc-400" /> Current price</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {insights && (
         <>

@@ -312,6 +312,8 @@ Do not give investment advice. Return ONLY valid JSON.`,
     confidenceChecklist: [],
     currentPrice: price,
     intrinsicValue: baseCase ? Math.round(baseCase * 100) / 100 : null,
+    fairValueLow: null,
+    fairValueHigh: null,
     marginOfSafety: valuation.marginOfSafety !== null
       ? `${valuation.marginOfSafety > 0 ? "+" : ""}${(valuation.marginOfSafety * 100).toFixed(1)}%`
       : null,
@@ -643,6 +645,8 @@ ${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.va
         structuredInsights.confidenceReason = fairValueSynthesis.confidenceReasons.join("; ");
         structuredInsights.confidenceChecklist = fairValueSynthesis.confidenceChecklist;
         structuredInsights.intrinsicValue = Math.round(fairValueSynthesis.range.mid);
+        structuredInsights.fairValueLow = Math.round(fairValueSynthesis.range.low);
+        structuredInsights.fairValueHigh = Math.round(fairValueSynthesis.range.high);
         structuredInsights.marginOfSafety = fairValueSynthesis.priceVsMid !== 0
           ? `${(fairValueSynthesis.priceVsMid * -100).toFixed(1)}%`
           : null;
