@@ -171,6 +171,82 @@ function buildDeterministicRisks(
     });
   }
 
+  // Revenue volatility (from annual history)
+  if (facts.annualHistory.length >= 3) {
+    const revenues = facts.annualHistory.map(h => h.revenue).filter((r): r is number => r !== null);
+    if (revenues.length >= 3) {
+      const maxRev = Math.max(...revenues);
+      const minRev = Math.min(...revenues);
+      const volatility = maxRev > 0 ? (maxRev - minRev) / maxRev : 0;
+      if (volatility > 0.3) {
+        risks.push({
+          label: "Revenue Volatility",
+          detail: `Revenue has ranged from $${(minRev / 1e9).toFixed(1)}B to $${(maxRev / 1e9).toFixed(1)}B over the past ${revenues.length} years, a ${(volatility * 100).toFixed(0)}% swing. This level of variability makes earnings forecasting difficult.`,
+          severity: 5,
+        });
+      }
+    }
+  }
+
+  // Industry cyclicality (broader than just semiconductors)
+  const sectorLower = (facts.sector + " " + facts.industry).toLowerCase();
+  if (sectorLower.includes("insurance") || sectorLower.includes("casualty")) {
+    risks.push({
+      label: "Insurance Cycle Risk",
+      detail: "The insurance industry is inherently cyclical, driven by catastrophe losses, pricing cycles, and investment returns. Underwriting results can swing dramatically between hard and soft market conditions.",
+      severity: 5,
+    });
+  } else if (sectorLower.includes("bank") || sectorLower.includes("financial")) {
+    risks.push({
+      label: "Financial Sector Risk",
+      detail: "Financial institutions face credit cycle risk, interest rate sensitivity, and regulatory changes that can materially impact earnings and book value.",
+      severity: 5,
+    });
+  } else if (sectorLower.includes("oil") || sectorLower.includes("gas") || sectorLower.includes("petroleum")) {
+    risks.push({
+      label: "Commodity Price Risk",
+      detail: "Profitability is heavily dependent on commodity prices which are volatile and influenced by global supply/demand dynamics, geopolitics, and energy transition trends.",
+      severity: 5,
+    });
+  }
+
+  // Unknown cycle state
+  if (model.cycleState === "unknown" && facts.annualHistory.length >= 3) {
+    risks.push({
+      label: "Uncertain Cycle Position",
+      detail: "The system could not determine the current cycle position with confidence. This increases the uncertainty of margin and earnings forecasts used in the valuation.",
+      severity: 4,
+    });
+  }
+
+  // Valuation method limitations
+  const methodCount = [valuation.dcf, valuation.reverseDcf, valuation.scenarios].filter(Boolean).length;
+  if (methodCount <= 1) {
+    risks.push({
+      label: "Limited Valuation Methods",
+      detail: `Only ${methodCount} valuation method(s) could be applied. With fewer independent estimates, the fair value range has less cross-validation and may be less reliable.`,
+      severity: 4,
+    });
+  }
+
+  // Ensure at least 2 risks for any company
+  if (risks.length < 2) {
+    if (!risks.some(r => r.label.includes("Market"))) {
+      risks.push({
+        label: "Market & Macro Risk",
+        detail: "Broad market conditions, interest rate changes, and macroeconomic shifts can impact the stock price independent of company-specific fundamentals.",
+        severity: 7,
+      });
+    }
+    if (risks.length < 2) {
+      risks.push({
+        label: "Model Estimation Risk",
+        detail: "All valuation models rely on assumptions about future growth, margins, and discount rates. Actual outcomes may differ materially from estimates, particularly over longer time horizons.",
+        severity: 8,
+      });
+    }
+  }
+
   // Sort by severity, cap at 7
   risks.sort((a, b) => a.severity - b.severity);
   return risks.slice(0, 7).map(r => ({ label: r.label, detail: r.detail }));
