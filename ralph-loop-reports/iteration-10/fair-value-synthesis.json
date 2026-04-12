@@ -1,0 +1,59 @@
+{
+  "range": {
+    "low": 35.972079358474964,
+    "mid": 144.98160160994593,
+    "high": 375.376575,
+    "currency": "USD"
+  },
+  "rangeWidth": 2.3410177006779698,
+  "label": "EXPENSIVE",
+  "currentPrice": 420.59,
+  "priceVsMid": 1.900988782918418,
+  "methods": [
+    {
+      "method": "normalized_dcf",
+      "perShareValue": 53.20898188402536,
+      "weight": 0.45,
+      "confidence": 0.8,
+      "effectiveWeight": 0.4610458911419424
+    },
+    {
+      "method": "reverse_dcf",
+      "perShareValue": 357.50149999999996,
+      "weight": 0.2,
+      "confidence": 0.65,
+      "effectiveWeight": 0.1664887940234792
+    },
+    {
+      "method": "relative_valuation",
+      "perShareValue": 158.04528488416426,
+      "weight": 0.25,
+      "confidence": 0.8833333333333333,
+      "effectiveWeight": 0.28281750266808964
+    },
+    {
+      "method": "self_history",
+      "perShareValue": 181.0624528609148,
+      "weight": 0.1,
+      "confidence": 0.7,
+      "effectiveWeight": 0.08964781216648877
+    }
+  ],
+  "primaryMethodDisagreement": 1.4817859856905204,
+  "valuationConfidence": 0.4,
+  "confidenceRating": "LOW",
+  "confidenceReasons": [
+    "Current margins are 2.7x the historical average — extreme cycle peak increases valuation uncertainty",
+    "Fair value range is wide (234% of midpoint) — methods produce divergent estimates",
+    "Primary methods (DCF vs reverse DCF) disagree by 148% — normalised economics vs market-implied economics diverge significantly",
+    "Only 5 years of history available — minimum for cyclical normalization"
+  ],
+  "keyAssumptions": [
+    "DCF uses normalized FCF of $2.71B, WACC 9.7%",
+    "Relative valuation from 9 peer data points",
+    "Self-history uses 5Y median margins (GM 37.6%, OM 22.7%)"
+  ],
+  "valuationReasons": [
+    "Price ($420.59) is above fair value range high ($375.38)"
+  ]
+}

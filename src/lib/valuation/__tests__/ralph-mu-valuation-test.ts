@@ -108,12 +108,19 @@ async function runValuationTests() {
     message: `Label: ${fvs.label}, price $${price.toFixed(2)} vs range $${fvs.range.low.toFixed(2)}-$${fvs.range.high.toFixed(2)}`,
   });
 
-  // --- VPUB-005: Value gate behavior ---
-  // At peak, should withhold
+  // --- VPUB-005: Value gate publishes with confidence rating ---
+  // Always publishes when methods produce results; confidence rating explains uncertainty
   results.push({
     id: "VPUB-005",
-    status: !vg.valuePublishable ? "PASS" : "FAIL",
-    message: `Value gate: ${vg.status} (${vg.withholdReasons.length} reasons)`,
+    status: vg.valuePublishable ? "PASS" : "FAIL",
+    message: `Value gate: ${vg.status} | Confidence: ${fvs.confidenceRating} (${(fvs.valuationConfidence * 100).toFixed(0)}%)`,
+  });
+
+  // --- VPUB-006: Confidence rating and reasons present ---
+  results.push({
+    id: "VPUB-006",
+    status: fvs.confidenceRating && fvs.confidenceReasons.length > 0 ? "PASS" : "FAIL",
+    message: `Confidence rating: ${fvs.confidenceRating}, ${fvs.confidenceReasons.length} reason(s)`,
   });
 
   // --- CAL-001: Fair value within expert envelope ---

@@ -1,0 +1,28 @@
+{
+  "iteration": 10,
+  "ticker": "MU",
+  "generatedAt": "2026-04-12T13:01:05.127Z",
+  "gateStatus": "PUBLISH_FACTS_ONLY",
+  "valueGateStatus": "PUBLISH_FACTS_PLUS_VALUE",
+  "fairValue": {
+    "low": 35.972079358474964,
+    "mid": 144.98160160994593,
+    "high": 375.376575,
+    "label": "EXPENSIVE",
+    "confidence": 0.4,
+    "confidenceRating": "LOW",
+    "confidenceReasons": [
+      "Current margins are 2.7x the historical average — extreme cycle peak increases valuation uncertainty",
+      "Fair value range is wide (234% of midpoint) — methods produce divergent estimates",
+      "Primary methods (DCF vs reverse DCF) disagree by 148% — normalised economics vs market-implied economics diverge significantly",
+      "Only 5 years of history available — minimum for cyclical normalization"
+    ]
+  },
+  "goldenFixture": "19/19",
+  "brokenFixture": "10/10",
+  "valuationTests": "11/11",
+  "surfaceScan": {
+    "status": "PASS",
+    "suppressionViolations": 0
+  }
+}

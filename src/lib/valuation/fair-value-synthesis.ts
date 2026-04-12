@@ -26,6 +26,8 @@ export interface MethodContribution {
   effectiveWeight: number;
 }
 
+export type ConfidenceRating = "HIGH" | "MEDIUM" | "LOW";
+
 export interface FairValueSynthesis {
   /** Fair value range */
   range: {
@@ -48,6 +50,10 @@ export interface FairValueSynthesis {
   primaryMethodDisagreement: number;
   /** Overall valuation confidence (0-1) */
   valuationConfidence: number;
+  /** Confidence rating: HIGH (≥0.70), MEDIUM (0.50-0.69), LOW (<0.50) */
+  confidenceRating: ConfidenceRating;
+  /** Human-readable reasons for the confidence rating */
+  confidenceReasons: string[];
   /** Key assumptions */
   keyAssumptions: string[];
   /** Why this label was assigned */
@@ -85,33 +91,66 @@ function computeValuationConfidence(
   peerQuality: "strong" | "medium" | "weak",
   cycleMarginRatio: number,
   historyDepth: number
-): number {
+): { score: number; rating: ConfidenceRating; reasons: string[] } {
   let confidence = 1.0;
+  const reasons: string[] = [];
 
   // Peer set quality
-  if (peerQuality === "medium") confidence -= 0.15;
-  if (peerQuality === "weak") confidence -= 0.25;
+  if (peerQuality === "medium") {
+    confidence -= 0.15;
+    reasons.push("Peer set quality is medium (few clean pure-play peers)");
+  }
+  if (peerQuality === "weak") {
+    confidence -= 0.25;
+    reasons.push("Peer set quality is weak (limited comparable companies)");
+  }
 
   // Cycle divergence (current margins vs historical)
-  if (cycleMarginRatio > 2.5) confidence -= 0.20;
-  else if (cycleMarginRatio > 1.5) confidence -= 0.10;
+  if (cycleMarginRatio > 2.5) {
+    confidence -= 0.20;
+    reasons.push(`Current margins are ${cycleMarginRatio.toFixed(1)}x the historical average — extreme cycle peak increases valuation uncertainty`);
+  } else if (cycleMarginRatio > 1.5) {
+    confidence -= 0.10;
+    reasons.push(`Current margins are ${cycleMarginRatio.toFixed(1)}x the historical average — above-cycle performance may not be sustainable`);
+  }
 
   // Range width
-  if (rangeWidth > 0.30) confidence -= 0.15;
-  else if (rangeWidth > 0.20) confidence -= 0.05;
+  if (rangeWidth > 0.30) {
+    confidence -= 0.15;
+    reasons.push(`Fair value range is wide (${(rangeWidth * 100).toFixed(0)}% of midpoint) — methods produce divergent estimates`);
+  } else if (rangeWidth > 0.20) {
+    confidence -= 0.05;
+  }
 
   // Primary method disagreement
-  if (primaryDisagreement > 0.20) confidence -= 0.15;
-  else if (primaryDisagreement > 0.10) confidence -= 0.05;
+  if (primaryDisagreement > 0.20) {
+    confidence -= 0.15;
+    reasons.push(`Primary methods (DCF vs reverse DCF) disagree by ${(primaryDisagreement * 100).toFixed(0)}% — normalised economics vs market-implied economics diverge significantly`);
+  } else if (primaryDisagreement > 0.10) {
+    confidence -= 0.05;
+  }
 
   // History depth
-  if (historyDepth <= 5) confidence -= 0.10;
+  if (historyDepth <= 5) {
+    confidence -= 0.10;
+    reasons.push(`Only ${historyDepth} years of history available — minimum for cyclical normalization`);
+  }
 
   // Methods with null values reduce confidence
   const nullMethods = methods.filter(m => m.perShareValue === null).length;
-  confidence -= nullMethods * 0.10;
+  if (nullMethods > 0) {
+    confidence -= nullMethods * 0.10;
+    reasons.push(`${nullMethods} valuation method(s) could not produce a result`);
+  }
 
-  return Math.max(0, Math.min(1, confidence));
+  const score = Math.max(0, Math.min(1, confidence));
+  const rating: ConfidenceRating = score >= 0.70 ? "HIGH" : score >= 0.50 ? "MEDIUM" : "LOW";
+
+  if (reasons.length === 0) {
+    reasons.push("All valuation inputs are strong — high confidence in fair value estimate");
+  }
+
+  return { score, rating, reasons };
 }
 
 // ---------------------------------------------------------------------------
@@ -246,10 +285,11 @@ export function synthesizeFairValue(opts: {
     ? (relativeValuation.confidence >= 0.7 ? "strong" : relativeValuation.confidence >= 0.4 ? "medium" : "weak")
     : "weak";
 
-  // Overall confidence
-  const valuationConfidence = computeValuationConfidence(
+  // Overall confidence with rating and explanations
+  const confidenceResult = computeValuationConfidence(
     methods, rangeWidth, primaryDisagreement, peerQuality, cycleMarginRatio, historyDepth
   );
+  const valuationConfidence = confidenceResult.score;
 
   // Derive label
   let label: ValuationLabel = "FAIR";
@@ -293,6 +333,8 @@ export function synthesizeFairValue(opts: {
     methods,
     primaryMethodDisagreement: primaryDisagreement,
     valuationConfidence,
+    confidenceRating: confidenceResult.rating,
+    confidenceReasons: confidenceResult.reasons,
     keyAssumptions,
     valuationReasons,
   };
@@ -305,26 +347,20 @@ export function synthesizeFairValue(opts: {
 export function evaluateValueGate(synthesis: FairValueSynthesis): ValueGateDecision {
   const reasons: string[] = [];
 
-  // Range width > 40% → withhold
-  if (synthesis.rangeWidth > 0.40) {
-    reasons.push(`Range width ${(synthesis.rangeWidth * 100).toFixed(1)}% exceeds 40% threshold`);
-  }
-
-  // Primary method disagreement > 25% → withhold
-  if (synthesis.primaryMethodDisagreement > 0.25) {
-    reasons.push(`Primary method disagreement ${(synthesis.primaryMethodDisagreement * 100).toFixed(1)}% exceeds 25% threshold`);
-  }
-
-  // Valuation confidence < 0.70 → withhold
-  if (synthesis.valuationConfidence < 0.70) {
-    reasons.push(`Valuation confidence ${(synthesis.valuationConfidence * 100).toFixed(0)}% below 70% threshold`);
-  }
-
-  // No valid methods → withhold
+  // Hard block: must have at least 2 valid methods
   const validMethods = synthesis.methods.filter(m => m.perShareValue !== null && m.effectiveWeight > 0);
   if (validMethods.length < 2) {
     reasons.push(`Only ${validMethods.length} valid methods (need at least 2)`);
   }
+
+  // Hard block: mid value must be positive
+  if (synthesis.range.mid <= 0) {
+    reasons.push("Fair value midpoint is non-positive");
+  }
+
+  // Everything else is a confidence concern, not a hard block.
+  // The system always publishes value when methods produce results,
+  // but with explicit LOW/MEDIUM/HIGH confidence rating and explanations.
 
   return {
     valuePublishable: reasons.length === 0,

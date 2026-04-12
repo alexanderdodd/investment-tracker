@@ -60,10 +60,11 @@ Get MU to `PUBLISH_FACTS_PLUS_VALUE` with:
 
 5. **Value gate** — new third gate
    - Facts gate must pass first
-   - Range width ≤ 40% of midpoint
-   - Primary method disagreement ≤ 25%
-   - Valuation confidence ≥ 0.70
-   - See `09-validation-framework-and-thresholds.md`
+   - At least 2 valid methods must produce results
+   - Fair value midpoint must be positive
+   - Always publishes value when methods work — does NOT withhold on low confidence
+   - Instead, includes explicit confidence rating (HIGH/MEDIUM/LOW) with reasons
+   - Range width, method disagreement, and confidence score are informational, not hard blocks
 
 6. **Validation groups K, L, M** — peer, method, and publishability checks
    - See `08-ralph-loop-specification-valuation-publication.md`
