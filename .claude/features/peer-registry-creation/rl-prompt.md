@@ -69,8 +69,11 @@ Priority: PREG (regression) > PDSC (discovery) > PMUL (multiples) > PQAL (qualit
 2. `npx tsx src/lib/valuation/__tests__/ralph-mu-test.ts` (19/19)
 3. `npx tsx src/lib/valuation/__tests__/ralph-mu-broken-test.ts` (10/10)
 4. `npx tsx src/lib/valuation/__tests__/ralph-mu-valuation-test.ts` (11/11)
-5. `npx tsx scripts/value-stock.ts --ticker MU` — verify MU still works
-6. `npx tsx scripts/value-stock.ts --ticker KO` — verify non-MU ticker gets peers
+5. `npx tsx src/lib/valuation/__tests__/fair-value-consistency-test.ts` (15/15)
+6. `npx tsx src/lib/valuation/__tests__/peer-registry-validation-test.ts` (18/18)
+7. `npx tsx src/lib/valuation/__tests__/pipeline-integration-test.ts` (17/17)
+8. `npx tsx scripts/value-stock.ts --ticker MU` — verify MU still works
+9. `npx tsx scripts/value-stock.ts --ticker KO` — verify non-MU ticker gets peers
 
 ### 5. Report — Write iteration artifacts to `ralph-loop-reports/peer-registry/iteration-{NN}/`
 

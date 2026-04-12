@@ -23,6 +23,9 @@ You are executing the RALPH loop for the valuation verdict feature — the next 
 
 - **Run golden fixture test:** `npx tsx src/lib/valuation/__tests__/ralph-mu-test.ts`
 - **Run broken fixture test:** `npx tsx src/lib/valuation/__tests__/ralph-mu-broken-test.ts`
+- **Run consistency tests (15 tests):** `npx tsx src/lib/valuation/__tests__/fair-value-consistency-test.ts`
+- **Run peer validation tests (18 tests):** `npx tsx src/lib/valuation/__tests__/peer-registry-validation-test.ts`
+- **Run integration tests (17 tests):** `npx tsx src/lib/valuation/__tests__/pipeline-integration-test.ts`
 - **Run full pipeline on MU:** `npx tsx scripts/value-stock.ts --ticker MU`
 - **Type-check:** `npx tsc --noEmit`
 
