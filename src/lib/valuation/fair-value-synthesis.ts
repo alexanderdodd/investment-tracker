@@ -350,10 +350,10 @@ export function synthesizeFairValue(opts: {
 export function evaluateValueGate(synthesis: FairValueSynthesis): ValueGateDecision {
   const reasons: string[] = [];
 
-  // Hard block: must have at least 2 valid methods
+  // Hard block: must have at least 1 valid method
   const validMethods = synthesis.methods.filter(m => m.perShareValue !== null && m.effectiveWeight > 0);
-  if (validMethods.length < 2) {
-    reasons.push(`Only ${validMethods.length} valid methods (need at least 2)`);
+  if (validMethods.length < 1) {
+    reasons.push("No valid valuation methods produced a result");
   }
 
   // Hard block: mid value must be positive

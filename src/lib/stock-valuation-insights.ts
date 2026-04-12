@@ -59,14 +59,21 @@ export function parseStockValuationInsights(raw: unknown): StockValuationInsight
   // Sanitize fields that might be objects/unexpected types from older DB rows
   const sanitized = { ...data } as Record<string, unknown>;
 
-  // Ensure string fields are actually strings
+  // Ensure string fields are actually strings (not objects)
   for (const key of ["verdictReason", "confidenceReason", "headline", "businessSummary",
     "businessModel", "competitivePosition", "industryContext", "revenueGrowth",
     "profitability", "cashGeneration", "balanceSheetStrength", "capitalAllocation",
     "accountingQuality", "dcfSummary", "multiplesSummary", "peerComparison",
     "bullCase", "baseCase", "bearCase", "marginOfSafety"] as const) {
-    if (sanitized[key] !== null && sanitized[key] !== undefined && typeof sanitized[key] !== "string") {
-      sanitized[key] = String(sanitized[key]);
+    const val = sanitized[key];
+    if (val !== null && val !== undefined && typeof val !== "string") {
+      // If it's an object with a text/content field, extract it
+      if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+        const obj = val as Record<string, unknown>;
+        sanitized[key] = String(obj.text ?? obj.content ?? obj.summary ?? obj.headline ?? JSON.stringify(val));
+      } else {
+        sanitized[key] = String(val);
+      }
     }
   }
 
