@@ -304,7 +304,7 @@ export function computeTTM(units: XbrlUnit[]): TtmResult | null {
  */
 export function buildAnnualHistory(
   units: XbrlUnit[],
-  years = 5
+  years = 10
 ): { fiscalYear: number; value: number }[] {
   const annuals = getAnnualEntries(units);
 

@@ -145,8 +145,10 @@ export async function buildCanonicalFacts(ticker: string): Promise<CanonicalFact
     };
   });
 
-  const last5GrossMargins = annualHistory.map((a) => a.grossMargin).filter((v): v is number => v !== null);
-  const last5OpMargins = annualHistory.map((a) => a.operatingMargin).filter((v): v is number => v !== null);
+  // Use only the last 5 years for 5Y averages (even if we have more history)
+  const last5Years = annualHistory.slice(-5);
+  const last5GrossMargins = last5Years.map((a) => a.grossMargin).filter((v): v is number => v !== null);
+  const last5OpMargins = last5Years.map((a) => a.operatingMargin).filter((v): v is number => v !== null);
   const avg5YGross = last5GrossMargins.length > 0 ? last5GrossMargins.reduce((a, b) => a + b, 0) / last5GrossMargins.length : null;
   const avg5YOp = last5OpMargins.length > 0 ? last5OpMargins.reduce((a, b) => a + b, 0) / last5OpMargins.length : null;
 
