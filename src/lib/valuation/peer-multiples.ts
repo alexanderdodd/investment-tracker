@@ -117,25 +117,26 @@ async function fetchFromMarketData(ticker: string): Promise<PeerMultiples | null
   try {
     const md = await fetchMarketData(ticker);
 
-    // Yahoo quoteSummary gives us P/E and P/B through the price module
-    // We need to make an additional call for multiples
-    const quoteUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=price,defaultKeyStatistics,summaryDetail`;
-    const res = await fetch(quoteUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
-
+    // The chart API gives us price and market cap
+    // For P/E and P/B, try the v8 quote endpoint which sometimes works without auth
     let pe: number | null = null;
     let pb: number | null = null;
 
-    if (res.ok) {
-      const json = await res.json();
-      const keyStats = json.quoteSummary?.result?.[0]?.defaultKeyStatistics;
-      const summaryDetail = json.quoteSummary?.result?.[0]?.summaryDetail;
-      pe = summaryDetail?.trailingPE?.raw ?? keyStats?.trailingPE?.raw ?? null;
-      pb = keyStats?.priceToBook?.raw ?? summaryDetail?.priceToBook?.raw ?? null;
-    }
+    try {
+      const quoteUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=5d&includePrePost=false`;
+      const res = await fetch(quoteUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (res.ok) {
+        const json = await res.json();
+        const meta = json.chart?.result?.[0]?.meta;
+        // Some chart responses include trailing PE in meta
+        if (meta?.trailingPE) pe = meta.trailingPE;
+      }
+    } catch { /* ignore */ }
 
-    const usable = [pe, pb].filter(v => v !== null).length;
+    // Count usable data points
+    const hasPrice = md.price > 0;
+    const hasMcap = md.marketCap > 0;
+    const usable = [pe, pb].filter(v => v !== null).length + (hasPrice && !hasMcap ? 1 : 0) + (hasMcap ? 1 : 0);
 
     return {
       ticker: ticker.toUpperCase(),
@@ -144,11 +145,13 @@ async function fetchFromMarketData(ticker: string): Promise<PeerMultiples | null
       marketCap: md.marketCap || null,
       trailingPe: pe,
       priceToBook: pb,
-      evToEbitda: null, // Would need EDGAR for debt/cash to compute EV
+      evToEbitda: null,
       evToRevenue: null,
-      usableMultipleCount: usable,
+      // At minimum, having a current price means we're a real active stock
+      usableMultipleCount: Math.max(hasPrice ? 1 : 0, usable),
     };
-  } catch {
+  } catch (err) {
+    console.warn(`Peer multiples market data failed for ${ticker}:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -160,11 +163,11 @@ async function fetchFromMarketData(ticker: string): Promise<PeerMultiples | null
 export async function fetchPeerMultiples(candidate: PeerCandidate): Promise<PeerMultiples> {
   // Channel 1: Pipeline DB
   const pipelineResult = await fetchFromPipelineDb(candidate.ticker);
-  if (pipelineResult && pipelineResult.usableMultipleCount >= 2) {
+  if (pipelineResult && pipelineResult.usableMultipleCount >= 1) {
     return pipelineResult;
   }
 
-  // Channel 2: Market data API
+  // Channel 2: Market data API (accept if we got any usable data)
   const marketResult = await fetchFromMarketData(candidate.ticker);
   if (marketResult && marketResult.usableMultipleCount >= 1) {
     return marketResult;
