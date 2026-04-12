@@ -266,7 +266,7 @@ function ProgressPanel({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function StockValuationView({ ticker }: { ticker: string }) {
+export function StockValuationView({ ticker, onReportGenerated }: { ticker: string; onReportGenerated?: () => void }) {
   const [insights, setInsights] = useState<StockValuationInsights | null>(null);
   const [researchDoc, setResearchDoc] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
@@ -384,6 +384,7 @@ export function StockValuationView({ ticker }: { ticker: string }) {
     } finally {
       setGenerating(false);
       loadHistory(); // Refresh history after generation
+      onReportGenerated?.(); // Refresh parent header badges
     }
   };
 
