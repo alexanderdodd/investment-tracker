@@ -1,0 +1,24 @@
+{
+  "iteration": 8,
+  "ticker": "MU",
+  "generatedAt": "2026-04-12T12:53:24.634Z",
+  "gateStatus": "PUBLISH_FACTS_ONLY",
+  "valueGateStatus": "PUBLISH_FACTS_ONLY",
+  "valueGatePublishable": false,
+  "goldenFixtureResult": "19/19 PASS",
+  "brokenFixtureResult": "10/10 PASS",
+  "fairValue": {
+    "low": 35.972079358474964,
+    "mid": 144.98160160994593,
+    "high": 375.376575,
+    "label": "EXPENSIVE",
+    "confidence": 0.4
+  },
+  "surfaceScan": {
+    "status": "PASS",
+    "totalClaims": 45,
+    "matchedClaims": 45,
+    "unmatchedClaims": 0,
+    "suppressionViolations": 0
+  }
+}

@@ -167,9 +167,13 @@ function validateCycleAndHistoryForValuation(
     }
   }
 
-  // VAL-004: Direct peer set not yet deterministically sourced
-  // For now, this always fails since we don't have a curated peer registry
-  failures.push("VAL-004: Direct peer set for multiples is not deterministically sourced or curated");
+  // VAL-004: Direct peer set must be deterministically sourced or curated
+  // Check if a peer registry exists for this ticker
+  const { getPeerRegistry } = require("./peer-registry");
+  const peerRegistry = getPeerRegistry(facts.ticker);
+  if (!peerRegistry) {
+    failures.push("VAL-004: Direct peer set for multiples is not deterministically sourced or curated");
+  }
 
   return failures;
 }

@@ -1,0 +1,55 @@
+{
+  "iteration": 8,
+  "generatedAt": "2026-04-12T12:53:24.634Z",
+  "artifacts": [
+    {
+      "name": "generated-report.md",
+      "type": "report"
+    },
+    {
+      "name": "evaluation-scorecard.md",
+      "type": "scorecard"
+    },
+    {
+      "name": "iteration-changes.md",
+      "type": "changelog"
+    },
+    {
+      "name": "run-manifest.json",
+      "type": "manifest"
+    },
+    {
+      "name": "quarter-manifest.json",
+      "type": "manifest"
+    },
+    {
+      "name": "formula-traces.json",
+      "type": "traces",
+      "count": 14
+    },
+    {
+      "name": "suppression-audit.json",
+      "type": "audit"
+    },
+    {
+      "name": "artifact-inventory.json",
+      "type": "inventory"
+    },
+    {
+      "name": "negative-control-results.json",
+      "type": "negative-control"
+    },
+    {
+      "name": "peer-registry.json",
+      "type": "peer-registry"
+    },
+    {
+      "name": "valuation-methods.json",
+      "type": "valuation-methods"
+    },
+    {
+      "name": "fair-value-synthesis.json",
+      "type": "fair-value-synthesis"
+    }
+  ]
+}

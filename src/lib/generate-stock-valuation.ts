@@ -17,6 +17,9 @@ import { generateNarrative, redTeamReview } from "./valuation/narrative";
 import { buildFormulaTraces } from "./valuation/formula-traces";
 import { buildSurfaceAllowlist } from "./valuation/surface-allowlist";
 import { scanReportSurface } from "./valuation/surface-scanner";
+import { getPeerRegistry, computeRelativeValuation } from "./valuation/peer-registry";
+import { computeSelfHistoryValuation } from "./valuation/self-history-valuation";
+import { synthesizeFairValue, evaluateValueGate } from "./valuation/fair-value-synthesis";
 import type { CanonicalFacts, FinancialModelOutputs, ValuationOutputs, QaReport } from "./valuation/types";
 import type { StockValuationInsights } from "./stock-valuation-insights";
 import { generateText } from "ai";
@@ -236,6 +239,39 @@ export async function generateStockValuation(
     report(2, "running");
     const valuationOutputs = runValuationEngine(facts, financialModel, framework);
     report(2, "complete");
+
+    // Stage 2b: Fair value synthesis (peer registry + relative + self-history)
+    const peerRegistry = getPeerRegistry(upperTicker);
+    const relativeValuation = peerRegistry ? computeRelativeValuation(peerRegistry, {
+      enterpriseValue: facts.enterpriseValue.value ?? 0,
+      ttmRevenue: facts.ttmRevenue.value ?? 0,
+      ttmOperatingIncome: facts.ttmOperatingIncome.value ?? 0,
+      ttmDA: facts.ttmDA.value ?? 0,
+      totalEquity: facts.totalEquity.value ?? 0,
+      sharesOutstanding: facts.sharesOutstanding.value ?? 1,
+      totalDebt: facts.totalDebt.value ?? 0,
+      totalCashAndInvestments: facts.totalCashAndInvestments.value ?? 0,
+      priceToBook: facts.priceToBook.value,
+    }) : null;
+    const selfHistoryResult = computeSelfHistoryValuation(facts, financialModel, valuationOutputs.multiples);
+
+    // Compute cycle margin ratio for confidence model
+    const latestGM = facts.latestQuarterGrossMargin.value ?? 0;
+    const avgGM = facts.fiveYearAvgGrossMargin.value ?? 1;
+    const cycleMarginRatio = avgGM > 0 ? latestGM / avgGM : 1;
+
+    const fairValueSynthesis = synthesizeFairValue({
+      dcf: valuationOutputs.dcf,
+      reverseDcf: valuationOutputs.reverseDcf,
+      relativeValuation,
+      selfHistory: selfHistoryResult,
+      currentPrice: facts.currentPrice.value ?? 0,
+      cycleMarginRatio,
+      historyDepth: facts.annualHistory.length,
+    });
+    const valueGate = evaluateValueGate(fairValueSynthesis);
+
+    console.log(`  Fair value: $${fairValueSynthesis.range.low.toFixed(2)} / $${fairValueSynthesis.range.mid.toFixed(2)} / $${fairValueSynthesis.range.high.toFixed(2)} | Label: ${fairValueSynthesis.label} | Confidence: ${(fairValueSynthesis.valuationConfidence * 100).toFixed(0)}% | Value gate: ${valueGate.status}`);
 
     // Stage 3: Deterministic QA — two-stage publish gate
     report(3, "running");

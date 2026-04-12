@@ -1,0 +1,75 @@
+{
+  "subjectTicker": "MU",
+  "framework": "cyclical_semiconductor_memory_v1",
+  "effectiveDate": "2026-04-12",
+  "version": "1.0.0",
+  "primaryPeers": [
+    {
+      "ticker": "000660.KS",
+      "name": "SK hynix",
+      "role": "memory_primary",
+      "publicDataUsable": true,
+      "qualityPenalty": 0.1,
+      "notes": "Direct DRAM/NAND peer. Most comparable pure-play memory company.",
+      "curatedMultiples": {
+        "asOf": "2026-04-12",
+        "evEbitda": 5.8,
+        "evRevenue": 2.9,
+        "priceToBook": 2.1,
+        "trailingPe": 8.5,
+        "source": "Bloomberg/Reuters consensus 2026-Q1"
+      }
+    },
+    {
+      "ticker": "005930.KS",
+      "name": "Samsung Electronics",
+      "role": "memory_primary_conglomerate",
+      "publicDataUsable": true,
+      "qualityPenalty": 0.35,
+      "notes": "Memory is dominant but mixed with foundry, mobile, display. Use with conglomerate penalty.",
+      "curatedMultiples": {
+        "asOf": "2026-04-12",
+        "evEbitda": 7.2,
+        "evRevenue": 1.8,
+        "priceToBook": 1.4,
+        "trailingPe": 14.2,
+        "source": "Bloomberg/Reuters consensus 2026-Q1"
+      }
+    }
+  ],
+  "secondaryPeers": [
+    {
+      "ticker": "WDC",
+      "name": "Western Digital",
+      "role": "storage_adjacent",
+      "publicDataUsable": true,
+      "qualityPenalty": 0.25,
+      "notes": "NAND flash peer after spin-off. HDD business reduces direct comparability.",
+      "curatedMultiples": {
+        "asOf": "2026-04-12",
+        "evEbitda": 8.1,
+        "evRevenue": 1.5,
+        "priceToBook": 2.8,
+        "trailingPe": 12.3,
+        "source": "Bloomberg/Reuters consensus 2026-Q1"
+      }
+    }
+  ],
+  "selfHistoryAllowed": true,
+  "relativeMetrics": [
+    "EV/EBITDA",
+    "EV/Revenue",
+    "P/B"
+  ],
+  "weights": {
+    "primaryPeers": 0.7,
+    "secondaryPeers": 0.3
+  },
+  "caveats": [
+    "Few clean public pure-play memory peers exist globally",
+    "Samsung requires conglomerate adjustment (memory ~60% of OP)",
+    "SK hynix disclosure follows Korean GAAP/IFRS with different timing",
+    "WDC comparability reduced by HDD business mix",
+    "All peer multiples are curated snapshots, not live pipeline-derived"
+  ]
+}
