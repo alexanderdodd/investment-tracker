@@ -156,16 +156,14 @@ Do **not** output the promise if there are fixable failures remaining.
 
 ## Known priority issues
 
-1. **Fair value range far too wide — must be ≤30% of midpoint** (TOP PRIORITY)
-   - Current range for ALL ($263–$4669) is 230% of midpoint — unusable
-   - Root cause: outer-envelope range construction (min/max across all methods) + no outlier dampening
-   - Full spec: `18-range-tightening.md`
-   - Fix has three layers:
-     a. Outlier dampening: exponentially reduce weight of methods that deviate >50% from consensus
-     b. Midpoint-anchored range: replace min/max envelope with weighted σ around midpoint
-     c. Hard cap at 30% of midpoint
-   - Also enforce value gate: withhold when pre-dampened disagreement >100%
-   - Acceptance criteria: range width ≤30% for ALL and MU, method agreement reflected in scorecard
+1. **Method agreement — industry-aware multiple filtering + tiered metric** (TOP PRIORITY)
+   - Peer comparison produces $4447 for Allstate because EV-based multiples are structurally wrong for insurance
+   - Full spec: `19-method-agreement.md`
+   - Part A: pass `allowedPeerMultiples` from industry framework to peer valuation functions. Financial sector = P/E + P/B only.
+   - Part B: report both raw and effective disagreement. Display effective on scorecard with tiers (≤20% strong, 20-50% moderate, 50-100% weak, >100% structural)
+   - Acceptance criteria: AGREE-001..007 unit tests, AGREE-INT-001..002 integration tests, effective disagreement <50% for ALL
+
+2. ~~**Fair value range far too wide**~~ — RESOLVED in iteration 13 (spec 18, DECISION-004)
 
 3. **Withheld-language contamination in published reports**
    - When value gate publishes, the LLM narrative still says "fair value cannot be reliably
@@ -191,3 +189,4 @@ Do **not** output the promise if there are fixable failures remaining.
 - **Fair value synthesis** — RESOLVED in iteration 8 (weighted range + label)
 - **Value gate** — RESOLVED in iteration 10 (always-publish with confidence)
 - **Calibration** — RESOLVED in iteration 9 (envelope + directional checks)
+- **Range tightening** — RESOLVED in iteration 13 (spec 18, 30% cap with outlier dampening)

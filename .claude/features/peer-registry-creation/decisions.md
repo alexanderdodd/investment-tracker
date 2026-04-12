@@ -211,6 +211,64 @@ New fields in `FairValueSynthesis`:
 
 ---
 
+## DECISION-005: Industry-aware multiple filtering in peer valuation
+
+**Status:** Decided — implementing  
+**Date:** 2026-04-12
+
+### Problem
+EV-based multiples (EV/EBITDA, EV/Revenue) are structurally wrong for insurance companies, banks, and REITs. The system applies them anyway because the industry framework selection is not enforced in the peer registry code.
+
+For Allstate (insurance), peer comparison produces $4,447/share (vs DCF $528, self-history $396) because:
+- Insurance "liabilities" are policyholder reserves, not financial debt
+- `impliedEquity = impliedEV - totalDebt + cash` subtracts only financial debt
+- Thin underwriting margin × peer EV/EBITDA × (not subtracting reserves) = massively inflated equity
+
+### Decision
+Pass `IndustryFramework.allowedPeerMultiples` through to peer valuation functions. Each framework type specifies which multiples are valid:
+
+- **Financial** (banks, insurance): P/E, P/B only — EV is meaningless when liabilities are policyholder obligations
+- **REIT**: P/B, EV/EBITDA — revenue multiples not primary for REITs
+- **Growth tech**: EV/Revenue, P/B — many have negative EBITDA
+- **Semiconductor/general**: all multiples allowed
+
+The framework already exists and is selected correctly. The gap is that `computeRelativeValuationFromDynamic` and `computeRelativeValuation` don't receive or use it.
+
+### Expected impact
+Allstate peer comparison: $4,447 → ~$200-400 (P/E and P/B only). Method disagreement drops from 226% to <50%.
+
+### Full spec
+See `19-method-agreement.md` Part A.
+
+---
+
+## DECISION-006: Dual raw/effective method disagreement with tiered thresholds
+
+**Status:** Decided — implementing  
+**Date:** 2026-04-12
+
+### Problem
+Method agreement is a single pre-dampening number. After we added outlier dampening (DECISION-004), the scorecard shows 226% disagreement even though the dampened midpoint is driven by two agreeing methods. The metric no longer represents the synthesis quality.
+
+### Decision
+Report **both** raw and effective disagreement:
+
+- **Raw disagreement** = `(max - min) / avg` of pre-dampening values. Data quality signal — flags when a method has structural problems.
+- **Effective disagreement** = weighted mean absolute deviation from midpoint, post-dampening. Synthesis quality signal — shows how reliable the midpoint is.
+
+Display **effective** on the scorecard with tiers:
+- ≤20%: strong (no penalty)
+- 20-50%: moderate (-0.05)
+- 50-100%: weak (-0.10)
+- >100%: structural (-0.15)
+
+When raw >> effective, show: "Outlier dampened — raw X%, effective Y%"
+
+### Full spec
+See `19-method-agreement.md` Part B.
+
+---
+
 ## OPEN-003: Peer set size vs quality tradeoff
 
 **Status:** Open — needs expert input  
