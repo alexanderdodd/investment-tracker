@@ -431,7 +431,7 @@ export function StockValuationView({ ticker }: { ticker: string }) {
           )}
           {generatedAt && (
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              Report from {new Date(generatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+              Report from {new Date(generatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} at {new Date(generatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
         </div>
