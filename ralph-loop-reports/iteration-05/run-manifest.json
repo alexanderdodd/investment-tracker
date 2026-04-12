@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-04-12T10:35:57.941Z",
+  "ticker": "MU",
+  "codeRef": "main",
+  "fixtureId": "golden-mu",
+  "priceSnapshot": 420.59,
+  "priceTimestamp": "2026-04-10T20:00:01.000Z",
+  "gateStatus": "PUBLISH_FACTS_ONLY",
+  "goldenFixtureResult": "18/18 PASS",
+  "brokenFixtureResult": "10/10 PASS"
+}

@@ -1,0 +1,20 @@
+{
+  "quartersUsed": "Q3 FY25 + Q4 FY25 + Q1 FY26 + Q2 FY26",
+  "latestAnnualFiling": {
+    "accession": "0000723125-25-000028",
+    "periodEnd": "2025-08-28",
+    "filedDate": "2025-10-03"
+  },
+  "latestQuarterlyFiling": {
+    "accession": "0000723125-26-000006",
+    "periodEnd": "2026-02-26",
+    "filedDate": "2026-03-19"
+  },
+  "annualHistoryYears": [
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ]
+}

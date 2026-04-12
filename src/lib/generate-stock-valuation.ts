@@ -14,6 +14,8 @@ import { selectFramework } from "./valuation/industry-frameworks";
 import { runValuationEngine } from "./valuation/valuation-engine";
 import { runQaValidation } from "./valuation/qa-validators";
 import { generateNarrative, redTeamReview } from "./valuation/narrative";
+import { buildFormulaTraces } from "./valuation/formula-traces";
+import { buildSurfaceAllowlist } from "./valuation/surface-allowlist";
 import type { CanonicalFacts, FinancialModelOutputs, ValuationOutputs, QaReport } from "./valuation/types";
 import type { StockValuationInsights } from "./stock-valuation-insights";
 import { generateText } from "ai";
@@ -238,6 +240,18 @@ export async function generateStockValuation(
     report(3, "running");
     const qaReport = runQaValidation(facts, financialModel, valuationOutputs);
     const gate = qaReport.gateDecision;
+
+    // Build formula traces and surface allowlist (vNext requirements)
+    const formulaTraces = buildFormulaTraces(facts, financialModel);
+
+    // Collect all failed rule IDs for suppression
+    const failedRuleIds = [
+      ...gate.factsGateFailures.map(f => f.split(":")[0].trim()),
+      ...gate.valuationGateFailures.map(f => f.split(":")[0].trim()),
+      ...qaReport.issues.filter(i => i.severity === "high").map(i => i.location),
+    ];
+    const { allowlist: surfaceAllowlist, suppressionAudit } = buildSurfaceAllowlist(gate, failedRuleIds, formulaTraces);
+
     report(3, "complete");
 
     const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });

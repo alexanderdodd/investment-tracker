@@ -1,0 +1,10 @@
+{
+  "fixtureFile": "src/lib/valuation/__tests__/fixtures/golden-mu-broken.json",
+  "testRunner": "src/lib/valuation/__tests__/ralph-mu-broken-test.ts",
+  "scenarioCount": 10,
+  "passCount": 10,
+  "failCount": 0,
+  "result": "PASS",
+  "expectedGateForCorrupted": "WITHHOLD_ALL",
+  "expectedGateForValid": "PUBLISH_FACTS_ONLY"
+}

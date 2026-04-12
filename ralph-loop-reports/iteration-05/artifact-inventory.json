@@ -1,0 +1,17 @@
+{
+  "iterationDir": "ralph-loop-reports/iteration-05",
+  "files": [
+    "generated-report.md",
+    "iteration-changes.md",
+    "evaluation-scorecard.md",
+    "run-manifest.json",
+    "quarter-manifest.json",
+    "formula-traces.json",
+    "suppression-audit.json",
+    "negative-control-results.json",
+    "artifact-inventory.json"
+  ],
+  "dbTable": "stock_valuations",
+  "dbTicker": "MU",
+  "dbGeneratedAt": "2026-04-12T10:33:42.815Z"
+}
