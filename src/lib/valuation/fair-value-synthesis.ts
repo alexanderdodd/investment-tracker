@@ -140,14 +140,15 @@ function computeValuationConfidence(
   const failedMethods = methods.filter(m => m.perShareValue === null);
   if (failedMethods.length > 0) {
     confidence -= failedMethods.length * 0.10;
-    const methodLabels: Record<string, string> = {
-      normalized_dcf: "Normalized DCF",
-      reverse_dcf: "Reverse DCF",
-      relative_valuation: "Relative/peer valuation",
-      self_history: "Self-history valuation",
+    const methodExplanations: Record<string, string> = {
+      normalized_dcf: "Normalized DCF could not run (negative or missing free cash flow data)",
+      reverse_dcf: "Reverse DCF could not run (missing enterprise value or operating data)",
+      relative_valuation: "Relative/peer valuation could not run (no peers with comparable multiples — only price data available, not P/E or P/B)",
+      self_history: "Self-history valuation could not run (requires at least 3 years of gross/operating margin data, which is unavailable for this company's accounting framework)",
     };
-    const names = failedMethods.map(m => methodLabels[m.method] ?? m.method).join(", ");
-    reasons.push(`${failedMethods.length} method(s) could not produce a result: ${names}`);
+    for (const m of failedMethods) {
+      reasons.push(methodExplanations[m.method] ?? `${m.method} could not produce a result`);
+    }
   }
 
   const score = Math.max(0, Math.min(1, confidence));
