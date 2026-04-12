@@ -20,6 +20,7 @@ export function selectFramework(sector: string, industry: string): IndustryFrame
       normalizationRules: "Use mid-cycle margins. If current gross margin exceeds 5Y avg by >15pp, flag as cycle peak and normalize.",
       keyMetrics: ["bit_shipment_growth", "asp_trends", "cost_per_bit", "hbm_mix", "cycle_position", "capacity_utilization"],
       cycleRelevant: true,
+      allowedPeerMultiples: ["ev_ebitda", "ev_revenue", "pb"],
     };
   }
 
@@ -32,6 +33,7 @@ export function selectFramework(sector: string, industry: string): IndustryFrame
       normalizationRules: "Normalize credit costs and provisions through cycle. Use tangible book value.",
       keyMetrics: ["roe", "rotce", "nim", "cet1", "efficiency_ratio", "provisions"],
       cycleRelevant: true,
+      allowedPeerMultiples: ["pe", "pb"],
     };
   }
 
@@ -44,6 +46,7 @@ export function selectFramework(sector: string, industry: string): IndustryFrame
       normalizationRules: "Normalize for FX, M&A, and restructuring. Focus on organic revenue growth.",
       keyMetrics: ["organic_growth", "pricing_vs_volume", "fcf_yield", "dividend_growth", "payout_ratio"],
       cycleRelevant: false,
+      allowedPeerMultiples: ["pe", "pb", "ev_ebitda"],
     };
   }
 
@@ -56,6 +59,7 @@ export function selectFramework(sector: string, industry: string): IndustryFrame
       normalizationRules: "SBC is a real cost. If unprofitable including SBC, state explicitly.",
       keyMetrics: ["revenue_growth", "gross_margin", "rule_of_40", "sbc_pct", "fcf_margin"],
       cycleRelevant: false,
+      allowedPeerMultiples: ["ev_revenue", "pb"],
     };
   }
 
@@ -68,6 +72,7 @@ export function selectFramework(sector: string, industry: string): IndustryFrame
       normalizationRules: "GAAP EPS is not primary. Use AFFO and NAV.",
       keyMetrics: ["affo", "nav", "occupancy", "cap_rate", "debt_to_ebitda"],
       cycleRelevant: false,
+      allowedPeerMultiples: ["pb", "ev_ebitda"],
     };
   }
 
@@ -80,6 +85,7 @@ export function selectFramework(sector: string, industry: string): IndustryFrame
       normalizationRules: "Normalize for commodity price cycles. Use mid-cycle commodity price assumptions.",
       keyMetrics: ["reserve_life", "production_growth", "finding_costs", "breakeven_price"],
       cycleRelevant: true,
+      allowedPeerMultiples: ["ev_ebitda", "pb"],
     };
   }
 
@@ -92,6 +98,7 @@ export function selectFramework(sector: string, industry: string): IndustryFrame
       normalizationRules: "Focus on rate base growth, allowed ROE, and regulatory environment.",
       keyMetrics: ["rate_base_growth", "allowed_roe", "payout_ratio", "capex_plan", "regulatory_environment"],
       cycleRelevant: false,
+      allowedPeerMultiples: ["pe", "ev_ebitda"],
     };
   }
 
@@ -104,5 +111,6 @@ export function selectFramework(sector: string, industry: string): IndustryFrame
     normalizationRules: "Check whether current margins and growth are above or below 5-year averages.",
     keyMetrics: ["revenue_growth", "operating_margin", "roic", "fcf_yield", "debt_ebitda"],
     cycleRelevant: false,
+    allowedPeerMultiples: ["pe", "pb", "ev_ebitda", "ev_revenue"],
   };
 }

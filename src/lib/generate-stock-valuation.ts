@@ -406,8 +406,9 @@ export async function generateStockValuation(
       totalDebt: facts.totalDebt.value ?? 0,
       totalCashAndInvestments: facts.totalCashAndInvestments.value ?? 0,
       priceToBook: facts.priceToBook.value,
+      ttmNetIncome: facts.ttmNetIncome.value ?? 0,
     };
-    const relativeValuation = computeRelativeValuationFromDynamic(dynamicPeerRegistry, subjectFactsForRelative);
+    const relativeValuation = computeRelativeValuationFromDynamic(dynamicPeerRegistry, subjectFactsForRelative, framework.allowedPeerMultiples);
     const selfHistoryResult = computeSelfHistoryValuation(facts, financialModel, valuationOutputs.multiples);
 
     // Compute cycle margin ratio for confidence model

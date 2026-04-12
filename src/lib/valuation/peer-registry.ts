@@ -166,8 +166,10 @@ export function computeRelativeValuation(
     totalDebt: number;
     totalCashAndInvestments: number;
     priceToBook: number | null;
-  }
+  },
+  allowedMultiples?: PeerMultipleType[]
 ): RelativeValuationResult {
+  const allowed = allowedMultiples ?? ["pe", "pb", "ev_ebitda", "ev_revenue"];
   const allPeers = [
     ...registry.primaryPeers.map(p => ({ ...p, isPrimary: true })),
     ...registry.secondaryPeers.map(p => ({ ...p, isPrimary: false })),
@@ -184,7 +186,7 @@ export function computeRelativeValuation(
     const qualityAdj = 1 - peer.qualityPenalty;
 
     // EV/EBITDA implied value
-    if (m.evEbitda !== null && ebitda > 0) {
+    if (allowed.includes("ev_ebitda") && m.evEbitda !== null && ebitda > 0) {
       const impliedEV = ebitda * m.evEbitda;
       const impliedEquity = impliedEV - subjectFacts.totalDebt + subjectFacts.totalCashAndInvestments;
       const impliedPerShare = impliedEquity / shares;
@@ -199,7 +201,7 @@ export function computeRelativeValuation(
     }
 
     // EV/Revenue implied value
-    if (m.evRevenue !== null && subjectFacts.ttmRevenue > 0) {
+    if (allowed.includes("ev_revenue") && m.evRevenue !== null && subjectFacts.ttmRevenue > 0) {
       const impliedEV = subjectFacts.ttmRevenue * m.evRevenue;
       const impliedEquity = impliedEV - subjectFacts.totalDebt + subjectFacts.totalCashAndInvestments;
       const impliedPerShare = impliedEquity / shares;
@@ -214,7 +216,7 @@ export function computeRelativeValuation(
     }
 
     // P/B implied value
-    if (m.priceToBook !== null && subjectFacts.totalEquity > 0) {
+    if (allowed.includes("pb") && m.priceToBook !== null && subjectFacts.totalEquity > 0) {
       const bvps = subjectFacts.totalEquity / shares;
       const impliedPerShare = bvps * m.priceToBook;
       if (impliedPerShare > 0) {
@@ -270,6 +272,7 @@ export function computeRelativeValuation(
 // Dynamic peer registry builder
 // ---------------------------------------------------------------------------
 
+import type { PeerMultipleType } from "./types";
 import { discoverPeers } from "./peer-discovery";
 import { fetchAllPeerMultiples, type PeerMultiples } from "./peer-multiples";
 import { scorePeer, computeRegistryQuality, type PeerQualityScore, type RegistryQuality } from "./peer-quality";
@@ -409,11 +412,15 @@ export function computeRelativeValuationFromDynamic(
     totalDebt: number;
     totalCashAndInvestments: number;
     priceToBook: number | null;
-  }
+    ttmNetIncome?: number;
+  },
+  allowedMultiples?: PeerMultipleType[]
 ): RelativeValuationResult {
+  const allowed = allowedMultiples ?? ["pe", "pb", "ev_ebitda", "ev_revenue"];
+
   // If curated registry exists, use the original function
   if (registry.curatedRegistry) {
-    return computeRelativeValuation(registry.curatedRegistry, subjectFacts);
+    return computeRelativeValuation(registry.curatedRegistry, subjectFacts, allowed);
   }
 
   const perShareValues: RelativeValuationResult["perShareValues"] = [];
@@ -427,15 +434,24 @@ export function computeRelativeValuationFromDynamic(
     const qualityAdj = peer.qualityScore;
 
     // P/E implied value
-    if (m.trailingPe !== null && m.trailingPe > 0 && m.trailingPe < 200) {
-      // Need subject's EPS
-      const subjectEV = subjectFacts.enterpriseValue;
-      const bvps = subjectFacts.totalEquity / shares;
-      // Use P/B for implied per-share if P/E needs EPS we don't have here
+    if (allowed.includes("pe") && m.trailingPe !== null && m.trailingPe > 0 && m.trailingPe < 200) {
+      // Compute subject EPS from net income / shares
+      const subjectEPS = subjectFacts.ttmNetIncome ? subjectFacts.ttmNetIncome / shares : null;
+      if (subjectEPS && subjectEPS > 0) {
+        const impliedPerShare = subjectEPS * m.trailingPe;
+        if (impliedPerShare > 0) {
+          perShareValues.push({
+            metric: `P/E via ${peer.companyName || peer.ticker}`,
+            value: impliedPerShare,
+            weight: qualityAdj,
+            source: peer.ticker,
+          });
+        }
+      }
     }
 
     // P/B implied value
-    if (m.priceToBook !== null && m.priceToBook > 0 && subjectFacts.totalEquity > 0) {
+    if (allowed.includes("pb") && m.priceToBook !== null && m.priceToBook > 0 && subjectFacts.totalEquity > 0) {
       const bvps = subjectFacts.totalEquity / shares;
       const impliedPerShare = bvps * m.priceToBook;
       if (impliedPerShare > 0) {
@@ -449,7 +465,7 @@ export function computeRelativeValuationFromDynamic(
     }
 
     // EV/EBITDA implied value (if available from pipeline)
-    if (m.evToEbitda !== null && m.evToEbitda > 0 && ebitda > 0) {
+    if (allowed.includes("ev_ebitda") && m.evToEbitda !== null && m.evToEbitda > 0 && ebitda > 0) {
       const impliedEV = ebitda * m.evToEbitda;
       const impliedEquity = impliedEV - subjectFacts.totalDebt + subjectFacts.totalCashAndInvestments;
       const impliedPerShare = impliedEquity / shares;
@@ -464,7 +480,7 @@ export function computeRelativeValuationFromDynamic(
     }
 
     // EV/Revenue implied value (if available)
-    if (m.evToRevenue !== null && m.evToRevenue > 0 && subjectFacts.ttmRevenue > 0) {
+    if (allowed.includes("ev_revenue") && m.evToRevenue !== null && m.evToRevenue > 0 && subjectFacts.ttmRevenue > 0) {
       const impliedEV = subjectFacts.ttmRevenue * m.evToRevenue;
       const impliedEquity = impliedEV - subjectFacts.totalDebt + subjectFacts.totalCashAndInvestments;
       const impliedPerShare = impliedEquity / shares;

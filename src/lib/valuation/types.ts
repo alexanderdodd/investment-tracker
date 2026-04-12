@@ -227,6 +227,8 @@ export interface QaReport {
 // Industry framework (Phase 3-4)
 // ---------------------------------------------------------------------------
 
+export type PeerMultipleType = "pe" | "pb" | "ev_ebitda" | "ev_revenue";
+
 export interface IndustryFramework {
   type: string;
   primaryMethods: string[];
@@ -235,4 +237,6 @@ export interface IndustryFramework {
   normalizationRules: string;
   keyMetrics: string[];
   cycleRelevant: boolean;
+  /** Which peer multiples are valid for this sector. Unlisted multiples are skipped in peer valuation. */
+  allowedPeerMultiples: PeerMultipleType[];
 }

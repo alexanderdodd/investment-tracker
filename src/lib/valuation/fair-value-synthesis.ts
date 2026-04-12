@@ -52,8 +52,12 @@ export interface FairValueSynthesis {
   priceVsMid: number;
   /** Individual method contributions */
   methods: MethodContribution[];
-  /** Maximum disagreement between primary methods as fraction */
+  /** Maximum disagreement between primary methods as fraction (pre-dampening) */
   primaryMethodDisagreement: number;
+  /** Pre-dampening disagreement: (max - min) / avg of raw values */
+  rawMethodDisagreement: number;
+  /** Post-dampening disagreement: weighted mean absolute deviation from midpoint */
+  effectiveMethodDisagreement: number;
   /** Overall valuation confidence (0-1) */
   valuationConfidence: number;
   /** Confidence rating: HIGH (≥0.70), MEDIUM (0.50-0.69), LOW (<0.50) */
@@ -95,7 +99,8 @@ const DEFAULT_WEIGHTS = {
 function computeValuationConfidence(
   methods: MethodContribution[],
   rangeWidth: number,
-  primaryDisagreement: number,
+  effectiveDisagreement: number,
+  rawDisagreement: number,
   peerQuality: "strong" | "medium" | "weak",
   cycleMarginRatio: number,
   historyDepth: number
@@ -138,16 +143,28 @@ function computeValuationConfidence(
     checklist.push({ label: "Range width", passed: true, detail: `${(rangeWidth * 100).toFixed(0)}% — tight range` });
   }
 
-  // Contributing method disagreement
-  if (primaryDisagreement > 0.20) {
+  // Method disagreement — tiered using effective (post-dampening) disagreement
+  const rawPct = (rawDisagreement * 100).toFixed(0);
+  const effPct = (effectiveDisagreement * 100).toFixed(0);
+  const dampenedNote = rawDisagreement > 1.0 && effectiveDisagreement < 0.50
+    ? ` (outlier dampened — raw: ${rawPct}%)`
+    : rawDisagreement > effectiveDisagreement * 1.5
+      ? ` (raw: ${rawPct}%)`
+      : "";
+
+  if (effectiveDisagreement > 1.0) {
     confidence -= 0.15;
-    reasons.push(`Contributing valuation methods disagree by ${(primaryDisagreement * 100).toFixed(0)}% — normalized economics, peer comparisons, and historical analysis produce different estimates`);
-    checklist.push({ label: "Method agreement", passed: false, detail: `${(primaryDisagreement * 100).toFixed(0)}% disagreement (target: <20%)` });
-  } else if (primaryDisagreement > 0.10) {
+    reasons.push(`Contributing valuation methods disagree by ${effPct}% effective${dampenedNote} — investigate method inputs`);
+    checklist.push({ label: "Method agreement", passed: false, detail: `${effPct}% effective${dampenedNote} — structural disagreement` });
+  } else if (effectiveDisagreement > 0.50) {
+    confidence -= 0.10;
+    reasons.push(`Contributing valuation methods disagree by ${effPct}% effective${dampenedNote} — significant divergence`);
+    checklist.push({ label: "Method agreement", passed: false, detail: `${effPct}% effective${dampenedNote} — significant` });
+  } else if (effectiveDisagreement > 0.20) {
     confidence -= 0.05;
-    checklist.push({ label: "Method agreement", passed: true, detail: `${(primaryDisagreement * 100).toFixed(0)}% — moderate agreement` });
+    checklist.push({ label: "Method agreement", passed: true, detail: `${effPct}% effective${dampenedNote} — moderate agreement` });
   } else {
-    checklist.push({ label: "Method agreement", passed: true, detail: `${(primaryDisagreement * 100).toFixed(0)}% — strong agreement` });
+    checklist.push({ label: "Method agreement", passed: true, detail: `${effPct}% effective${dampenedNote} — strong agreement` });
   }
 
   // History depth
@@ -377,16 +394,36 @@ export function synthesizeFairValue(opts: {
   const high = rawHigh;
   const rangeWidth = mid > 0 ? (high - low) / mid : 999;
 
-  // Method disagreement — compare contributing methods (those with weight > 0)
+  // Method disagreement — raw (pre-dampening) and effective (post-dampening)
   const contributingMethods = validMethods.filter(m => m.weight > 0 && m.perShareValue !== null);
-  let primaryDisagreement = 0;
-  if (contributingMethods.length >= 2) {
+
+  // Raw disagreement: (max - min) / avg of pre-dampening values
+  let rawMethodDisagreement = 0;
+  if (preDampeningMethods.length >= 2) {
+    const rawVals = preDampeningMethods.map(m => m.originalValue);
+    const maxVal = Math.max(...rawVals);
+    const minVal = Math.min(...rawVals);
+    const avg = rawVals.reduce((s, v) => s + v, 0) / rawVals.length;
+    rawMethodDisagreement = avg > 0 ? (maxVal - minVal) / avg : 0;
+  } else if (contributingMethods.length >= 2) {
+    // Fallback if no dampening data (e.g., single method)
     const vals = contributingMethods.map(m => m.perShareValue!);
     const maxVal = Math.max(...vals);
     const minVal = Math.min(...vals);
     const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
-    primaryDisagreement = avg > 0 ? (maxVal - minVal) / avg : 0;
+    rawMethodDisagreement = avg > 0 ? (maxVal - minVal) / avg : 0;
   }
+
+  // Effective disagreement: weighted mean absolute deviation from midpoint
+  let effectiveMethodDisagreement = 0;
+  if (mid > 0 && contributingMethods.length >= 2) {
+    for (const m of contributingMethods) {
+      effectiveMethodDisagreement += m.effectiveWeight * Math.abs(m.perShareValue! - mid) / mid;
+    }
+  }
+
+  // Keep primaryMethodDisagreement for backward compatibility (uses raw)
+  const primaryDisagreement = rawMethodDisagreement;
 
   // Peer quality assessment
   const peerQuality: "strong" | "medium" | "weak" = relativeValuation
@@ -395,7 +432,7 @@ export function synthesizeFairValue(opts: {
 
   // Overall confidence with rating and explanations
   const confidenceResult = computeValuationConfidence(
-    methods, rangeWidth, primaryDisagreement, peerQuality, cycleMarginRatio, historyDepth
+    methods, rangeWidth, effectiveMethodDisagreement, rawMethodDisagreement, peerQuality, cycleMarginRatio, historyDepth
   );
   const valuationConfidence = confidenceResult.score;
 
@@ -449,6 +486,8 @@ export function synthesizeFairValue(opts: {
     priceVsMid,
     methods,
     primaryMethodDisagreement: primaryDisagreement,
+    rawMethodDisagreement,
+    effectiveMethodDisagreement,
     valuationConfidence,
     confidenceRating: confidenceResult.rating,
     confidenceReasons: confidenceResult.reasons,

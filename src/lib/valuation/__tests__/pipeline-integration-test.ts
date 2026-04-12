@@ -66,7 +66,8 @@ async function runIntegrationTests() {
     totalDebt: facts.totalDebt.value ?? 0,
     totalCashAndInvestments: facts.totalCashAndInvestments.value ?? 0,
     priceToBook: facts.priceToBook.value,
-  });
+    ttmNetIncome: facts.ttmNetIncome.value ?? 0,
+  }, framework.allowedPeerMultiples);
   const selfHist = computeSelfHistoryValuation(facts, model, val.multiples);
   const latestGM = facts.latestQuarterGrossMargin.value ?? 0;
   const avgGM = facts.fiveYearAvgGrossMargin.value ?? 1;

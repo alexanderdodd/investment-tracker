@@ -9,6 +9,7 @@
 
 import { synthesizeFairValue, evaluateValueGate, type FairValueSynthesis } from "../fair-value-synthesis";
 import type { DcfOutputs, ReverseDcfOutputs } from "../types";
+import { selectFramework } from "../industry-frameworks";
 
 interface TestResult {
   id: string;
@@ -302,6 +303,110 @@ console.log("=== RANGE-006: Single method produces reasonable range ===\n");
     `Single method range should be ≤30%, got ${(synth.rangeWidth * 100).toFixed(1)}%`);
   test("RANGE-006b", synth.rangeWidth >= 0.10,
     `Single method range should be ≥10% (from sensitivity grid), got ${(synth.rangeWidth * 100).toFixed(1)}%`);
+}
+
+// ---------------------------------------------------------------------------
+// AGREE-001..007: Method agreement (spec 19)
+// ---------------------------------------------------------------------------
+
+console.log("=== AGREE-001: Financial framework excludes EV multiples ===\n");
+
+{
+  const fw = selectFramework("Fire, Marine & Casualty Insurance", "Insurance");
+  test("AGREE-001a", fw.type === "financial", `Insurance sector should map to 'financial' framework, got '${fw.type}'`);
+  test("AGREE-001b", !fw.allowedPeerMultiples.includes("ev_ebitda"), `Financial framework should exclude ev_ebitda, got [${fw.allowedPeerMultiples}]`);
+  test("AGREE-001c", !fw.allowedPeerMultiples.includes("ev_revenue"), `Financial framework should exclude ev_revenue, got [${fw.allowedPeerMultiples}]`);
+  test("AGREE-001d", fw.allowedPeerMultiples.includes("pe"), `Financial framework should include pe, got [${fw.allowedPeerMultiples}]`);
+  test("AGREE-001e", fw.allowedPeerMultiples.includes("pb"), `Financial framework should include pb, got [${fw.allowedPeerMultiples}]`);
+}
+
+console.log("=== AGREE-002: Semiconductor framework allows all multiples ===\n");
+
+{
+  const fw = selectFramework("Semiconductors & Related Devices", "Memory");
+  test("AGREE-002a", fw.allowedPeerMultiples.includes("ev_ebitda"), `Semiconductor should include ev_ebitda`);
+  test("AGREE-002b", fw.allowedPeerMultiples.includes("ev_revenue"), `Semiconductor should include ev_revenue`);
+  test("AGREE-002c", fw.allowedPeerMultiples.includes("pb"), `Semiconductor should include pb`);
+}
+
+console.log("=== AGREE-003: rawMethodDisagreement reflects pre-dampening ===\n");
+
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/B", value: 500, weight: 1, source: "test" }], weightedPerShare: 500, confidence: 0.8, caveats: [] },
+    selfHistory: null,
+    currentPrice: 150, cycleMarginRatio: 1.0, historyDepth: 7,
+  });
+  // Raw should be large: (500-100) / 300 = 133%
+  test("AGREE-003", synth.rawMethodDisagreement > 1.0,
+    `Raw disagreement should be >100% for DCF $100 vs Peer $500, got ${(synth.rawMethodDisagreement * 100).toFixed(0)}%`);
+}
+
+console.log("=== AGREE-004: effectiveMethodDisagreement reflects post-dampening ===\n");
+
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/B", value: 500, weight: 1, source: "test" }], weightedPerShare: 500, confidence: 0.8, caveats: [] },
+    selfHistory: null,
+    currentPrice: 150, cycleMarginRatio: 1.0, historyDepth: 7,
+  });
+  // Effective should be smaller than raw because peer is dampened
+  test("AGREE-004", synth.effectiveMethodDisagreement < synth.rawMethodDisagreement,
+    `Effective (${(synth.effectiveMethodDisagreement * 100).toFixed(0)}%) should be < raw (${(synth.rawMethodDisagreement * 100).toFixed(0)}%) when outlier dampened`);
+}
+
+console.log("=== AGREE-005: Effective < raw when outlier dampening active ===\n");
+
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/B", value: 800, weight: 1, source: "test" }], weightedPerShare: 800, confidence: 0.8, caveats: [] },
+    selfHistory: { method: "self_history", impliedPerShare: 95, historicalRange: { low: 70, mid: 95, high: 120 }, details: { medianGrossMargin: 0.30, medianOperatingMargin: 0.15, currentGrossMargin: 0.30, currentOperatingMargin: 0.15, cyclePosition: "mid_cycle", yearsOfHistory: 8 }, confidence: 0.7 },
+    currentPrice: 150, cycleMarginRatio: 1.0, historyDepth: 8,
+  });
+  test("AGREE-005", synth.effectiveMethodDisagreement < synth.rawMethodDisagreement * 0.5,
+    `With 8x outlier, effective (${(synth.effectiveMethodDisagreement * 100).toFixed(0)}%) should be <50% of raw (${(synth.rawMethodDisagreement * 100).toFixed(0)}%)`);
+}
+
+console.log("=== AGREE-006: Agreeing methods produce <20% effective disagreement ===\n");
+
+{
+  const synth = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: mockReverseDcf(),
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/E", value: 105, weight: 1, source: "test" }], weightedPerShare: 105, confidence: 0.8, caveats: [] },
+    selfHistory: { method: "self_history", impliedPerShare: 98, historicalRange: { low: 85, mid: 98, high: 115 }, details: { medianGrossMargin: 0.30, medianOperatingMargin: 0.15, currentGrossMargin: 0.30, currentOperatingMargin: 0.15, cyclePosition: "mid_cycle", yearsOfHistory: 8 }, confidence: 0.7 },
+    currentPrice: 100, cycleMarginRatio: 1.0, historyDepth: 8,
+  });
+  test("AGREE-006", synth.effectiveMethodDisagreement <= 0.20,
+    `Agreeing methods (100, 105, 98) should have ≤20% effective disagreement, got ${(synth.effectiveMethodDisagreement * 100).toFixed(1)}%`);
+}
+
+console.log("=== AGREE-007: Tiered confidence penalties ===\n");
+
+{
+  // Strong agreement (≤20%) — no penalty from method agreement
+  const synthStrong = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/E", value: 102, weight: 1, source: "test" }], weightedPerShare: 102, confidence: 0.8, caveats: [] },
+    selfHistory: null,
+    currentPrice: 100, cycleMarginRatio: 1.0, historyDepth: 7,
+  });
+  const agreementItem = synthStrong.confidenceChecklist.find(c => c.label === "Method agreement");
+  test("AGREE-007a", agreementItem?.passed === true,
+    `Strong agreement should pass, got passed=${agreementItem?.passed} detail="${agreementItem?.detail}"`);
+
+  // Significant disagreement (>50% effective) — -0.10 penalty, fails check
+  const synthWeak = synthesizeFairValue({
+    dcf: mockDcf(100), reverseDcf: null,
+    relativeValuation: { method: "relative_valuation", peerRegistryVersion: "test", perShareValues: [{ metric: "P/B", value: 500, weight: 1, source: "test" }], weightedPerShare: 500, confidence: 0.8, caveats: [] },
+    selfHistory: null,
+    currentPrice: 150, cycleMarginRatio: 1.0, historyDepth: 7,
+  });
+  const weakItem = synthWeak.confidenceChecklist.find(c => c.label === "Method agreement");
+  test("AGREE-007b", weakItem?.passed === false,
+    `Significant disagreement (DCF $100 vs Peer $500) should fail, got passed=${weakItem?.passed} detail="${weakItem?.detail}"`);
 }
 
 // ---------------------------------------------------------------------------

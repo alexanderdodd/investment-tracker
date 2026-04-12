@@ -49,7 +49,7 @@ async function runValuationTests() {
     totalDebt: facts.totalDebt.value ?? 0,
     totalCashAndInvestments: facts.totalCashAndInvestments.value ?? 0,
     priceToBook: facts.priceToBook.value,
-  }) : null;
+  }, framework.allowedPeerMultiples) : null;
   const selfHist = computeSelfHistoryValuation(facts, model, val.multiples);
 
   const latestGM = facts.latestQuarterGrossMargin.value ?? 0;
