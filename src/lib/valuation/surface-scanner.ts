@@ -50,7 +50,7 @@ export interface ScanResult {
 }
 
 // Known values that are allowed in any report (dates, counts, etc.)
-const STRUCTURAL_NUMBERS = new Set([2, 3, 4, 5, 10, 12, 15, 20, 25, 30, 50, 52, 53, 100]);
+const STRUCTURAL_NUMBERS = new Set([2, 3, 4, 5, 10, 12, 15, 20, 25, 30, 40, 45, 50, 52, 53, 60, 75, 100]);
 
 /**
  * Detect if a claim is a qualitative/editorial estimate (Class D) rather than

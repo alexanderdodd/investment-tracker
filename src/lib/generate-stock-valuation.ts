@@ -353,26 +353,26 @@ export async function generateStockValuation(
       }
     }
 
-    // Gate status label for the report
+    // Gate status label uses the effective status (value gate may upgrade)
     const gateStatusLabel = gate.status === "WITHHOLD_ALL"
       ? "WITHHOLD_ALL — diagnostic only"
-      : gate.status === "PUBLISH_FACTS_ONLY"
-        ? "FACTS_PUBLISHABLE / VALUATION_VERDICT_WITHHELD"
-        : gate.status === "PUBLISH_WITH_WARNINGS"
-          ? "PUBLISHED_WITH_WARNINGS"
-          : "PUBLISHED";
+      : valueGate.valuePublishable
+        ? "FACTS_PLUS_VALUE — fair value published"
+        : "FACTS_PUBLISHABLE / VALUATION_VERDICT_WITHHELD";
 
-    // Build valuation section only if gate allows
+    // Build valuation section
     let valuationSection = "";
-    if (gate.valuationPublishable) {
-      valuationSection = `\nVALUATION VERDICT: ${valuationOutputs.verdict}
-Confidence: ${(valuationOutputs.confidenceScore * 100).toFixed(0)}%
-${valuationOutputs.dcf ? `DCF Fair Value: $${valuationOutputs.dcf.perShareValue.toFixed(2)}/share` : "DCF: Not computed"}
-${valuationOutputs.marginOfSafety !== null ? `Margin of Safety: ${(valuationOutputs.marginOfSafety * 100).toFixed(1)}%` : ""}
+    if (valueGate.valuePublishable) {
+      valuationSection = `\nFAIR VALUE ASSESSMENT
+Label: ${fairValueSynthesis.label}
+Fair Value Range: $${fairValueSynthesis.range.low.toFixed(2)} — $${fairValueSynthesis.range.mid.toFixed(2)} — $${fairValueSynthesis.range.high.toFixed(2)}
+Current Price: $${fairValueSynthesis.currentPrice.toFixed(2)} (${fairValueSynthesis.priceVsMid > 0 ? "+" : ""}${(fairValueSynthesis.priceVsMid * 100).toFixed(1)}% vs mid)
+Confidence: ${fairValueSynthesis.confidenceRating} (${(fairValueSynthesis.valuationConfidence * 100).toFixed(0)}%)
+${fairValueSynthesis.confidenceReasons.map(r => `- ${r}`).join("\n")}
 `;
-    } else {
+    } else if (gate.status !== "WITHHOLD_ALL") {
       valuationSection = `\nVALUATION STATUS: WITHHELD
-Reason: ${gate.valuationGateFailures.join("; ")}
+Reason: ${valueGate.withholdReasons.join("; ") || gate.valuationGateFailures.join("; ")}
 No fair value, target price, margin of safety, or investment conclusion is provided.
 `;
     }
@@ -398,18 +398,51 @@ ${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.va
     try {
       structuredInsights = await buildStructuredInsights(facts, financialModel, valuationOutputs, qaReport, narrative);
 
-      // Enforce leak prevention: strip valuation fields when verdict is withheld
-      if (!gate.valuationPublishable && structuredInsights) {
+      // Enforce leak prevention based on effective gate status
+      // The new value gate may allow publication even when old gate withholds valuation
+      const effectiveValuePublishable = valueGate.valuePublishable;
+
+      if (!effectiveValuePublishable && structuredInsights) {
+        // Value gate blocks — strip all valuation fields
         structuredInsights.intrinsicValue = null;
         structuredInsights.marginOfSafety = null;
         structuredInsights.verdict = "Withheld";
-        structuredInsights.verdictReason = gate.valuationGateFailures.join("; ");
+        structuredInsights.verdictReason = valueGate.withholdReasons.join("; ") || gate.valuationGateFailures.join("; ");
         structuredInsights.confidence = "N/A";
-        structuredInsights.confidenceReason = "Valuation withheld — confidence not applicable";
-        structuredInsights.dcfSummary = "DCF valuation withheld — cycle-normalization prerequisites not met.";
+        structuredInsights.confidenceReason = "Valuation withheld — insufficient valid methods";
+        structuredInsights.dcfSummary = "DCF valuation withheld — prerequisites not met.";
         structuredInsights.bullCase = "Withheld";
         structuredInsights.baseCase = "Withheld";
         structuredInsights.bearCase = "Withheld";
+      } else if (effectiveValuePublishable && structuredInsights) {
+        // Value gate allows — inject fair value synthesis data
+        // Map new labels to existing type system
+        const verdictMap: Record<string, "Undervalued" | "Fair Value" | "Overvalued"> = {
+          "CHEAP": "Undervalued", "DEEP_CHEAP": "Undervalued",
+          "FAIR": "Fair Value",
+          "EXPENSIVE": "Overvalued", "DEEP_EXPENSIVE": "Overvalued",
+        };
+        const confMap: Record<string, "High" | "Medium" | "Low"> = {
+          "HIGH": "High", "MEDIUM": "Medium", "LOW": "Low",
+        };
+        structuredInsights.verdict = verdictMap[fairValueSynthesis.label] ?? "Fair Value";
+        structuredInsights.verdictReason = fairValueSynthesis.valuationReasons.join("; ");
+        structuredInsights.confidence = confMap[fairValueSynthesis.confidenceRating] ?? "Low";
+        structuredInsights.confidenceReason = fairValueSynthesis.confidenceReasons.join("; ");
+        structuredInsights.intrinsicValue = Math.round(fairValueSynthesis.range.mid);
+        structuredInsights.marginOfSafety = fairValueSynthesis.priceVsMid !== 0
+          ? `${(fairValueSynthesis.priceVsMid * -100).toFixed(1)}%`
+          : null;
+        if (fairValueSynthesis.methods.find(m => m.method === "normalized_dcf" && m.perShareValue)) {
+          const dcfMethod = fairValueSynthesis.methods.find(m => m.method === "normalized_dcf")!;
+          structuredInsights.dcfSummary = `Normalized DCF: $${dcfMethod.perShareValue!.toFixed(2)}/share (weight: ${(dcfMethod.effectiveWeight * 100).toFixed(0)}%)`;
+        }
+        // Scenarios from method spread
+        const selfHist = fairValueSynthesis.methods.find(m => m.method === "self_history");
+        const relVal = fairValueSynthesis.methods.find(m => m.method === "relative_valuation");
+        structuredInsights.bullCase = `Fair value high: $${fairValueSynthesis.range.high.toFixed(0)} (self-history: $${selfHist?.perShareValue?.toFixed(0) ?? "N/A"}, relative: $${relVal?.perShareValue?.toFixed(0) ?? "N/A"})`;
+        structuredInsights.baseCase = `Fair value mid: $${fairValueSynthesis.range.mid.toFixed(0)} (weighted from ${fairValueSynthesis.methods.filter(m => m.effectiveWeight > 0).length} methods)`;
+        structuredInsights.bearCase = `Fair value low: $${fairValueSynthesis.range.low.toFixed(0)} (normalized DCF: $${fairValueSynthesis.methods.find(m => m.method === "normalized_dcf")?.perShareValue?.toFixed(0) ?? "N/A"})`;
       }
     } catch (err) {
       console.warn(`Warning: structured insights extraction failed: ${err}`);
@@ -423,11 +456,16 @@ ${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.va
       facts.latestQuarterlyFiling?.accession,
     ].filter(Boolean).join(",");
 
-    // Map gate status to legacy status for DB compatibility
-    const dbStatus = gate.status === "WITHHOLD_ALL" ? "withheld"
-      : gate.status === "PUBLISH_FACTS_ONLY" ? "published_with_warnings"
-      : gate.status === "PUBLISH_WITH_WARNINGS" ? "published_with_warnings"
-      : "published";
+    // Map effective status to DB field
+    // The value gate may upgrade PUBLISH_FACTS_ONLY to PUBLISH_FACTS_PLUS_VALUE
+    const effectiveStatus = gate.status === "WITHHOLD_ALL" ? "WITHHOLD_ALL"
+      : valueGate.valuePublishable ? "PUBLISH_FACTS_PLUS_VALUE"
+      : gate.status;
+
+    const dbStatus = effectiveStatus === "WITHHOLD_ALL" ? "withheld"
+      : effectiveStatus === "PUBLISH_FACTS_PLUS_VALUE" ? "published"
+      : effectiveStatus === "PUBLISH_FULL" ? "published"
+      : "published_with_warnings";
 
     await db.insert(stockValuations).values({
       ticker: upperTicker,
