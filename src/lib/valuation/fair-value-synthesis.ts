@@ -74,10 +74,10 @@ export interface ValueGateDecision {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_WEIGHTS = {
-  normalized_dcf: 0.45,
-  reverse_dcf: 0.20,
-  relative_valuation: 0.25,
-  self_history: 0.10,
+  normalized_dcf: 0.55,
+  reverse_dcf: 0, // Excluded from midpoint — circular (derives from market price). Kept as diagnostic.
+  relative_valuation: 0.30,
+  self_history: 0.15,
 };
 
 // ---------------------------------------------------------------------------
@@ -98,11 +98,11 @@ function computeValuationConfidence(
   // Peer set quality
   if (peerQuality === "medium") {
     confidence -= 0.15;
-    reasons.push("Peer set quality is medium (few clean pure-play peers)");
+    reasons.push("Peer set quality is medium — few clean pure-play peers, curated snapshots rather than live pipeline data, conglomerate adjustments required");
   }
   if (peerQuality === "weak") {
     confidence -= 0.25;
-    reasons.push("Peer set quality is weak (limited comparable companies)");
+    reasons.push("Peer set quality is weak — limited comparable companies with significant data limitations");
   }
 
   // Cycle divergence (current margins vs historical)
@@ -249,10 +249,10 @@ export function synthesizeFairValue(opts: {
     mid += m.perShareValue! * m.effectiveWeight;
   }
 
-  // Compute range from method spread + DCF sensitivity
-  const values = validMethods.map(m => m.perShareValue!);
-  const minMethod = Math.min(...values);
-  const maxMethod = Math.max(...values);
+  // Compute range from contributing method spread + DCF sensitivity
+  const contributingValues = validMethods.filter(m => m.weight > 0).map(m => m.perShareValue!);
+  const minMethod = contributingValues.length > 0 ? Math.min(...contributingValues) : mid;
+  const maxMethod = contributingValues.length > 0 ? Math.max(...contributingValues) : mid;
 
   // Use DCF sensitivity grid for additional range info
   let dcfLow = dcfValue ?? mid;
@@ -272,12 +272,15 @@ export function synthesizeFairValue(opts: {
   const high = Math.max(maxMethod, dcfHigh, selfHigh) * 1.05;
   const rangeWidth = mid > 0 ? (high - low) / mid : 999;
 
-  // Primary method disagreement
-  const primaryMethods = validMethods.filter(m => m.method === "normalized_dcf" || m.method === "reverse_dcf");
+  // Method disagreement — compare contributing methods (those with weight > 0)
+  const contributingMethods = validMethods.filter(m => m.weight > 0 && m.perShareValue !== null);
   let primaryDisagreement = 0;
-  if (primaryMethods.length === 2 && primaryMethods[0].perShareValue && primaryMethods[1].perShareValue) {
-    const avg = (primaryMethods[0].perShareValue + primaryMethods[1].perShareValue) / 2;
-    primaryDisagreement = avg > 0 ? Math.abs(primaryMethods[0].perShareValue - primaryMethods[1].perShareValue) / avg : 0;
+  if (contributingMethods.length >= 2) {
+    const vals = contributingMethods.map(m => m.perShareValue!);
+    const maxVal = Math.max(...vals);
+    const minVal = Math.min(...vals);
+    const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+    primaryDisagreement = avg > 0 ? (maxVal - minVal) / avg : 0;
   }
 
   // Peer quality assessment

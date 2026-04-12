@@ -86,7 +86,7 @@ const MU_PEER_REGISTRY: PeerRegistry = {
       name: "Samsung Electronics",
       role: "memory_primary_conglomerate",
       publicDataUsable: true,
-      qualityPenalty: 0.35, // Conglomerate discount — memory is ~60% of operating profit
+      qualityPenalty: 0.45, // Conglomerate discount — memory is ~60% of operating profit
       notes: "Memory is dominant but mixed with foundry, mobile, display. Use with conglomerate penalty.",
       curatedMultiples: {
         asOf: "2026-04-12",
@@ -241,6 +241,18 @@ export function computeRelativeValuation(
   if (registry.primaryPeers.length === 0) confidence -= 0.3;
   const avgPenalty = allPeers.reduce((s, p) => s + p.qualityPenalty, 0) / allPeers.length;
   confidence -= avgPenalty * 0.5;
+
+  // Penalty for curated-only multiples (not live pipeline-derived)
+  const allCurated = allPeers.every(p => p.curatedMultiples !== undefined);
+  if (allCurated) {
+    confidence -= 0.15;
+  }
+
+  // Cap at 0.65 when all peers use curated snapshots
+  if (allCurated) {
+    confidence = Math.min(confidence, 0.65);
+  }
+
   confidence = Math.max(0, Math.min(1, confidence));
 
   return {

@@ -105,6 +105,77 @@ function buildFallbackSensitivityFactors(facts: CanonicalFacts, model: Financial
   return factors;
 }
 
+function buildDeterministicRisks(
+  facts: CanonicalFacts,
+  model: FinancialModelOutputs,
+  valuation: ValuationOutputs
+): { label: string; detail: string }[] {
+  const risks: { label: string; detail: string; severity: number }[] = [];
+
+  // Cycle risks
+  if (model.cycleState === "peak" || model.cycleState === "above_mid") {
+    const latestGM = facts.latestQuarterGrossMargin.value;
+    const avgGM = facts.fiveYearAvgGrossMargin.value;
+    const ratio = latestGM && avgGM && avgGM > 0 ? latestGM / avgGM : null;
+    risks.push({
+      label: "Peak Cycle Risk",
+      detail: `Operating at cyclical peak with current gross margin ${latestGM ? (latestGM * 100).toFixed(1) + "%" : "N/A"}${ratio ? ` (${ratio.toFixed(1)}x the 5Y average of ${avgGM ? (avgGM * 100).toFixed(1) + "%" : "N/A"})` : ""}. Historical precedent shows these margins are not sustainable through the full cycle.`,
+      severity: 1,
+    });
+  }
+
+  // Margin reversion
+  const latestOM = facts.latestQuarterOperatingMargin.value;
+  const avgOM = facts.fiveYearAvgOperatingMargin.value;
+  if (latestOM && avgOM && avgOM > 0 && latestOM / avgOM > 1.5) {
+    risks.push({
+      label: "Margin Reversion Risk",
+      detail: `Current operating margin of ${(latestOM * 100).toFixed(1)}% is ${(latestOM / avgOM).toFixed(1)}x the 5Y average of ${(avgOM * 100).toFixed(1)}%. Mean reversion to historical levels would reduce earnings by approximately ${((1 - avgOM / latestOM) * 100).toFixed(0)}%.`,
+      severity: 2,
+    });
+  }
+
+  // Valuation uncertainty
+  if (valuation.confidenceScore < 0.5) {
+    risks.push({
+      label: "High Valuation Uncertainty",
+      detail: `Valuation confidence is ${(valuation.confidenceScore * 100).toFixed(0)}%. Multiple valuation methods produce divergent estimates, making the fair value midpoint unreliable as a precise target.`,
+      severity: 3,
+    });
+  }
+
+  // Capital intensity
+  if (model.capexIntensity !== null && model.capexIntensity > 0.25) {
+    risks.push({
+      label: "Capital Intensity",
+      detail: `Capex intensity of ${(model.capexIntensity * 100).toFixed(1)}% of revenue requires continuous heavy investment to maintain competitiveness. This constrains free cash flow and increases operating leverage during downturns.`,
+      severity: 4,
+    });
+  }
+
+  // Cyclical industry
+  if (facts.sector.toLowerCase().includes("semiconductor") || facts.industry.toLowerCase().includes("semiconductor")) {
+    risks.push({
+      label: "Semiconductor Cyclicality",
+      detail: "The memory semiconductor industry is characterized by extreme supply-demand cycles driven by capacity investment, inventory fluctuations, and technology transitions. Revenue and margins can swing dramatically between cycle peaks and troughs.",
+      severity: 5,
+    });
+  }
+
+  // Leverage risk
+  if (model.debtToEquity !== null && model.debtToEquity > 0.5) {
+    risks.push({
+      label: "Leverage Exposure",
+      detail: `Debt-to-equity ratio of ${model.debtToEquity.toFixed(2)} amplifies both upside and downside through cycles. In a downturn, debt servicing constrains flexibility.`,
+      severity: 6,
+    });
+  }
+
+  // Sort by severity, cap at 7
+  risks.sort((a, b) => a.severity - b.severity);
+  return risks.slice(0, 7).map(r => ({ label: r.label, detail: r.detail }));
+}
+
 async function buildStructuredInsights(
   facts: CanonicalFacts,
   model: FinancialModelOutputs,
@@ -188,7 +259,7 @@ Do not give investment advice. Return ONLY valid JSON.`,
     bullCase: valuation.scenarios ? `$${valuation.scenarios.bull.perShareValue.toFixed(2)}: ${valuation.scenarios.bull.assumptions}` : "Not computed",
     baseCase: valuation.scenarios ? `$${valuation.scenarios.base.perShareValue.toFixed(2)}: ${valuation.scenarios.base.assumptions}` : "Not computed",
     bearCase: valuation.scenarios ? `$${valuation.scenarios.bear.perShareValue.toFixed(2)}: ${valuation.scenarios.bear.assumptions}` : "Not computed",
-    keyRisks: qa.issues.filter(i => i.severity !== "low").map(i => ({ label: i.location, detail: i.error })).slice(0, 5),
+    keyRisks: buildDeterministicRisks(facts, model, valuation),
     keyDrivers,
     sensitivityFactors: valuation.dcf?.sensitivityGrid
       ? [`WACC sensitivity: ${valuation.dcf.sensitivityGrid.map(s => `$${s.perShareValue.toFixed(0)} at ${(s.wacc * 100).toFixed(1)}%`).join(", ")}`]
@@ -392,6 +463,21 @@ ${redTeam}
 QA REPORT (${qaReport.issues.length} issues, gate: ${gate.status})
 ${qaReport.issues.length === 0 ? "All fact checks passed." : qaReport.issues.map(i => `[${i.severity.toUpperCase()}] ${i.location}: ${i.error} (correct: ${i.correctValue})`).join("\n")}
 ${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.valuationGateFailures.map(f => `- ${f}`).join("\n")}` : ""}`;
+
+    // RENDER-001: Report-gate consistency assertion
+    if (valueGate.valuePublishable) {
+      const renderChecks = [
+        { label: "FAIR VALUE ASSESSMENT header", test: researchDocument.includes("FAIR VALUE ASSESSMENT") },
+        { label: "Fair value range", test: /Fair Value Range:.*\$[\d.]+/.test(researchDocument) },
+        { label: "Valuation label", test: /Label:\s*(CHEAP|FAIR|EXPENSIVE|DEEP_CHEAP|DEEP_EXPENSIVE)/.test(researchDocument) },
+        { label: "Confidence rating", test: /Confidence:\s*(HIGH|MEDIUM|LOW)/.test(researchDocument) },
+        { label: "Confidence reason", test: researchDocument.includes("- ") && /extreme cycle|range is wide|disagree|history/.test(researchDocument) },
+      ];
+      const failures = renderChecks.filter(c => !c.test);
+      if (failures.length > 0) {
+        console.error(`RENDER-001 FAIL: Value gate says PUBLISH but report is missing: ${failures.map(f => f.label).join(", ")}`);
+      }
+    }
 
     // Stage 6: Build structured insights
     report(6, "running");

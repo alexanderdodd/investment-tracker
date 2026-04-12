@@ -1,0 +1,14 @@
+{
+  "iteration": 11,
+  "artifacts": [
+    "generated-report.md",
+    "evaluation-scorecard.md",
+    "iteration-changes.md",
+    "run-manifest.json",
+    "formula-traces.json",
+    "peer-registry.json",
+    "fair-value-synthesis.json",
+    "valuation-methods.json",
+    "artifact-inventory.json"
+  ]
+}
