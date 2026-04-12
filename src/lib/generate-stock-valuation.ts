@@ -333,6 +333,7 @@ Do not give investment advice. Return ONLY valid JSON.`,
       : "DCF could not be computed (negative or missing FCF).",
     multiplesSummary: `Trailing P/E: ${valuation.multiples.current.pe?.toFixed(1) ?? "N/A"}x. EV/EBITDA: ${valuation.multiples.current.evEbitda?.toFixed(1) ?? "N/A"}x. EV/Revenue: ${valuation.multiples.current.evRevenue?.toFixed(1) ?? "N/A"}x.`,
     peerComparison: "Peer comparison based on competitors identified in the company's 10-K filing.",
+    peerDetails: [],
     bullCase: valuation.scenarios ? `$${valuation.scenarios.bull.perShareValue.toFixed(2)}: ${valuation.scenarios.bull.assumptions}` : "Not computed",
     baseCase: valuation.scenarios ? `$${valuation.scenarios.base.perShareValue.toFixed(2)}: ${valuation.scenarios.base.assumptions}` : "Not computed",
     bearCase: valuation.scenarios ? `$${valuation.scenarios.bear.perShareValue.toFixed(2)}: ${valuation.scenarios.bear.assumptions}` : "Not computed",
@@ -609,6 +610,17 @@ ${gate.valuationGateFailures.length > 0 ? `\nValuation gate failures:\n${gate.va
         structuredInsights.peerComparison = usableCount > 0
           ? `${dynamicPeerRegistry.peers.length} peers identified (${qualityTier} quality): ${peerNames.join(", ")}. ${usableCount} with comparable multiples data.`
           : `${dynamicPeerRegistry.peers.length} peers identified: ${peerNames.join(", ")}. Limited multiples data available for comparison.`;
+        structuredInsights.peerDetails = dynamicPeerRegistry.peers.map(p => ({
+          ticker: p.ticker,
+          companyName: p.companyName,
+          role: p.role,
+          qualityScore: p.qualityScore,
+          marketCap: p.multiples.marketCap,
+          trailingPe: p.multiples.trailingPe,
+          priceToBook: p.multiples.priceToBook,
+          evToEbitda: p.multiples.evToEbitda,
+          evToRevenue: p.multiples.evToRevenue,
+        }));
       }
 
       // Enforce leak prevention based on effective gate status
