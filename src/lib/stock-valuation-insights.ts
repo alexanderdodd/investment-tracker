@@ -35,6 +35,17 @@ export interface StockValuationInsights {
   dcfSummary: string;
   multiplesSummary: string;
   peerComparison: string;
+  peerDetails: {
+    ticker: string;
+    companyName: string;
+    role: "primary" | "secondary";
+    qualityScore: number;
+    marketCap: number | null;
+    trailingPe: number | null;
+    priceToBook: number | null;
+    evToEbitda: number | null;
+    evToRevenue: number | null;
+  }[];
 
   // Risk & scenarios
   bullCase: string;
@@ -105,7 +116,7 @@ export function parseStockValuationInsights(raw: unknown): StockValuationInsight
   }
 
   // Ensure array fields are arrays
-  for (const key of ["keyRisks", "keyDrivers", "sensitivityFactors", "catalysts", "confidenceChecklist"] as const) {
+  for (const key of ["keyRisks", "keyDrivers", "sensitivityFactors", "catalysts", "confidenceChecklist", "peerDetails"] as const) {
     if (!Array.isArray(sanitized[key])) {
       sanitized[key] = [];
     }
