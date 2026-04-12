@@ -20,6 +20,7 @@ This bundle defines the next phase of the stock valuation workflow:
 
 - `14-key-risks-specification.md` — Deterministic key risk derivation
 - `15-iteration-10-expert-fixes.md` — Expert review fixes: report consistency, reverse DCF removal, peer calibration
+- `18-range-tightening.md` — Midpoint-anchored range with outlier dampening (target: <30% of midpoint)
 
 ## Safety posture
 
