@@ -53,21 +53,22 @@ export default function StockPage() {
   }, [ticker]);
 
   // Load latest valuation summary (lightweight — just for the header)
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`/api/stocks/${ticker}/valuation`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.valuation?.structuredInsights) {
-            setInsights(parseStockValuationInsights(data.valuation.structuredInsights));
-            setHasValuation(true);
-          }
+  const refreshInsights = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/stocks/${ticker}/valuation`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.valuation?.structuredInsights) {
+          setInsights(parseStockValuationInsights(data.valuation.structuredInsights));
+          setHasValuation(true);
         }
-      } catch { /* ignore */ }
-    }
-    load();
+      }
+    } catch { /* ignore */ }
   }, [ticker]);
+
+  useEffect(() => {
+    refreshInsights();
+  }, [refreshInsights]);
 
   const dayChange = livePrice?.previousClose
     ? ((livePrice.price - livePrice.previousClose) / livePrice.previousClose) * 100
@@ -155,7 +156,7 @@ export default function StockPage() {
           <StockOverviewTab ticker={ticker} sector={insights?.sector} />
         )}
         {tab === "valuation" && (
-          <StockValuationView ticker={ticker} />
+          <StockValuationView ticker={ticker} onReportGenerated={refreshInsights} />
         )}
       </div>
     </div>

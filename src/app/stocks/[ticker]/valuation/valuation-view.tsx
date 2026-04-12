@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   type StockValuationInsights,
   parseStockValuationInsights,
@@ -198,7 +198,7 @@ function ProgressPanel({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function StockValuationView({ ticker }: { ticker: string }) {
+export function StockValuationView({ ticker, onReportGenerated }: { ticker: string; onReportGenerated?: () => void }) {
   const [insights, setInsights] = useState<StockValuationInsights | null>(null);
   const [researchDoc, setResearchDoc] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
@@ -210,6 +210,20 @@ export function StockValuationView({ ticker }: { ticker: string }) {
   const [showHistory, setShowHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: string; generatedAt: string; verdict: string | null; confidence: string | null; intrinsicValue: string | number | null; status: string }[]>([]);
+  const [showScorecard, setShowScorecard] = useState(false);
+  const scorecardRef = useRef<HTMLSpanElement>(null);
+
+  // Close scorecard on click outside
+  useEffect(() => {
+    if (!showScorecard) return;
+    const handler = (e: MouseEvent) => {
+      if (scorecardRef.current && !scorecardRef.current.contains(e.target as Node)) {
+        setShowScorecard(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showScorecard]);
 
   const loadValuation = useCallback(async () => {
     try {
@@ -316,6 +330,7 @@ export function StockValuationView({ ticker }: { ticker: string }) {
     } finally {
       setGenerating(false);
       loadHistory(); // Refresh history after generation
+      onReportGenerated?.(); // Refresh parent header badges
     }
   };
 
@@ -404,31 +419,37 @@ export function StockValuationView({ ticker }: { ticker: string }) {
             );
           })()}
           {insights.confidence && insights.confidence !== "N/A" && (
-            <span className="relative group">
-              <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}>
+            <span className="relative" ref={scorecardRef}>
+              <button
+                type="button"
+                onClick={() => setShowScorecard(v => !v)}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-help ${confidenceColor(insights.confidence)}`}
+              >
                 {insights.confidence} confidence
                 <svg className="h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                 </svg>
-              </span>
-              <span className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                <span className="mb-2 block font-semibold text-zinc-900 dark:text-zinc-100">Confidence scorecard</span>
-                {insights.confidenceChecklist && insights.confidenceChecklist.length > 0 ? (
-                  <span className="block space-y-1.5">
-                    {(insights.confidenceChecklist as { label: string; passed: boolean; detail: string }[]).map((item, i) => (
-                      <span key={i} className="flex items-start gap-2 block">
-                        <span className={`mt-0.5 flex-shrink-0 text-sm ${item.passed ? "text-green-500" : "text-red-400"}`}>
-                          {item.passed ? "\u2713" : "\u2717"}
+              </button>
+              {showScorecard && (
+                <span className="absolute left-0 top-full z-50 mt-2 w-96 rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 shadow-lg dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  <span className="mb-2 block font-semibold text-zinc-900 dark:text-zinc-100">Confidence scorecard</span>
+                  {insights.confidenceChecklist && insights.confidenceChecklist.length > 0 ? (
+                    <span className="block space-y-1.5">
+                      {(insights.confidenceChecklist as { label: string; passed: boolean; detail: string }[]).map((item, i) => (
+                        <span key={i} className="flex items-start gap-2 block">
+                          <span className={`mt-0.5 flex-shrink-0 text-sm ${item.passed ? "text-green-500" : "text-red-400"}`}>
+                            {item.passed ? "\u2713" : "\u2717"}
+                          </span>
+                          <span className="block">
+                            <span className={`font-medium ${item.passed ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-900 dark:text-zinc-100"}`}>{item.label}</span>
+                            <span className="block text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">{item.detail}</span>
+                          </span>
                         </span>
-                        <span className="block">
-                          <span className={`font-medium ${item.passed ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-900 dark:text-zinc-100"}`}>{item.label}</span>
-                          <span className="block text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">{item.detail}</span>
-                        </span>
-                      </span>
-                    ))}
-                  </span>
-                ) : null}
-              </span>
+                      ))}
+                    </span>
+                  ) : null}
+                </span>
+              )}
             </span>
           )}
           {generatedAt && (
