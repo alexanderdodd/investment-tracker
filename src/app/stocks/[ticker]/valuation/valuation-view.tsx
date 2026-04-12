@@ -407,20 +407,36 @@ export function StockValuationView({ ticker }: { ticker: string }) {
               </span>
               {insights.currentPrice && insights.intrinsicValue && (() => {
                 const price = Number(insights.currentPrice);
-                const fv = Number(insights.intrinsicValue);
-                const low = Number(insights.fairValueLow) || fv * 0.7;
-                const high = Number(insights.fairValueHigh) || fv * 1.3;
-                const pctDiff = fv > 0 ? Math.abs((price - fv) / fv * 100) : 0;
-                const above = price > fv;
+                const mid = Number(insights.intrinsicValue);
+                const low = Number(insights.fairValueLow) || mid * 0.7;
+                const high = Number(insights.fairValueHigh) || mid * 1.3;
+                const inRange = price >= low && price <= high;
+                const aboveRange = price > high;
+                const belowRange = price < low;
+                const pctAbove = high > 0 ? ((price - high) / high * 100) : 0;
+                const pctBelow = low > 0 ? ((low - price) / low * 100) : 0;
                 return (
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Trading at <span className="font-medium text-zinc-700 dark:text-zinc-200">${price.toFixed(2)}</span>
-                    {" — "}
-                    <span className={`font-medium ${above ? "text-red-500 dark:text-red-400" : "text-green-500 dark:text-green-400"}`}>
-                      {pctDiff.toFixed(0)}% {above ? "above" : "below"}
-                    </span>
-                    {" "}
-                    ${fv.toFixed(0)} est. fair value
+                    {aboveRange ? (
+                      <>
+                        <span className="font-medium text-red-500 dark:text-red-400">
+                          {pctAbove.toFixed(0)}% above
+                        </span>
+                        {" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})
+                      </>
+                    ) : belowRange ? (
+                      <>
+                        <span className="font-medium text-green-500 dark:text-green-400">
+                          {pctBelow.toFixed(0)}% below
+                        </span>
+                        {" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium text-blue-500 dark:text-blue-400">Within</span>
+                        {" "}fair value range (${low.toFixed(0)} – ${high.toFixed(0)})
+                      </>
+                    )}
                   </span>
                 );
               })()}
