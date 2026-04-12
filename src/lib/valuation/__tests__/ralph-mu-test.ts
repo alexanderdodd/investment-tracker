@@ -100,11 +100,12 @@ async function runRalphTest() {
   results.push({
     ruleId: "SHARES-001",
     severity: "HIGH",
-    status: sharesActual !== null && Math.abs(sharesActual - sharesExpected) < sharesExpected * 0.01 ? "PASS" : "FAIL",
+    // vNext: exact integer match for frozen golden fixture share count
+    status: sharesActual !== null && sharesActual === sharesExpected ? "PASS" : "FAIL",
     field: "shares.point_in_time",
     expected: sharesExpected,
     actual: sharesActual,
-    message: `Shares: got ${sharesActual?.toLocaleString() ?? "NULL"}, expected ${sharesExpected.toLocaleString()}`,
+    message: `Shares: got ${sharesActual?.toLocaleString() ?? "NULL"}, expected ${sharesExpected.toLocaleString()} (exact match required)`,
   });
 
   // --- Derived Metrics ---
@@ -124,6 +125,32 @@ async function runRalphTest() {
     expected: 5,
     actual: historyCount,
     message: `Annual history: ${historyCount} years (need ≥5 for cyclical normalization)`,
+  });
+
+  // --- 5Y Averages (vNext: MU-HIST-001, MU-HIST-002) ---
+  // Tolerance: 0.01 percentage point per vNext spec
+  const avgGM = facts.fiveYearAvgGrossMargin.value;
+  const expectedAvgGM = g.fiveYearAvgGrossMargin;
+  results.push({
+    ruleId: "HIST-004a",
+    severity: "HIGH",
+    status: avgGM !== null && Math.abs(avgGM - expectedAvgGM) < 0.001 ? "PASS" : "FAIL",
+    field: "annual_history.5y_avg_gm",
+    expected: expectedAvgGM,
+    actual: avgGM,
+    message: `5Y avg GM: got ${avgGM !== null ? (avgGM * 100).toFixed(2) + "%" : "NULL"}, expected ${(expectedAvgGM * 100).toFixed(2)}% (±0.01pp)`,
+  });
+
+  const avgOM = facts.fiveYearAvgOperatingMargin.value;
+  const expectedAvgOM = g.fiveYearAvgOperatingMargin;
+  results.push({
+    ruleId: "HIST-004b",
+    severity: "HIGH",
+    status: avgOM !== null && Math.abs(avgOM - expectedAvgOM) < 0.001 ? "PASS" : "FAIL",
+    field: "annual_history.5y_avg_om",
+    expected: expectedAvgOM,
+    actual: avgOM,
+    message: `5Y avg OM: got ${avgOM !== null ? (avgOM * 100).toFixed(2) + "%" : "NULL"}, expected ${(expectedAvgOM * 100).toFixed(2)}% (±0.01pp)`,
   });
 
   // --- Report ---

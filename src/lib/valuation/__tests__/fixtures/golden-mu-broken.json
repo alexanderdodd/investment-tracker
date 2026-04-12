@@ -1,0 +1,12 @@
+{
+  "description": "Intentionally broken Micron fixture for negative-control testing (NEG-001)",
+  "purpose": "Proves that corrupted inputs produce WITHHOLD_ALL and diagnostic-only output",
+  "baseFixture": "golden-mu.json",
+  "corruptions": [
+    "latestQuarterlyFiling set to null (missing 10-Q)",
+    "sharesOutstanding set to 0",
+    "ttmRevenue set to null"
+  ],
+  "expectedGateState": "WITHHOLD_ALL",
+  "expectedBehavior": "diagnostic-only artifact, no facts-only or valuation report"
+}

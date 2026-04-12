@@ -99,7 +99,9 @@ const TOTAL_EQUITY_TAGS = ["StockholdersEquity", "StockholdersEquityIncludingPor
 const GOODWILL_TAGS = ["Goodwill"];
 const INVENTORY_TAGS = ["InventoryNet"];
 const RECEIVABLES_TAGS = ["AccountsReceivableNetCurrent", "AccountsReceivableNet", "ReceivablesNetCurrent"];
-const SHARES_OUTSTANDING_TAGS = ["CommonStockSharesOutstanding", "EntityCommonStockSharesOutstanding"];
+// Prefer DEI cover-page shares (exact integer from filing cover) over
+// us-gaap balance-sheet shares (often rounded to millions)
+const SHARES_OUTSTANDING_TAGS = ["EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"];
 const DILUTED_SHARES_TAGS = ["WeightedAverageNumberOfDilutedSharesOutstanding"];
 
 // ---------------------------------------------------------------------------
