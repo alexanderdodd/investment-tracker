@@ -358,6 +358,21 @@ async function getYahooCrumb(): Promise<{
   return { crumb, cookie };
 }
 
+// Yahoo Finance uses its own sector names; map them to GICS sectors used in our app
+const YAHOO_TO_GICS: Record<string, string> = {
+  "Technology": "Technology",
+  "Financial Services": "Financials",
+  "Consumer Cyclical": "Consumer Discretionary",
+  "Consumer Defensive": "Consumer Staples",
+  "Healthcare": "Health Care",
+  "Communication Services": "Communication Services",
+  "Industrials": "Industrials",
+  "Energy": "Energy",
+  "Utilities": "Utilities",
+  "Basic Materials": "Materials",
+  "Real Estate": "Real Estate",
+};
+
 export async function fetchYahooSector(ticker: string): Promise<string | null> {
   const { crumb, cookie } = await getYahooCrumb();
   const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=assetProfile&crumb=${encodeURIComponent(crumb)}`;
@@ -367,7 +382,8 @@ export async function fetchYahooSector(ticker: string): Promise<string | null> {
   if (!res.ok) return null;
   const json = await res.json();
   const sector = json.quoteSummary?.result?.[0]?.assetProfile?.sector;
-  return typeof sector === "string" ? sector : null;
+  if (typeof sector !== "string") return null;
+  return YAHOO_TO_GICS[sector] ?? sector;
 }
 
 export async function fetchStockMetrics(
