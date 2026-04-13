@@ -5,6 +5,7 @@ import {
   primaryKey,
   integer,
   jsonb,
+  real,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -63,6 +64,111 @@ export const verificationTokens = pgTable(
     }),
   ]
 );
+
+// ─── GICS Taxonomy ─────────────────────────────────────────────────────────
+
+export const gicsSectors = pgTable("gics_sector", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull().unique(),
+  etfTicker: text("etf_ticker"),
+  description: text("description"),
+});
+
+export const gicsIndustryGroups = pgTable("gics_industry_group", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  sectorId: text("sector_id")
+    .notNull()
+    .references(() => gicsSectors.id),
+});
+
+export const gicsIndustries = pgTable("gics_industry", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  sectorId: text("sector_id")
+    .notNull()
+    .references(() => gicsSectors.id),
+  industryGroupId: text("industry_group_id")
+    .notNull()
+    .references(() => gicsIndustryGroups.id),
+  description: text("description"),
+  valueFrameworkId: text("value_framework_id"),
+  cyclicalityClass: text("cyclicality_class")
+    .$type<"defensive" | "mixed" | "cyclical" | "hyper_cyclical">()
+    .notNull()
+    .default("mixed"),
+});
+
+export const gicsSubIndustries = pgTable("gics_sub_industry", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  industryId: text("industry_id")
+    .notNull()
+    .references(() => gicsIndustries.id),
+});
+
+export const stockClassifications = pgTable("stock_classification", {
+  ticker: text("ticker").primaryKey(),
+  companyName: text("company_name").notNull(),
+  sectorId: text("sector_id")
+    .notNull()
+    .references(() => gicsSectors.id),
+  industryGroupId: text("industry_group_id")
+    .notNull()
+    .references(() => gicsIndustryGroups.id),
+  industryId: text("industry_id")
+    .notNull()
+    .references(() => gicsIndustries.id),
+  subIndustryId: text("sub_industry_id")
+    .references(() => gicsSubIndustries.id),
+  source: text("source")
+    .$type<"gics_feed" | "curated_override">()
+    .notNull()
+    .default("curated_override"),
+  asOf: timestamp("as_of", { mode: "date" }).notNull().defaultNow(),
+});
+
+// ─── Industry Analytics ────────────────────────────────────────────────────
+
+export const industryAnalytics = pgTable("industry_analytics", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  industryId: text("industry_id")
+    .notNull()
+    .references(() => gicsIndustries.id),
+  sectorId: text("sector_id")
+    .notNull()
+    .references(() => gicsSectors.id),
+  universeSize: integer("universe_size").notNull().default(0),
+  medianForwardPe: real("median_forward_pe"),
+  medianEvEbitda: real("median_ev_ebitda"),
+  medianPriceToBook: real("median_price_to_book"),
+  medianOperatingMargin: real("median_operating_margin"),
+  medianRoic: real("median_roic"),
+  medianRoe: real("median_roe"),
+  medianFcfYield: real("median_fcf_yield"),
+  valuationState: text("valuation_state")
+    .$type<"cheap" | "fair" | "expensive" | "withheld">()
+    .notNull()
+    .default("withheld"),
+  industryState: text("industry_state")
+    .$type<"ATTRACTIVE_HUNTING_GROUND" | "MIXED" | "OVERHEATED" | "LOW_VISIBILITY" | "WITHHELD">()
+    .notNull()
+    .default("WITHHELD"),
+  candidateCountValidated: integer("candidate_count_validated").notNull().default(0),
+  candidateCountPossible: integer("candidate_count_possible").notNull().default(0),
+  candidateCountTrapRisk: integer("candidate_count_trap_risk").notNull().default(0),
+  confidence: real("confidence").notNull().default(0),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// ─── Existing tables ───────────────────────────────────────────────────────
 
 export const sectorEmergingLeaders = pgTable("sector_emerging_leader", {
   id: text("id")

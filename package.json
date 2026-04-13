@@ -15,7 +15,8 @@
     "generate-analysis": "npx tsx scripts/generate-analysis.ts",
     "distill-summaries": "npx tsx scripts/distill-summaries.ts",
     "distill-insights": "npx tsx scripts/distill-insights.ts",
-    "value-stock": "npx tsx scripts/value-stock.ts"
+    "value-stock": "npx tsx scripts/value-stock.ts",
+    "seed-gics": "npx tsx scripts/seed-gics.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",

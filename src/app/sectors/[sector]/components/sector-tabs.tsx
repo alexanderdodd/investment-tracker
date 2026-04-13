@@ -1,9 +1,10 @@
 "use client";
 
-export type TabId = "overview" | "learn" | "position" | "holdings";
+export type TabId = "overview" | "learn" | "position" | "holdings" | "industries";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
+  { id: "industries", label: "Industries" },
   { id: "learn", label: "Learn" },
   { id: "position", label: "Position" },
   { id: "holdings", label: "Holdings" },

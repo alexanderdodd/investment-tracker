@@ -10,6 +10,7 @@ import TabOverview from "./components/tab-overview";
 import TabLearn from "./components/tab-learn";
 import TabPosition from "./components/tab-position";
 import { TabHoldings } from "./components/tab-holdings";
+import { TabIndustries } from "./components/tab-industries";
 import EvidenceDrawer from "./components/evidence-drawer";
 
 interface Holding {
@@ -177,6 +178,10 @@ export function SectorDetail({
 
         {activeTab === "position" && (
           <TabPosition insights={insights} />
+        )}
+
+        {activeTab === "industries" && (
+          <TabIndustries sector={sector} slug={slug} />
         )}
 
         {activeTab === "holdings" && (
