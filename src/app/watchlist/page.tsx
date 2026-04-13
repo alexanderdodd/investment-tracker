@@ -8,7 +8,6 @@ import {
   METRIC_INFO,
   formatMetric,
   rateMetric,
-  getDescription,
 } from "@/lib/stock-metrics";
 import { MetricTooltip } from "@/components/metric-tooltip";
 
@@ -123,9 +122,13 @@ export default function WatchlistPage() {
                     <th className="px-3 py-3 font-medium">Sector</th>
                     {METRIC_COLUMNS.map((key) => {
                       const info = METRIC_INFO[key];
+                      // Strip sector-specific thresholds from tooltip since watchlist has mixed sectors
+                      const desc = typeof info.description === "string"
+                        ? info.description
+                        : info.label;
                       return (
                         <th key={key} className="px-3 py-3 text-right font-medium">
-                          <MetricTooltip label={info.label} description={getDescription(info, "")}>
+                          <MetricTooltip label={info.label} description={desc}>
                             <span className="text-xs">{info.short}</span>
                           </MetricTooltip>
                         </th>

@@ -358,6 +358,18 @@ async function getYahooCrumb(): Promise<{
   return { crumb, cookie };
 }
 
+export async function fetchYahooSector(ticker: string): Promise<string | null> {
+  const { crumb, cookie } = await getYahooCrumb();
+  const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=assetProfile&crumb=${encodeURIComponent(crumb)}`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, Cookie: cookie },
+  });
+  if (!res.ok) return null;
+  const json = await res.json();
+  const sector = json.quoteSummary?.result?.[0]?.assetProfile?.sector;
+  return typeof sector === "string" ? sector : null;
+}
+
 export async function fetchStockMetrics(
   tickers: string[]
 ): Promise<Record<string, StockMetrics>> {

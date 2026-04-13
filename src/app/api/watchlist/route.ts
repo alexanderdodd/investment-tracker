@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { getDb } from "@/db/index";
 import { watchlistItems } from "@/db/schema";
+import { fetchYahooSector } from "@/lib/stock-metrics";
 
 export async function GET() {
   const session = await auth();
@@ -53,11 +54,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "already_watching" });
   }
 
+  // Fetch GICS sector from Yahoo Finance for accurate sector classification
+  const resolvedSector = await fetchYahooSector(ticker.toUpperCase()).catch(() => null);
+
   await db.insert(watchlistItems).values({
     userId: session.user.id,
     ticker: ticker.toUpperCase(),
     companyName: companyName || null,
-    sector: sector || null,
+    sector: resolvedSector || sector || null,
   });
 
   return NextResponse.json({ status: "added" });
