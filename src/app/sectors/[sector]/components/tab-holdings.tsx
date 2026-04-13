@@ -27,6 +27,15 @@ interface EmergingLeader {
   rank: number;
 }
 
+interface ValueStock {
+  ticker: string;
+  companyName: string;
+  rationale: string;
+  metricLabel: string;
+  metricValue: string;
+  rank: number;
+}
+
 const FINANCIAL_SECTORS = ["Financials"];
 const GROWTH_SECTORS = ["Technology", "Communication Services"];
 
@@ -77,6 +86,8 @@ export function TabHoldings({
   holdings,
   leaders,
   leadersGeneratedAt,
+  valueStocks,
+  valueStocksGeneratedAt,
   metrics,
 }: {
   sector: string;
@@ -84,6 +95,8 @@ export function TabHoldings({
   holdings: Holding[] | null;
   leaders: EmergingLeader[] | null;
   leadersGeneratedAt: string | null;
+  valueStocks: ValueStock[] | null;
+  valueStocksGeneratedAt: string | null;
   metrics: Record<string, StockMetrics>;
 }) {
   const metricColumns = useMemo(() => getMetricColumns(sector), [sector]);
@@ -236,6 +249,92 @@ export function TabHoldings({
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 Generated{" "}
                 {new Date(leadersGeneratedAt).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Value Stocks */}
+      {valueStocks && valueStocks.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Potential Value Stocks
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Undervalued opportunities based on key {sector} sector metrics
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead>
+                <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                  <th className="px-4 py-3 font-medium">#</th>
+                  <th className="px-4 py-3 font-medium">Company</th>
+                  <th className="px-3 py-3 font-medium">Value Thesis</th>
+                  {metricColumns.map((key) => {
+                    const info = METRIC_INFO[key];
+                    return (
+                      <th key={key} className="px-3 py-3 text-right font-medium">
+                        <MetricTooltip label={info.label} description={getDescription(info, sector)}>
+                          <span className="text-xs">{info.short}</span>
+                        </MetricTooltip>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {valueStocks.map((stock) => {
+                  const m = metrics[stock.ticker];
+                  return (
+                    <tr
+                      key={stock.ticker}
+                      className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
+                    >
+                      <td className="px-4 py-3 text-sm text-zinc-400">{stock.rank}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                              {stock.ticker}
+                              <PreProfitBadge metrics={m} />
+                            </p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">{stock.companyName}</p>
+                          </div>
+                          <Link
+                            href={`/stocks/${stock.ticker}/valuation`}
+                            className="shrink-0 rounded-md border border-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+                            title={`Deep valuation analysis for ${stock.ticker}`}
+                          >
+                            Value
+                          </Link>
+                        </div>
+                      </td>
+                      <td className="max-w-xs px-3 py-3 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                        {stock.rationale}
+                      </td>
+                      {metricColumns.map((key) => (
+                        <MetricCell key={key} value={m?.[key] ?? null} metricKey={key} sector={sector} />
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {valueStocksGeneratedAt && (
+            <div className="border-t border-zinc-100 px-6 py-3 dark:border-zinc-800">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                Generated{" "}
+                {new Date(valueStocksGeneratedAt).toLocaleDateString("en-US", {
                   month: "long",
                   day: "numeric",
                   year: "numeric",

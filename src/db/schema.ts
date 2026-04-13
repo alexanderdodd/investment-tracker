@@ -78,6 +78,20 @@ export const sectorEmergingLeaders = pgTable("sector_emerging_leader", {
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const sectorValueStocks = pgTable("sector_value_stock", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  sector: text("sector").notNull(),
+  ticker: text("ticker").notNull(),
+  companyName: text("company_name").notNull(),
+  rationale: text("rationale").notNull(),
+  metricLabel: text("metric_label").notNull(),
+  metricValue: text("metric_value").notNull(),
+  rank: integer("rank").notNull(),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const sectorReports = pgTable("sector_report", {
   id: text("id")
     .primaryKey()

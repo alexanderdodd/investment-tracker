@@ -27,6 +27,15 @@ interface EmergingLeader {
   rank: number;
 }
 
+interface ValueStock {
+  ticker: string;
+  companyName: string;
+  rationale: string;
+  metricLabel: string;
+  metricValue: string;
+  rank: number;
+}
+
 export function SectorDetail({
   sector,
   ticker,
@@ -48,6 +57,8 @@ export function SectorDetail({
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [leaders, setLeaders] = useState<EmergingLeader[]>([]);
   const [leadersGeneratedAt, setLeadersGeneratedAt] = useState<string | null>(null);
+  const [valueStocks, setValueStocks] = useState<ValueStock[]>([]);
+  const [valueStocksGeneratedAt, setValueStocksGeneratedAt] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Record<string, StockMetrics>>({});
   const [insights, setInsights] = useState<SectorInsights | null>(null);
   const [userSummary, setUserSummary] = useState<string | null>(null);
@@ -70,8 +81,11 @@ export function SectorDetail({
       fetch(`/api/sectors/${slug}/emerging-leaders`)
         .then((r) => r.json())
         .catch(() => ({ leaders: [] })),
+      fetch(`/api/sectors/${slug}/value-stocks`)
+        .then((r) => r.json())
+        .catch(() => ({ valueStocks: [] })),
     ])
-      .then(([priceData, holdingsData, analysisData, leadersData]) => {
+      .then(([priceData, holdingsData, analysisData, leadersData, valueStocksData]) => {
         if (priceData?.sector) {
           setSectorPrices(priceData.sector.prices ?? []);
           setSectorChanges(priceData.sector.changes ?? null);
@@ -92,6 +106,11 @@ export function SectorDetail({
           setLeaders(leadersData.leaders);
           setLeadersGeneratedAt(leadersData.generatedAt ?? null);
         }
+
+        if (valueStocksData?.valueStocks?.length) {
+          setValueStocks(valueStocksData.valueStocks);
+          setValueStocksGeneratedAt(valueStocksData.generatedAt ?? null);
+        }
       })
       .finally(() => setLoading(false));
   }, [slug]);
@@ -100,14 +119,15 @@ export function SectorDetail({
   useEffect(() => {
     const holdingTickers = holdings.map((h) => h.symbol);
     const leaderTickers = leaders.map((l) => l.ticker);
-    const allTickers = [...new Set([...holdingTickers, ...leaderTickers])];
+    const valueTickers = valueStocks.map((v) => v.ticker);
+    const allTickers = [...new Set([...holdingTickers, ...leaderTickers, ...valueTickers])];
     if (allTickers.length === 0) return;
 
     fetch(`/api/stocks/metrics?tickers=${allTickers.join(",")}`)
       .then((r) => r.json())
       .then((data) => setMetrics(data))
       .catch(() => {});
-  }, [holdings, leaders]);
+  }, [holdings, leaders, valueStocks]);
 
   if (loading) {
     return (
@@ -166,6 +186,8 @@ export function SectorDetail({
             holdings={holdings.length > 0 ? holdings : null}
             leaders={leaders.length > 0 ? leaders : null}
             leadersGeneratedAt={leadersGeneratedAt}
+            valueStocks={valueStocks.length > 0 ? valueStocks : null}
+            valueStocksGeneratedAt={valueStocksGeneratedAt}
             metrics={metrics}
           />
         )}
