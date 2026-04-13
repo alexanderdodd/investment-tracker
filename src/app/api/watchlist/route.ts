@@ -4,6 +4,9 @@ import { auth } from "@/auth";
 import { getDb } from "@/db/index";
 import { watchlistItems } from "@/db/schema";
 import { fetchYahooSector } from "@/lib/stock-metrics";
+import { SECTORS } from "@/lib/sectors";
+
+const VALID_SECTORS = new Set<string>(SECTORS);
 
 export async function GET() {
   const session = await auth();
@@ -17,6 +20,25 @@ export async function GET() {
     .from(watchlistItems)
     .where(eq(watchlistItems.userId, session.user.id))
     .orderBy(desc(watchlistItems.addedAt));
+
+  // Backfill items with missing or non-GICS sector
+  const toFix = items.filter((i) => !i.sector || !VALID_SECTORS.has(i.sector));
+  if (toFix.length > 0) {
+    await Promise.all(
+      toFix.map(async (item) => {
+        try {
+          const sector = await fetchYahooSector(item.ticker);
+          if (sector) {
+            item.sector = sector;
+            await db
+              .update(watchlistItems)
+              .set({ sector })
+              .where(eq(watchlistItems.id, item.id));
+          }
+        } catch { /* ignore — will retry next load */ }
+      })
+    );
+  }
 
   return NextResponse.json({
     items: items.map((item) => ({
