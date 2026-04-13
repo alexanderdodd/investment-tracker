@@ -28,6 +28,11 @@ export default function StockPage() {
   const [hasValuation, setHasValuation] = useState(false);
   const [watching, setWatching] = useState(false);
   const [watchLoading, setWatchLoading] = useState(false);
+  const [classification, setClassification] = useState<{
+    sectorName: string;
+    industryName: string;
+    industrySlug: string;
+  } | null>(null);
 
   // Load live price
   useEffect(() => {
@@ -62,6 +67,16 @@ export default function StockPage() {
   useEffect(() => {
     refreshInsights();
   }, [refreshInsights]);
+
+  // Load GICS classification
+  useEffect(() => {
+    fetch(`/api/stocks/${ticker}/classification`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.classification) setClassification(data.classification);
+      })
+      .catch(() => {});
+  }, [ticker]);
 
   // Load watchlist status
   useEffect(() => {
@@ -144,10 +159,20 @@ export default function StockPage() {
           </div>
           <div className="mt-1 flex items-center gap-3">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{ticker}</p>
-            {insights?.sector && (
-              <Link href={`/sectors/${sectorToSlug(insights.sector)}`} className="text-xs text-zinc-400 hover:text-blue-500 dark:text-zinc-500 dark:hover:text-blue-400 transition-colors">
-                {insights.sector} →
-              </Link>
+            {(classification || insights?.sector) && (
+              <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                <Link href={`/sectors/${sectorToSlug(classification?.sectorName ?? insights?.sector ?? "")}`} className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
+                  {classification?.sectorName ?? insights?.sector}
+                </Link>
+                {classification?.industryName && (
+                  <>
+                    <span>/</span>
+                    <Link href={`/industries/${classification.industrySlug}`} className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
+                      {classification.industryName}
+                    </Link>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>

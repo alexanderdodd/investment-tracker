@@ -5,6 +5,8 @@ import { generateAllReports } from "../src/lib/generate-reports";
 import { generateAllEmergingLeaders } from "../src/lib/generate-emerging-leaders";
 import { generateAllValueStocks } from "../src/lib/generate-value-stocks";
 import { generateAllSectorAnalyses } from "../src/lib/generate-sector-analysis";
+import { generateIndustryAnalytics } from "../src/lib/generate-industry-analytics";
+import { generateValueCandidates } from "../src/lib/generate-value-candidates";
 import { SECTORS, type SectorName } from "../src/lib/sectors";
 
 function parseSectorArg(): SectorName | undefined {
@@ -53,12 +55,31 @@ async function main() {
     console.log(`  ${r.success ? "✓" : "✗"} ${r.sector}${r.error ? `: ${r.error}` : ""}`);
   }
 
+  console.log("\nGenerating industry analytics...\n");
+
+  const industryResults = await generateIndustryAnalytics(sector);
+  for (const r of industryResults) {
+    console.log(`  ${r.success ? "✓" : "✗"} ${r.sector} / ${r.industry}${r.error ? `: ${r.error}` : ""}`);
+  }
+
+  console.log("\nGenerating value candidates...\n");
+
+  const candidateResults = await generateValueCandidates(sector);
+  const candidatesByClass: Record<string, number> = {};
+  for (const r of candidateResults) {
+    candidatesByClass[r.candidateClass] = (candidatesByClass[r.candidateClass] ?? 0) + 1;
+  }
+  for (const [cls, count] of Object.entries(candidatesByClass)) {
+    console.log(`  ${cls}: ${count}`);
+  }
+
   const reportOk = reportResults.filter((r) => r.success).length;
   const leaderOk = leaderResults.filter((r) => r.success).length;
   const valueOk = valueResults.filter((r) => r.success).length;
   const analysisOk = analysisResults.filter((r) => r.success).length;
+  const industryOk = industryResults.filter((r) => r.success).length;
   const total = sector ? 1 : 11;
-  console.log(`\nDone! Reports: ${reportOk}/11. Leaders: ${leaderOk}/11. Value: ${valueOk}/11. Analyses: ${analysisOk}/${total}.`);
+  console.log(`\nDone! Reports: ${reportOk}/11. Leaders: ${leaderOk}/11. Value: ${valueOk}/11. Analyses: ${analysisOk}/${total}. Industries: ${industryOk}. Candidates: ${candidateResults.length}.`);
 }
 
 main().catch((err) => {
