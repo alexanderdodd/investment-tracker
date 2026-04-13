@@ -167,8 +167,17 @@ async function runIndTests(db: ReturnType<typeof getDb>) {
     if (c.candidateClass === "value_trap_risk") candidatesByIndustry[key].trap++;
   }
 
-  let countMismatches = 0;
+  // Only check latest analytics row per industry
+  const latestByIndustry: Record<string, typeof analytics[0]> = {};
   for (const a of analytics) {
+    const existing = latestByIndustry[a.industryId];
+    if (!existing || a.generatedAt > existing.generatedAt) {
+      latestByIndustry[a.industryId] = a;
+    }
+  }
+
+  let countMismatches = 0;
+  for (const a of Object.values(latestByIndustry)) {
     const actual = candidatesByIndustry[a.industryId];
     if (actual) {
       if (a.candidateCountValidated !== actual.validated ||

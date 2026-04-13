@@ -138,6 +138,50 @@ async function main() {
     { ticker: "GOOGL", companyName: "Alphabet Inc.", sectorCode: "50", igCode: "5020", indCode: "502030" },
     { ticker: "PINS", companyName: "Pinterest, Inc.", sectorCode: "50", igCode: "5020", indCode: "502030" },
     { ticker: "SNAP", companyName: "Snap Inc.", sectorCode: "50", igCode: "5020", indCode: "502030" },
+
+    // Energy — Oil, Gas & Fuels
+    { ticker: "XOM", companyName: "Exxon Mobil Corporation", sectorCode: "10", igCode: "1010", indCode: "101010" },
+    { ticker: "CVX", companyName: "Chevron Corporation", sectorCode: "10", igCode: "1010", indCode: "101010" },
+    { ticker: "COP", companyName: "ConocoPhillips", sectorCode: "10", igCode: "1010", indCode: "101010" },
+    // Energy — Equipment & Services
+    { ticker: "SLB", companyName: "Schlumberger Limited", sectorCode: "10", igCode: "1010", indCode: "101020" },
+    { ticker: "HAL", companyName: "Halliburton Company", sectorCode: "10", igCode: "1010", indCode: "101020" },
+
+    // Materials — Chemicals
+    { ticker: "LIN", companyName: "Linde plc", sectorCode: "15", igCode: "1510", indCode: "151010" },
+    { ticker: "APD", companyName: "Air Products and Chemicals, Inc.", sectorCode: "15", igCode: "1510", indCode: "151010" },
+    { ticker: "DD", companyName: "DuPont de Nemours, Inc.", sectorCode: "15", igCode: "1510", indCode: "151010" },
+    // Materials — Metals & Mining
+    { ticker: "NEM", companyName: "Newmont Corporation", sectorCode: "15", igCode: "1510", indCode: "151040" },
+    { ticker: "FCX", companyName: "Freeport-McMoRan Inc.", sectorCode: "15", igCode: "1510", indCode: "151040" },
+
+    // Consumer Discretionary — Hotels, Restaurants & Leisure
+    { ticker: "MCD", companyName: "McDonald's Corporation", sectorCode: "25", igCode: "2530", indCode: "253010" },
+    { ticker: "SBUX", companyName: "Starbucks Corporation", sectorCode: "25", igCode: "2530", indCode: "253010" },
+    // Consumer Discretionary — Broadline Retail
+    { ticker: "AMZN", companyName: "Amazon.com, Inc.", sectorCode: "25", igCode: "2550", indCode: "255030" },
+    // Consumer Discretionary — Automobiles
+    { ticker: "TSLA", companyName: "Tesla, Inc.", sectorCode: "25", igCode: "2510", indCode: "251020" },
+    { ticker: "GM", companyName: "General Motors Company", sectorCode: "25", igCode: "2510", indCode: "251020" },
+
+    // Health Care — Pharmaceuticals
+    { ticker: "JNJ", companyName: "Johnson & Johnson", sectorCode: "35", igCode: "3520", indCode: "352020" },
+    { ticker: "LLY", companyName: "Eli Lilly and Company", sectorCode: "35", igCode: "3520", indCode: "352020" },
+    { ticker: "PFE", companyName: "Pfizer Inc.", sectorCode: "35", igCode: "3520", indCode: "352020" },
+    { ticker: "MRK", companyName: "Merck & Co., Inc.", sectorCode: "35", igCode: "3520", indCode: "352020" },
+    // Health Care — Equipment & Supplies
+    { ticker: "ABT", companyName: "Abbott Laboratories", sectorCode: "35", igCode: "3510", indCode: "351010" },
+    { ticker: "MDT", companyName: "Medtronic plc", sectorCode: "35", igCode: "3510", indCode: "351010" },
+
+    // Utilities — Electric Utilities
+    { ticker: "NEE", companyName: "NextEra Energy, Inc.", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "DUK", companyName: "Duke Energy Corporation", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "SO", companyName: "The Southern Company", sectorCode: "55", igCode: "5510", indCode: "551010" },
+
+    // Real Estate — Specialized REITs
+    { ticker: "AMT", companyName: "American Tower Corporation", sectorCode: "60", igCode: "6010", indCode: "601080" },
+    { ticker: "PLD", companyName: "Prologis, Inc.", sectorCode: "60", igCode: "6010", indCode: "601025" },
+    { ticker: "EQIX", companyName: "Equinix, Inc.", sectorCode: "60", igCode: "6010", indCode: "601080" },
   ];
 
   console.log("Seeding benchmark stock classifications...");
