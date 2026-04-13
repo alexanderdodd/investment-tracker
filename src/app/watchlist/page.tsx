@@ -8,6 +8,7 @@ import {
   METRIC_INFO,
   formatMetric,
   rateMetric,
+  getDescription,
 } from "@/lib/stock-metrics";
 import { MetricTooltip } from "@/components/metric-tooltip";
 
@@ -49,7 +50,9 @@ function MetricCell({
   const rating = rateMetric(metricKey, value, sector);
   return (
     <td className={`px-3 py-3 text-right text-sm font-medium ${RATING_COLORS[rating]}`}>
-      {formatMetric(value, info.format)}
+      <MetricTooltip label={info.label} description={getDescription(info, sector)}>
+        <span>{formatMetric(value, info.format)}</span>
+      </MetricTooltip>
     </td>
   );
 }
@@ -120,20 +123,11 @@ export default function WatchlistPage() {
                   <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                     <th className="px-4 py-3 font-medium">Stock</th>
                     <th className="px-3 py-3 font-medium">Sector</th>
-                    {METRIC_COLUMNS.map((key) => {
-                      const info = METRIC_INFO[key];
-                      // Strip sector-specific thresholds from tooltip since watchlist has mixed sectors
-                      const desc = typeof info.description === "string"
-                        ? info.description
-                        : info.label;
-                      return (
-                        <th key={key} className="px-3 py-3 text-right font-medium">
-                          <MetricTooltip label={info.label} description={desc}>
-                            <span className="text-xs">{info.short}</span>
-                          </MetricTooltip>
-                        </th>
-                      );
-                    })}
+                    {METRIC_COLUMNS.map((key) => (
+                      <th key={key} className="px-3 py-3 text-right font-medium">
+                        <span className="text-xs">{METRIC_INFO[key].short}</span>
+                      </th>
+                    ))}
                     <th className="px-3 py-3 text-right font-medium">Added</th>
                     <th className="px-3 py-3" />
                   </tr>
