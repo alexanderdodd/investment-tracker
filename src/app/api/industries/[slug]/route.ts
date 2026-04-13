@@ -7,7 +7,9 @@ import {
   gicsSectors,
   stockClassifications,
   industryAnalytics,
+  valueCandidates,
 } from "@/db/schema";
+import { desc } from "drizzle-orm";
 
 export async function GET(
   _request: Request,
@@ -64,6 +66,13 @@ export async function GET(
     }
   }
 
+  // Get candidates for this industry
+  const candidates = await db
+    .select()
+    .from(valueCandidates)
+    .where(eq(valueCandidates.industryId, industry.id))
+    .orderBy(desc(valueCandidates.score));
+
   return NextResponse.json({
     industry: {
       id: industry.id,
@@ -96,5 +105,18 @@ export async function GET(
           generatedAt: latestAnalytics.generatedAt.toISOString(),
         }
       : null,
+    candidates: candidates.map((c) => ({
+      ticker: c.ticker,
+      companyName: c.companyName,
+      candidateClass: c.candidateClass,
+      valuationLabel: c.valuationLabel,
+      valuationConfidence: c.valuationConfidence,
+      peerQuality: c.peerQuality,
+      trapRisk: c.trapRisk,
+      score: c.score,
+      reasonsFor: c.reasonsFor,
+      reasonsAgainst: c.reasonsAgainst,
+      hasValuationArtifact: c.hasValuationArtifact === 1,
+    })),
   });
 }

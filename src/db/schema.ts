@@ -168,6 +168,42 @@ export const industryAnalytics = pgTable("industry_analytics", {
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ─── Value Candidates ──────────────────────────────────────────────────────
+
+export const valueCandidates = pgTable("value_candidate", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  ticker: text("ticker").notNull(),
+  companyName: text("company_name").notNull(),
+  sectorId: text("sector_id")
+    .notNull()
+    .references(() => gicsSectors.id),
+  industryId: text("industry_id")
+    .notNull()
+    .references(() => gicsIndustries.id),
+  candidateClass: text("candidate_class")
+    .$type<"validated_value" | "possible_value" | "value_trap_risk" | "not_attractive">()
+    .notNull(),
+  valuationLabel: text("valuation_label")
+    .$type<"cheap" | "fair" | "expensive" | "withheld">()
+    .notNull(),
+  valuationConfidence: real("valuation_confidence"),
+  peerQuality: text("peer_quality")
+    .$type<"strong" | "medium" | "weak" | "unknown">()
+    .notNull()
+    .default("unknown"),
+  trapRisk: text("trap_risk")
+    .$type<"LOW" | "MEDIUM" | "HIGH">()
+    .notNull()
+    .default("MEDIUM"),
+  score: real("score").notNull().default(0),
+  reasonsFor: jsonb("reasons_for").$type<string[]>().notNull().default([]),
+  reasonsAgainst: jsonb("reasons_against").$type<string[]>().notNull().default([]),
+  hasValuationArtifact: integer("has_valuation_artifact").notNull().default(0),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // ─── Existing tables ───────────────────────────────────────────────────────
 
 export const sectorEmergingLeaders = pgTable("sector_emerging_leader", {

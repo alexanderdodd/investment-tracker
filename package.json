@@ -17,7 +17,8 @@
     "distill-insights": "npx tsx scripts/distill-insights.ts",
     "value-stock": "npx tsx scripts/value-stock.ts",
     "seed-gics": "npx tsx scripts/seed-gics.ts",
-    "generate-industry-analytics": "npx tsx scripts/generate-industry-analytics.ts"
+    "generate-industry-analytics": "npx tsx scripts/generate-industry-analytics.ts",
+    "generate-candidates": "npx tsx scripts/generate-value-candidates.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",

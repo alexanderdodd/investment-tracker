@@ -31,6 +31,20 @@ interface IndustryStock {
   companyName: string;
 }
 
+interface CandidateData {
+  ticker: string;
+  companyName: string;
+  candidateClass: string;
+  valuationLabel: string;
+  valuationConfidence: number | null;
+  peerQuality: string;
+  trapRisk: string;
+  score: number;
+  reasonsFor: string[];
+  reasonsAgainst: string[];
+  hasValuationArtifact: boolean;
+}
+
 interface IndustryAnalyticsData {
   valuationState: string;
   industryState: string;
@@ -97,6 +111,44 @@ const STATE_BADGES: Record<string, { label: string; className: string }> = {
   },
 };
 
+const CANDIDATE_BADGES: Record<string, { label: string; className: string }> = {
+  validated_value: {
+    label: "Validated Value",
+    className: "border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  },
+  possible_value: {
+    label: "Possible Value",
+    className: "border-blue-500/40 bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  },
+  value_trap_risk: {
+    label: "Trap Risk",
+    className: "border-red-500/40 bg-red-500/15 text-red-600 dark:text-red-400",
+  },
+  not_attractive: {
+    label: "Not Attractive",
+    className: "border-zinc-300/40 bg-zinc-300/10 text-zinc-500 dark:text-zinc-500",
+  },
+};
+
+const VALUATION_BADGES: Record<string, { label: string; className: string }> = {
+  cheap: {
+    label: "Cheap",
+    className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
+  fair: {
+    label: "Fair",
+    className: "border-blue-500/40 bg-blue-500/10 text-blue-500 dark:text-blue-400",
+  },
+  expensive: {
+    label: "Expensive",
+    className: "border-red-500/40 bg-red-500/10 text-red-500 dark:text-red-400",
+  },
+  withheld: {
+    label: "Withheld",
+    className: "border-zinc-300/40 bg-zinc-300/10 text-zinc-500 dark:text-zinc-500",
+  },
+};
+
 function MetricCell({
   value,
   metricKey,
@@ -124,6 +176,7 @@ export default function IndustryDetailPage() {
   const [industry, setIndustry] = useState<IndustryInfo | null>(null);
   const [stocks, setStocks] = useState<IndustryStock[]>([]);
   const [analytics, setAnalytics] = useState<IndustryAnalyticsData | null>(null);
+  const [candidates, setCandidates] = useState<CandidateData[]>([]);
   const [metrics, setMetrics] = useState<Record<string, StockMetrics>>({});
   const [loading, setLoading] = useState(true);
 
@@ -134,6 +187,7 @@ export default function IndustryDetailPage() {
         setIndustry(data.industry ?? null);
         setStocks(data.stocks ?? []);
         setAnalytics(data.analytics ?? null);
+        setCandidates(data.candidates ?? []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -230,6 +284,80 @@ export default function IndustryDetailPage() {
                 <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{card.value}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Value Candidates */}
+        {candidates.length > 0 && (
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                Value Candidates
+              </h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Stocks evaluated for value potential in this industry
+              </p>
+            </div>
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+              {candidates
+                .filter((c) => c.candidateClass !== "not_attractive")
+                .map((c) => {
+                  const classBadge = CANDIDATE_BADGES[c.candidateClass] ?? CANDIDATE_BADGES.not_attractive;
+                  const valBadge = VALUATION_BADGES[c.valuationLabel] ?? VALUATION_BADGES.withheld;
+                  return (
+                    <div key={c.ticker} className="px-6 py-4">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <Link
+                          href={`/stocks/${c.ticker}/valuation`}
+                          className="text-sm font-semibold text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400 transition-colors"
+                        >
+                          {c.ticker}
+                        </Link>
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {c.companyName}
+                        </span>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${classBadge.className}`}>
+                          {classBadge.label}
+                        </span>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${valBadge.className}`}>
+                          {valBadge.label}
+                        </span>
+                        {c.trapRisk === "HIGH" && (
+                          <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-600 dark:text-red-400">
+                            Trap Risk
+                          </span>
+                        )}
+                        {!c.hasValuationArtifact && (
+                          <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                            No valuation report
+                          </span>
+                        )}
+                        <span className="ml-auto text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                          Score: {c.score}
+                        </span>
+                      </div>
+                      {c.reasonsFor.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-1">
+                          {c.reasonsFor.slice(0, 3).map((r, i) => (
+                            <span key={i} className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                              + {r}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {c.reasonsAgainst.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.reasonsAgainst.slice(0, 3).map((r, i) => (
+                            <span key={i} className="text-[10px] text-red-500 dark:text-red-400">
+                              - {r}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         )}
 
