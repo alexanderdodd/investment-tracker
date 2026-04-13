@@ -22,9 +22,15 @@ npm run distill-summaries -- --sector Utilities   # Single sector distill
 npm run distill-insights               # Re-distill structured insights (cheap)
 npm run distill-insights -- --sector Utilities
 npm run value-stock -- --ticker KO     # Deep stock valuation report
+npm run seed-gics                      # Seed GICS taxonomy tables (sectors, industry groups, industries, stocks)
+npm run generate-industry-analytics              # Compute industry analytics from stock metrics
+npm run generate-industry-analytics -- --sector Technology
+npm run generate-candidates                      # Generate value candidates from analytics + valuations
+npm run generate-candidates -- --sector Technology
+npm run validate-industries            # Run 25-rule validation suite for industry feature
 ```
 
-No test framework is configured yet.
+No test framework is configured yet. Use `npm run validate-industries` for industry feature integrity checks.
 
 ## Architecture
 
@@ -38,9 +44,21 @@ No test framework is configured yet.
 
 ### Database (Drizzle ORM + Neon Postgres)
 - `src/db/index.ts` — Lazy-initialized singleton via `getDb()`. Uses `neon-http` driver (serverless-friendly).
-- `src/db/schema.ts` — Drizzle schema. Currently contains NextAuth tables: `users`, `accounts`, `sessions`, `verificationTokens`.
+- `src/db/schema.ts` — Drizzle schema. Tables: NextAuth (`users`, `accounts`, `sessions`, `verificationTokens`), GICS taxonomy (`gics_sector`, `gics_industry_group`, `gics_industry`, `gics_sub_industry`, `stock_classification`), analytics (`industry_analytics`, `value_candidate`), sector data (`sector_report`, `sector_analysis`, `sector_emerging_leader`, `sector_value_stock`), stocks (`stock_valuation`, `watchlist_item`).
 - `drizzle.config.ts` — Drizzle Kit config. Loads `.env.local` via dotenv since Drizzle Kit doesn't auto-load it.
 - New tables go in `src/db/schema.ts`. After changes, run `npm run db:push` (dev) or generate migrations for production.
+
+### GICS Industry Taxonomy
+- `src/lib/gics-taxonomy.ts` — Deterministic GICS taxonomy (11 sectors, 25 industry groups, 76 industries). Single source of truth. LLMs must NOT modify these.
+- `scripts/seed-gics.ts` — Seeds taxonomy + 40 benchmark stock classifications.
+- Industry analytics and value candidates are generated deterministically from Yahoo Finance metrics + stock valuation artifacts. No LLM-generated taxonomy fields.
+
+### Routes
+- `/sectors` — Sector grid overview
+- `/sectors/[sector]` — Sector detail (tabs: Overview, Industries, Learn, Position, Holdings)
+- `/industries/[slug]` — Industry detail with analytics, candidates, and stock metrics
+- `/stocks/[ticker]/valuation` — Stock valuation with industry breadcrumb
+- `/watchlist` — User's watched stocks
 
 ### Environment
 Required vars in `.env.local` (see `.env.example`): `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `OPENROUTER_API_KEY`.
