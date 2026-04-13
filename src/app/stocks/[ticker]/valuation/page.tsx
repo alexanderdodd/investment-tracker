@@ -26,6 +26,8 @@ export default function StockPage() {
   const [livePrice, setLivePrice] = useState<{ price: number; previousClose: number | null } | null>(null);
   const [insights, setInsights] = useState<StockValuationInsights | null>(null);
   const [hasValuation, setHasValuation] = useState(false);
+  const [watching, setWatching] = useState(false);
+  const [watchLoading, setWatchLoading] = useState(false);
 
   // Load live price
   useEffect(() => {
@@ -61,6 +63,36 @@ export default function StockPage() {
     refreshInsights();
   }, [refreshInsights]);
 
+  // Load watchlist status
+  useEffect(() => {
+    fetch(`/api/watchlist/${ticker}`)
+      .then((r) => r.json())
+      .then((data) => setWatching(data.watching))
+      .catch(() => {});
+  }, [ticker]);
+
+  async function toggleWatch() {
+    setWatchLoading(true);
+    try {
+      if (watching) {
+        await fetch(`/api/watchlist/${ticker}`, { method: "DELETE" });
+        setWatching(false);
+      } else {
+        await fetch("/api/watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ticker,
+            companyName: insights?.companyName ?? null,
+            sector: insights?.sector ?? null,
+          }),
+        });
+        setWatching(true);
+      }
+    } catch { /* ignore */ }
+    setWatchLoading(false);
+  }
+
   const dayChange = livePrice?.previousClose
     ? ((livePrice.price - livePrice.previousClose) / livePrice.previousClose) * 100
     : null;
@@ -95,6 +127,20 @@ export default function StockPage() {
                 {insights.verdict}
               </span>
             )}
+            {/* Watch button */}
+            <button
+              onClick={toggleWatch}
+              disabled={watchLoading}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                watching
+                  ? "border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25"
+                  : "border-zinc-300 bg-white text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+              }`}
+              title={watching ? "Remove from watchlist" : "Add to watchlist"}
+            >
+              {watching ? "\u2605" : "\u2606"}
+              {watching ? "Watching" : "Watch"}
+            </button>
           </div>
           <div className="mt-1 flex items-center gap-3">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{ticker}</p>

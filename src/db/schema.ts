@@ -78,6 +78,19 @@ export const sectorEmergingLeaders = pgTable("sector_emerging_leader", {
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const watchlistItems = pgTable("watchlist_item", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  ticker: text("ticker").notNull(),
+  companyName: text("company_name"),
+  sector: text("sector"),
+  addedAt: timestamp("added_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const sectorValueStocks = pgTable("sector_value_stock", {
   id: text("id")
     .primaryKey()

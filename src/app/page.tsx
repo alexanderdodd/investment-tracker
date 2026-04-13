@@ -54,6 +54,20 @@ export default async function Home() {
                   </p>
                 </div>
               </Link>
+              <Link
+                href="/watchlist"
+                className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-6 py-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              >
+                <span className="text-2xl">⭐</span>
+                <div>
+                  <p className="font-medium text-zinc-900 dark:text-zinc-100">
+                    My Watchlist
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Stocks you&apos;re tracking
+                  </p>
+                </div>
+              </Link>
             </nav>
           </div>
         ) : (
