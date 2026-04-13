@@ -2,15 +2,16 @@ import { generateText } from "ai";
 import { openrouter } from "./ai";
 import { getDb } from "../db/index";
 import { sectorReports } from "../db/schema";
-import { SECTORS, SECTOR_ETFS } from "./sectors";
+import { SECTORS, SECTOR_ETFS, type SectorName } from "./sectors";
 import { fetchAllSectorData } from "./sector-data";
 
-export async function generateAllReports() {
+export async function generateAllReports(onlySector?: SectorName) {
   const allData = await fetchAllSectorData();
   const db = getDb();
   const results: { sector: string; success: boolean; error?: string }[] = [];
+  const sectors = onlySector ? [onlySector] : SECTORS;
 
-  for (const sector of SECTORS) {
+  for (const sector of sectors) {
     const ticker = SECTOR_ETFS[sector];
     const data = allData[sector];
 

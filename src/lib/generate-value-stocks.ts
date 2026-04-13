@@ -2,7 +2,7 @@ import { generateText } from "ai";
 import { openrouter } from "./ai";
 import { getDb } from "../db/index";
 import { sectorValueStocks } from "../db/schema";
-import { SECTORS, SECTOR_ETFS } from "./sectors";
+import { SECTORS, SECTOR_ETFS, type SectorName } from "./sectors";
 import { SECTOR_HOLDINGS } from "./sector-holdings";
 
 interface ValueEntry {
@@ -83,11 +83,12 @@ const SECTOR_VALUE_CRITERIA: Record<string, string> = {
 - Strong occupancy rates with below-peer valuation`,
 };
 
-export async function generateAllValueStocks() {
+export async function generateAllValueStocks(onlySector?: SectorName) {
   const db = getDb();
   const results: { sector: string; success: boolean; error?: string }[] = [];
+  const sectors = onlySector ? [onlySector] : SECTORS;
 
-  for (const sector of SECTORS) {
+  for (const sector of sectors) {
     const ticker = SECTOR_ETFS[sector];
     const holdings = SECTOR_HOLDINGS[ticker] ?? [];
     const excludeList = holdings.map((h) => h.symbol).join(", ");

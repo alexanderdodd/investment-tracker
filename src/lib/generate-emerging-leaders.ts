@@ -2,7 +2,7 @@ import { generateText } from "ai";
 import { openrouter } from "./ai";
 import { getDb } from "../db/index";
 import { sectorEmergingLeaders } from "../db/schema";
-import { SECTORS, SECTOR_ETFS } from "./sectors";
+import { SECTORS, SECTOR_ETFS, type SectorName } from "./sectors";
 import { SECTOR_HOLDINGS } from "./sector-holdings";
 
 interface LeaderEntry {
@@ -27,11 +27,12 @@ function parseJsonFromAI(text: string): LeaderEntry[] {
   }));
 }
 
-export async function generateAllEmergingLeaders() {
+export async function generateAllEmergingLeaders(onlySector?: SectorName) {
   const db = getDb();
   const results: { sector: string; success: boolean; error?: string }[] = [];
+  const sectors = onlySector ? [onlySector] : SECTORS;
 
-  for (const sector of SECTORS) {
+  for (const sector of sectors) {
     const ticker = SECTOR_ETFS[sector];
     const holdings = SECTOR_HOLDINGS[ticker] ?? [];
     const excludeList = holdings.map((h) => h.symbol).join(", ");

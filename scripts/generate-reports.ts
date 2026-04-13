@@ -27,21 +27,21 @@ async function main() {
 
   console.log(`Generating sector reports for ${label}...\n`);
 
-  const reportResults = await generateAllReports();
+  const reportResults = await generateAllReports(sector);
   for (const r of reportResults) {
     console.log(`  ${r.success ? "✓" : "✗"} ${r.sector}${r.error ? `: ${r.error}` : ""}`);
   }
 
   console.log("\nGenerating emerging leaders...\n");
 
-  const leaderResults = await generateAllEmergingLeaders();
+  const leaderResults = await generateAllEmergingLeaders(sector);
   for (const r of leaderResults) {
     console.log(`  ${r.success ? "✓" : "✗"} ${r.sector}${r.error ? `: ${r.error}` : ""}`);
   }
 
   console.log("\nGenerating value stocks...\n");
 
-  const valueResults = await generateAllValueStocks();
+  const valueResults = await generateAllValueStocks(sector);
   for (const r of valueResults) {
     console.log(`  ${r.success ? "✓" : "✗"} ${r.sector}${r.error ? `: ${r.error}` : ""}`);
   }
