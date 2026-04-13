@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { sectorToSlug } from "@/lib/sectors";
 
 interface IndustryRow {
   id: string;
