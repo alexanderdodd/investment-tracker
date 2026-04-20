@@ -50,7 +50,7 @@ No test framework is configured yet. Use `npm run validate-industries` for indus
 
 ### GICS Industry Taxonomy
 - `src/lib/gics-taxonomy.ts` — Deterministic GICS taxonomy (11 sectors, 25 industry groups, 76 industries). Single source of truth. LLMs must NOT modify these.
-- `scripts/seed-gics.ts` — Seeds taxonomy + 40 benchmark stock classifications.
+- `scripts/seed-gics.ts` — Seeds taxonomy + 194 benchmark stock classifications (all 76 industries covered).
 - Industry analytics and value candidates are generated deterministically from Yahoo Finance metrics + stock valuation artifacts. No LLM-generated taxonomy fields.
 
 ### Routes
