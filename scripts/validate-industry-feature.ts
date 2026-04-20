@@ -463,10 +463,10 @@ async function runPeerTests(db: ReturnType<typeof getDb>) {
 
   // PEER-IND-003: Peer quality is deterministic
   const nonDeterministic = Object.entries(artifactInsights).filter(
-    ([, ai]) => ai.avgQuality < 0 || ai.avgQuality > 10
+    ([, ai]) => ai.avgQuality < 0 || ai.avgQuality > 1
   );
   test("PEER-IND-003", "Peer Packs",
-    "Peer quality is deterministic (bounded 0-10)",
+    "Peer quality is deterministic (bounded 0-1)",
     "High",
     nonDeterministic.length === 0,
     `${nonDeterministic.length} artifacts with out-of-range peer quality`);
@@ -479,17 +479,16 @@ async function runPeerTests(db: ReturnType<typeof getDb>) {
     validatedNoPeers.length === 0,
     `${validatedNoPeers.length} validated without usable peers`);
 
-  // PEER-IND-005: Weak peers reduce candidate confidence or force possible-value
-  // Check: ALL has artifact with Undervalued+High but 0 peers → should be possible, not validated
-  const allCandidate = candidates.find((c) => c.ticker === "ALL");
-  const allCorrect = !allCandidate || allCandidate.candidateClass !== "validated_value";
+  // PEER-IND-005: No validated candidate has weak/unknown peer quality
+  // General principle: CAND-003 requires medium+ peers for validated status
+  const validatedWeakPeers = validated.filter(
+    (c) => c.peerQuality === "weak" || c.peerQuality === "unknown"
+  );
   test("PEER-IND-005", "Peer Packs",
-    "Weak/missing peers block validated status (ALL benchmark)",
+    "No validated candidate with weak/unknown peer quality",
     "High",
-    allCorrect,
-    allCandidate
-      ? `ALL: ${allCandidate.candidateClass} (peers=${artifactInsights["ALL"]?.peerCount ?? 0})`
-      : "ALL not in candidates");
+    validatedWeakPeers.length === 0,
+    `${validatedWeakPeers.length} validated with weak/unknown peers`);
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────

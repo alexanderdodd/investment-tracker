@@ -65,8 +65,9 @@ function assessPeerQuality(insights: StockValuationInsights | null): PeerQuality
   const primaryPeers = peers.filter((p) => p.role === "primary");
   const avgQuality = peers.reduce((sum, p) => sum + (p.qualityScore ?? 0), 0) / peers.length;
 
-  if (primaryPeers.length >= 2 && avgQuality >= 7) return "strong";
-  if (primaryPeers.length >= 1 && avgQuality >= 5) return "medium";
+  // Quality scores from valuation pipeline are 0-1 scale (not 0-10)
+  if (primaryPeers.length >= 2 && avgQuality >= 0.7) return "strong";
+  if (primaryPeers.length >= 1 && avgQuality >= 0.5) return "medium";
   return "weak";
 }
 
@@ -91,9 +92,16 @@ function assessTrapRisk(
   }
 
   // Very low or negative FCF
+  // Defensive industries (utilities, staples) routinely show negative FCF
+  // due to regulated capex programs — penalize less than cyclical/growth
   if (metrics.freeCashFlow !== null && metrics.freeCashFlow < 0) {
-    riskScore += 2;
-    reasons.push("Negative free cash flow");
+    if (cyclicality === "defensive") {
+      riskScore += 1;
+      reasons.push("Negative free cash flow (common in regulated/capital-intensive industries)");
+    } else {
+      riskScore += 2;
+      reasons.push("Negative free cash flow");
+    }
   }
 
   // Very low ROIC suggests poor capital allocation
