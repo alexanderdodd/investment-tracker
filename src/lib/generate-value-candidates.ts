@@ -140,9 +140,10 @@ function classifyCandidate(
   confidence: number,
   peerQuality: PeerQuality,
   trapRisk: TrapRisk,
-  hasArtifact: boolean
+  hasArtifact: boolean,
+  artifactPublished: boolean
 ): CandidateClass {
-  // CAND-001: validated requires artifact
+  // CAND-001: validated requires published artifact (not withheld)
   // CAND-002: validated requires label != withheld
   // CAND-003: validated requires peer quality >= medium
   // CAND-004: trap risk HIGH blocks validated
@@ -151,12 +152,14 @@ function classifyCandidate(
     confidence >= 0.60 &&
     (peerQuality === "strong" || peerQuality === "medium") &&
     trapRisk !== "HIGH" &&
-    hasArtifact
+    hasArtifact &&
+    artifactPublished
   ) {
     return "validated_value";
   }
 
   // Possible value: cheap or fair, some confidence, not terrible
+  // Withheld artifacts allowed here — preserves signal while capping confidence
   if (
     (valuationLabel === "cheap" || valuationLabel === "fair") &&
     confidence >= 0.40 &&
@@ -308,6 +311,7 @@ export async function generateValueCandidates(onlySector?: SectorName) {
     // Get latest valuation artifacts for all stocks
     const valuationMap: Record<string, StockValuationInsights | null> = {};
     const hasArtifactMap: Record<string, boolean> = {};
+    const artifactPublishedMap: Record<string, boolean> = {};
     for (const stock of allStocks) {
       const valuations = await db
         .select()
@@ -319,9 +323,11 @@ export async function generateValueCandidates(onlySector?: SectorName) {
       if (valuations.length > 0 && valuations[0].structuredInsights) {
         valuationMap[stock.ticker] = parseStockValuationInsights(valuations[0].structuredInsights);
         hasArtifactMap[stock.ticker] = true;
+        artifactPublishedMap[stock.ticker] = valuations[0].status === "published";
       } else {
         valuationMap[stock.ticker] = null;
         hasArtifactMap[stock.ticker] = false;
+        artifactPublishedMap[stock.ticker] = false;
       }
     }
 
@@ -342,6 +348,7 @@ export async function generateValueCandidates(onlySector?: SectorName) {
         const metrics = allMetrics[stock.ticker];
         const insights = valuationMap[stock.ticker];
         const hasArtifact = hasArtifactMap[stock.ticker] ?? false;
+        const artifactPublished = artifactPublishedMap[stock.ticker] ?? false;
 
         // Determine valuation label from artifact or from metrics
         let valuationLabel: ValuationLabel;
@@ -364,7 +371,7 @@ export async function generateValueCandidates(onlySector?: SectorName) {
         // Classify
         let candidateClass: CandidateClass;
         if (eligibleForCandidates) {
-          candidateClass = classifyCandidate(valuationLabel, confidence, peerQuality, trapRisk, hasArtifact);
+          candidateClass = classifyCandidate(valuationLabel, confidence, peerQuality, trapRisk, hasArtifact, artifactPublished);
         } else {
           // In non-eligible industries, force not_attractive or trap_risk
           candidateClass = trapRisk === "HIGH" ? "value_trap_risk" : "not_attractive";
