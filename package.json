@@ -20,7 +20,8 @@
     "generate-industry-analytics": "npx tsx scripts/generate-industry-analytics.ts",
     "generate-candidates": "npx tsx scripts/generate-value-candidates.ts",
     "validate-industries": "npx tsx scripts/validate-industry-feature.ts",
-    "run-industry-screen": "npx tsx scripts/run-industry-screen.ts"
+    "run-industry-screen": "npx tsx scripts/run-industry-screen.ts",
+    "validate-screen": "npx tsx scripts/validate-industry-screen.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",
