@@ -371,6 +371,164 @@ async function main() {
     // Real Estate Management & Development (602010)
     { ticker: "CBRE", companyName: "CBRE Group, Inc.", sectorCode: "60", igCode: "6020", indCode: "602010" },
     { ticker: "JLL", companyName: "Jones Lang LaSalle Incorporated", sectorCode: "60", igCode: "6020", indCode: "602010" },
+
+    // ═══ Expansion: 120 stocks to bring key industries to 8-10+ ═════════════
+
+    // Electric Utilities (551010) — +10
+    { ticker: "AEP", companyName: "American Electric Power Company, Inc.", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "XEL", companyName: "Xcel Energy Inc.", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "EXC", companyName: "Exelon Corporation", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "ED", companyName: "Consolidated Edison, Inc.", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "WEC", companyName: "WEC Energy Group, Inc.", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "ES", companyName: "Eversource Energy", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "PPL", companyName: "PPL Corporation", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "FE", companyName: "FirstEnergy Corp.", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "ETR", companyName: "Entergy Corporation", sectorCode: "55", igCode: "5510", indCode: "551010" },
+    { ticker: "PEG", companyName: "Public Service Enterprise Group Incorporated", sectorCode: "55", igCode: "5510", indCode: "551010" },
+
+    // Diversified Banks (401010) — +2
+    { ticker: "WFC", companyName: "Wells Fargo & Company", sectorCode: "40", igCode: "4010", indCode: "401010" },
+    { ticker: "C", companyName: "Citigroup Inc.", sectorCode: "40", igCode: "4010", indCode: "401010" },
+
+    // Capital Markets (402030) — +6
+    { ticker: "SCHW", companyName: "The Charles Schwab Corporation", sectorCode: "40", igCode: "4020", indCode: "402030" },
+    { ticker: "BLK", companyName: "BlackRock, Inc.", sectorCode: "40", igCode: "4020", indCode: "402030" },
+    { ticker: "ICE", companyName: "Intercontinental Exchange, Inc.", sectorCode: "40", igCode: "4020", indCode: "402030" },
+    { ticker: "CME", companyName: "CME Group Inc.", sectorCode: "40", igCode: "4020", indCode: "402030" },
+    { ticker: "SPGI", companyName: "S&P Global Inc.", sectorCode: "40", igCode: "4020", indCode: "402030" },
+    { ticker: "MCO", companyName: "Moody's Corporation", sectorCode: "40", igCode: "4020", indCode: "402030" },
+
+    // Regional Banks (401020) — +7
+    { ticker: "FITB", companyName: "Fifth Third Bancorp", sectorCode: "40", igCode: "4010", indCode: "401020" },
+    { ticker: "HBAN", companyName: "Huntington Bancshares Incorporated", sectorCode: "40", igCode: "4010", indCode: "401020" },
+    { ticker: "MTB", companyName: "M&T Bank Corporation", sectorCode: "40", igCode: "4010", indCode: "401020" },
+    { ticker: "CFG", companyName: "Citizens Financial Group, Inc.", sectorCode: "40", igCode: "4010", indCode: "401020" },
+    { ticker: "KEY", companyName: "KeyCorp", sectorCode: "40", igCode: "4010", indCode: "401020" },
+    { ticker: "RF", companyName: "Regions Financial Corporation", sectorCode: "40", igCode: "4010", indCode: "401020" },
+    { ticker: "ZION", companyName: "Zions Bancorporation, N.A.", sectorCode: "40", igCode: "4010", indCode: "401020" },
+
+    // Software (451030) — +5
+    { ticker: "INTU", companyName: "Intuit Inc.", sectorCode: "45", igCode: "4510", indCode: "451030" },
+    { ticker: "PLTR", companyName: "Palantir Technologies Inc.", sectorCode: "45", igCode: "4510", indCode: "451030" },
+    { ticker: "PANW", companyName: "Palo Alto Networks, Inc.", sectorCode: "45", igCode: "4510", indCode: "451030" },
+    { ticker: "SNPS", companyName: "Synopsys, Inc.", sectorCode: "45", igCode: "4510", indCode: "451030" },
+    { ticker: "CDNS", companyName: "Cadence Design Systems, Inc.", sectorCode: "45", igCode: "4510", indCode: "451030" },
+
+    // Semiconductors (453010) — +4
+    { ticker: "TXN", companyName: "Texas Instruments Incorporated", sectorCode: "45", igCode: "4530", indCode: "453010" },
+    { ticker: "MRVL", companyName: "Marvell Technology, Inc.", sectorCode: "45", igCode: "4530", indCode: "453010" },
+    { ticker: "KLAC", companyName: "KLA Corporation", sectorCode: "45", igCode: "4530", indCode: "453010" },
+    { ticker: "AMAT", companyName: "Applied Materials, Inc.", sectorCode: "45", igCode: "4530", indCode: "453010" },
+
+    // Pharmaceuticals (352020) — +5
+    { ticker: "ABBV", companyName: "AbbVie Inc.", sectorCode: "35", igCode: "3520", indCode: "352020" },
+    { ticker: "BMY", companyName: "Bristol-Myers Squibb Company", sectorCode: "35", igCode: "3520", indCode: "352020" },
+    { ticker: "ZTS", companyName: "Zoetis Inc.", sectorCode: "35", igCode: "3520", indCode: "352020" },
+    { ticker: "NVO", companyName: "Novo Nordisk A/S", sectorCode: "35", igCode: "3520", indCode: "352020" },
+    { ticker: "AZN", companyName: "AstraZeneca PLC", sectorCode: "35", igCode: "3520", indCode: "352020" },
+
+    // Specialty Retail (255040) — +7
+    { ticker: "TJX", companyName: "The TJX Companies, Inc.", sectorCode: "25", igCode: "2550", indCode: "255040" },
+    { ticker: "ROST", companyName: "Ross Stores, Inc.", sectorCode: "25", igCode: "2550", indCode: "255040" },
+    { ticker: "AZO", companyName: "AutoZone, Inc.", sectorCode: "25", igCode: "2550", indCode: "255040" },
+    { ticker: "AAP", companyName: "Advance Auto Parts, Inc.", sectorCode: "25", igCode: "2550", indCode: "255040" },
+    { ticker: "ULTA", companyName: "Ulta Beauty, Inc.", sectorCode: "25", igCode: "2550", indCode: "255040" },
+    { ticker: "BBY", companyName: "Best Buy Co., Inc.", sectorCode: "25", igCode: "2550", indCode: "255040" },
+    { ticker: "FIVE", companyName: "Five Below, Inc.", sectorCode: "25", igCode: "2550", indCode: "255040" },
+
+    // Oil, Gas & Consumable Fuels (101010) — +6
+    { ticker: "EOG", companyName: "EOG Resources, Inc.", sectorCode: "10", igCode: "1010", indCode: "101010" },
+    { ticker: "DVN", companyName: "Devon Energy Corporation", sectorCode: "10", igCode: "1010", indCode: "101010" },
+    { ticker: "PSX", companyName: "Phillips 66", sectorCode: "10", igCode: "1010", indCode: "101010" },
+    { ticker: "VLO", companyName: "Valero Energy Corporation", sectorCode: "10", igCode: "1010", indCode: "101010" },
+    { ticker: "MPC", companyName: "Marathon Petroleum Corporation", sectorCode: "10", igCode: "1010", indCode: "101010" },
+    { ticker: "OXY", companyName: "Occidental Petroleum Corporation", sectorCode: "10", igCode: "1010", indCode: "101010" },
+
+    // Aerospace & Defense (201010) — +6
+    { ticker: "GD", companyName: "General Dynamics Corporation", sectorCode: "20", igCode: "2010", indCode: "201010" },
+    { ticker: "NOC", companyName: "Northrop Grumman Corporation", sectorCode: "20", igCode: "2010", indCode: "201010" },
+    { ticker: "BA", companyName: "The Boeing Company", sectorCode: "20", igCode: "2010", indCode: "201010" },
+    { ticker: "HII", companyName: "Huntington Ingalls Industries, Inc.", sectorCode: "20", igCode: "2010", indCode: "201010" },
+    { ticker: "TDG", companyName: "TransDigm Group Incorporated", sectorCode: "20", igCode: "2010", indCode: "201010" },
+    { ticker: "HWM", companyName: "Howmet Aerospace Inc.", sectorCode: "20", igCode: "2010", indCode: "201010" },
+
+    // Machinery (201060) — +6
+    { ticker: "ITW", companyName: "Illinois Tool Works Inc.", sectorCode: "20", igCode: "2010", indCode: "201060" },
+    { ticker: "PH", companyName: "Parker-Hannifin Corporation", sectorCode: "20", igCode: "2010", indCode: "201060" },
+    { ticker: "DOV", companyName: "Dover Corporation", sectorCode: "20", igCode: "2010", indCode: "201060" },
+    { ticker: "CMI", companyName: "Cummins Inc.", sectorCode: "20", igCode: "2010", indCode: "201060" },
+    { ticker: "SWK", companyName: "Stanley Black & Decker, Inc.", sectorCode: "20", igCode: "2010", indCode: "201060" },
+    { ticker: "OTIS", companyName: "Otis Worldwide Corporation", sectorCode: "20", igCode: "2010", indCode: "201060" },
+
+    // Health Care Equipment & Supplies (351010) — +6
+    { ticker: "SYK", companyName: "Stryker Corporation", sectorCode: "35", igCode: "3510", indCode: "351010" },
+    { ticker: "BSX", companyName: "Boston Scientific Corporation", sectorCode: "35", igCode: "3510", indCode: "351010" },
+    { ticker: "ISRG", companyName: "Intuitive Surgical, Inc.", sectorCode: "35", igCode: "3510", indCode: "351010" },
+    { ticker: "EW", companyName: "Edwards Lifesciences Corporation", sectorCode: "35", igCode: "3510", indCode: "351010" },
+    { ticker: "BAX", companyName: "Baxter International Inc.", sectorCode: "35", igCode: "3510", indCode: "351010" },
+    { ticker: "ZBH", companyName: "Zimmer Biomet Holdings, Inc.", sectorCode: "35", igCode: "3510", indCode: "351010" },
+
+    // Biotechnology (352010) — +4
+    { ticker: "REGN", companyName: "Regeneron Pharmaceuticals, Inc.", sectorCode: "35", igCode: "3520", indCode: "352010" },
+    { ticker: "MRNA", companyName: "Moderna, Inc.", sectorCode: "35", igCode: "3520", indCode: "352010" },
+    { ticker: "BIIB", companyName: "Biogen Inc.", sectorCode: "35", igCode: "3520", indCode: "352010" },
+    { ticker: "ALNY", companyName: "Alnylam Pharmaceuticals, Inc.", sectorCode: "35", igCode: "3520", indCode: "352010" },
+
+    // IT Services (451020) — +6
+    { ticker: "FI", companyName: "Fiserv, Inc.", sectorCode: "45", igCode: "4510", indCode: "451020" },
+    { ticker: "FIS", companyName: "Fidelity National Information Services, Inc.", sectorCode: "45", igCode: "4510", indCode: "451020" },
+    { ticker: "GPN", companyName: "Global Payments Inc.", sectorCode: "45", igCode: "4510", indCode: "451020" },
+    { ticker: "EPAM", companyName: "EPAM Systems, Inc.", sectorCode: "45", igCode: "4510", indCode: "451020" },
+    { ticker: "GDDY", companyName: "GoDaddy Inc.", sectorCode: "45", igCode: "4510", indCode: "451020" },
+    { ticker: "DXC", companyName: "DXC Technology Company", sectorCode: "45", igCode: "4510", indCode: "451020" },
+
+    // Broadline Retail (255030) — +5
+    { ticker: "DLTR", companyName: "Dollar Tree, Inc.", sectorCode: "25", igCode: "2550", indCode: "255030" },
+    { ticker: "BJ", companyName: "BJ's Wholesale Club Holdings, Inc.", sectorCode: "25", igCode: "2550", indCode: "255030" },
+    { ticker: "M", companyName: "Macy's, Inc.", sectorCode: "25", igCode: "2550", indCode: "255030" },
+    { ticker: "KSS", companyName: "Kohl's Corporation", sectorCode: "25", igCode: "2550", indCode: "255030" },
+    { ticker: "JWN", companyName: "Nordstrom, Inc.", sectorCode: "25", igCode: "2550", indCode: "255030" },
+
+    // Consumer Staples Distribution & Retail (301010) — +3
+    { ticker: "CASY", companyName: "Casey's General Stores, Inc.", sectorCode: "30", igCode: "3010", indCode: "301010" },
+    { ticker: "GO", companyName: "Grocery Outlet Holding Corp.", sectorCode: "30", igCode: "3010", indCode: "301010" },
+    { ticker: "SFM", companyName: "Sprouts Farmers Market, Inc.", sectorCode: "30", igCode: "3010", indCode: "301010" },
+
+    // Chemicals (151010) — +6
+    { ticker: "SHW", companyName: "The Sherwin-Williams Company", sectorCode: "15", igCode: "1510", indCode: "151010" },
+    { ticker: "ECL", companyName: "Ecolab Inc.", sectorCode: "15", igCode: "1510", indCode: "151010" },
+    { ticker: "PPG", companyName: "PPG Industries, Inc.", sectorCode: "15", igCode: "1510", indCode: "151010" },
+    { ticker: "CE", companyName: "Celanese Corporation", sectorCode: "15", igCode: "1510", indCode: "151010" },
+    { ticker: "EMN", companyName: "Eastman Chemical Company", sectorCode: "15", igCode: "1510", indCode: "151010" },
+    { ticker: "DOW", companyName: "Dow Inc.", sectorCode: "15", igCode: "1510", indCode: "151010" },
+
+    // Ground Transportation (203040) — +5
+    { ticker: "NSC", companyName: "Norfolk Southern Corporation", sectorCode: "20", igCode: "2030", indCode: "203040" },
+    { ticker: "ODFL", companyName: "Old Dominion Freight Line, Inc.", sectorCode: "20", igCode: "2030", indCode: "203040" },
+    { ticker: "UBER", companyName: "Uber Technologies, Inc.", sectorCode: "20", igCode: "2030", indCode: "203040" },
+    { ticker: "LYFT", companyName: "Lyft, Inc.", sectorCode: "20", igCode: "2030", indCode: "203040" },
+    { ticker: "XPO", companyName: "XPO, Inc.", sectorCode: "20", igCode: "2030", indCode: "203040" },
+
+    // Household Products (303010) — +3
+    { ticker: "KMB", companyName: "Kimberly-Clark Corporation", sectorCode: "30", igCode: "3030", indCode: "303010" },
+    { ticker: "CHD", companyName: "Church & Dwight Co., Inc.", sectorCode: "30", igCode: "3030", indCode: "303010" },
+    { ticker: "CLX", companyName: "The Clorox Company", sectorCode: "30", igCode: "3030", indCode: "303010" },
+
+    // Food Products (302020) — +7
+    { ticker: "HSY", companyName: "The Hershey Company", sectorCode: "30", igCode: "3020", indCode: "302020" },
+    { ticker: "SJM", companyName: "The J.M. Smucker Company", sectorCode: "30", igCode: "3020", indCode: "302020" },
+    { ticker: "CAG", companyName: "Conagra Brands, Inc.", sectorCode: "30", igCode: "3020", indCode: "302020" },
+    { ticker: "MDLZ", companyName: "Mondelez International, Inc.", sectorCode: "30", igCode: "3020", indCode: "302020" },
+    { ticker: "KHC", companyName: "The Kraft Heinz Company", sectorCode: "30", igCode: "3020", indCode: "302020" },
+    { ticker: "MKC", companyName: "McCormick & Company, Incorporated", sectorCode: "30", igCode: "3020", indCode: "302020" },
+    { ticker: "HRL", companyName: "Hormel Foods Corporation", sectorCode: "30", igCode: "3020", indCode: "302020" },
+
+    // Insurance (403010) — +5
+    { ticker: "AIG", companyName: "American International Group, Inc.", sectorCode: "40", igCode: "4030", indCode: "403010" },
+    { ticker: "MET", companyName: "MetLife, Inc.", sectorCode: "40", igCode: "4030", indCode: "403010" },
+    { ticker: "PRU", companyName: "Prudential Financial, Inc.", sectorCode: "40", igCode: "4030", indCode: "403010" },
+    { ticker: "AFL", companyName: "Aflac Incorporated", sectorCode: "40", igCode: "4030", indCode: "403010" },
+    { ticker: "CINF", companyName: "Cincinnati Financial Corporation", sectorCode: "40", igCode: "4030", indCode: "403010" },
   ];
 
   console.log("Seeding benchmark stock classifications...");

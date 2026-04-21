@@ -2,6 +2,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { generateIndustryAnalytics } from "../src/lib/generate-industry-analytics";
+import { discoverConstituents } from "../src/lib/discover-constituents";
 import { SECTORS, type SectorName } from "../src/lib/sectors";
 
 function parseSectorArg(): SectorName | undefined {
@@ -22,6 +23,15 @@ async function main() {
   const sector = parseSectorArg();
   const label = sector ?? "all sectors";
 
+  // Step 1: Auto-discover constituents from ETF holdings
+  const skipDiscovery = process.argv.includes("--skip-discovery");
+  if (!skipDiscovery) {
+    console.log(`Discovering constituents from ETF holdings...\n`);
+    const discovery = await discoverConstituents(sector);
+    console.log(`\n  Discovery: ${discovery.inserted} new, ${discovery.skipped} existing, ${discovery.unmapped} unmapped\n`);
+  }
+
+  // Step 2: Generate analytics
   console.log(`Generating industry analytics for ${label}...\n`);
 
   const results = await generateIndustryAnalytics(sector);

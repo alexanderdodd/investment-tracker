@@ -101,7 +101,8 @@ async function runTaxTests(db: ReturnType<typeof getDb>) {
   );
 
   // TAX-005: No LLM-generated taxonomy fields
-  const llmSources = allStocks.filter((s) => s.source !== "gics_feed" && s.source !== "curated_override");
+  const allowedSources = new Set(["gics_feed", "curated_override", "etf_discovery"]);
+  const llmSources = allStocks.filter((s) => !allowedSources.has(s.source));
 
   test(
     "TAX-005", "Taxonomy",
@@ -397,9 +398,17 @@ async function runNegativeControls(db: ReturnType<typeof getDb>) {
     intc ? `INTC: ${intc.candidateClass}` : "INTC not found in candidates");
 
   // NEG-005: Stocks in OVERHEATED industries should not be validated/possible
+  // Use only the LATEST analytics per industry to avoid stale-row contamination
   const analytics = await db.select().from(industryAnalytics);
+  const latestByIndustry: Record<string, typeof analytics[0]> = {};
+  for (const a of analytics) {
+    const existing = latestByIndustry[a.industryId];
+    if (!existing || a.generatedAt > existing.generatedAt) {
+      latestByIndustry[a.industryId] = a;
+    }
+  }
   const overheatedIndustries = new Set(
-    analytics.filter((a) => a.industryState === "OVERHEATED").map((a) => a.industryId)
+    Object.values(latestByIndustry).filter((a) => a.industryState === "OVERHEATED").map((a) => a.industryId)
   );
   const badInOverheated = candidates.filter(
     (c) => overheatedIndustries.has(c.industryId) &&

@@ -330,7 +330,7 @@ export function formatMetric(
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 
-async function getYahooCrumb(): Promise<{
+export async function getYahooCrumb(): Promise<{
   crumb: string;
   cookie: string;
 }> {
