@@ -122,14 +122,32 @@ function findConceptUnits(
   const usGaap = facts.facts["us-gaap"];
   const dei = facts.facts["dei"];
 
+  // Collect all matching tags with their recency score
+  // Prefer tags with the most recent data over tags with only stale data
+  let bestUnits: XbrlUnit[] | null = null;
+  let bestRecency = "";
+
   for (const tag of tags) {
     const concept = usGaap?.[tag] ?? dei?.[tag];
     if (!concept) continue;
 
     const units = concept.units[unitKey];
-    if (units && units.length > 0) return units;
+    if (!units || units.length === 0) continue;
+
+    // Find the most recent end date in this tag's data
+    const latestEnd = units.reduce((max, u) => {
+      const end = u.end ?? u.instant ?? "";
+      return end > max ? end : max;
+    }, "");
+
+    // If this is more recent than what we've found so far, prefer it
+    if (!bestUnits || latestEnd > bestRecency) {
+      bestUnits = units;
+      bestRecency = latestEnd;
+    }
   }
-  return null;
+
+  return bestUnits;
 }
 
 /**
@@ -311,14 +329,32 @@ export function extractAllXbrl(facts: CompanyFacts): XbrlExtraction {
   const missingFields: string[] = [];
 
   function extract(name: string, tags: string[], unitKey = "USD"): XbrlUnit[] | null {
+    // Prefer the tag with the most recent data, not just the first match
+    let bestUnits: XbrlUnit[] | null = null;
+    let bestTag = "";
+    let bestRecency = "";
+
     for (const tag of tags) {
       const concept = facts.facts["us-gaap"]?.[tag] ?? facts.facts["dei"]?.[tag];
       if (!concept) continue;
       const units = concept.units[unitKey];
-      if (units && units.length > 0) {
-        matchedTags[name] = tag;
-        return units;
+      if (!units || units.length === 0) continue;
+
+      const latestEnd = units.reduce((max, u) => {
+        const end = u.end ?? u.instant ?? "";
+        return end > max ? end : max;
+      }, "");
+
+      if (!bestUnits || latestEnd > bestRecency) {
+        bestUnits = units;
+        bestTag = tag;
+        bestRecency = latestEnd;
       }
+    }
+
+    if (bestUnits) {
+      matchedTags[name] = bestTag;
+      return bestUnits;
     }
     missingFields.push(name);
     return null;
