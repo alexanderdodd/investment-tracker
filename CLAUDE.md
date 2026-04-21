@@ -31,6 +31,8 @@ npm run validate-industries            # Run 25-rule validation suite for indust
 npm run run-industry-screen            # Run 5-state deterministic value screen (Stages C+D)
 npm run run-industry-screen -- --sector Technology  # Single sector screen
 npm run validate-screen                # Run 28-rule screen validation (benchmarks + neg controls)
+npm run discover-stocks                # Discover stocks via Yahoo screener (all sectors)
+npm run discover-stocks -- --sector Technology  # Single sector discovery
 ```
 
 No test framework is configured yet. Use `npm run validate-industries` for industry feature integrity checks.

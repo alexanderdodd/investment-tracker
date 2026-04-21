@@ -3,6 +3,7 @@ config({ path: ".env.local" });
 
 import { generateIndustryAnalytics } from "../src/lib/generate-industry-analytics";
 import { discoverConstituents } from "../src/lib/discover-constituents";
+import { discoverViaScreener } from "../src/lib/discover-screener";
 import { SECTORS, type SectorName } from "../src/lib/sectors";
 
 function parseSectorArg(): SectorName | undefined {
@@ -23,12 +24,18 @@ async function main() {
   const sector = parseSectorArg();
   const label = sector ?? "all sectors";
 
-  // Step 1: Auto-discover constituents from ETF holdings
+  // Step 1: Auto-discover constituents
   const skipDiscovery = process.argv.includes("--skip-discovery");
   if (!skipDiscovery) {
-    console.log(`Discovering constituents from ETF holdings...\n`);
-    const discovery = await discoverConstituents(sector);
-    console.log(`\n  Discovery: ${discovery.inserted} new, ${discovery.skipped} existing, ${discovery.unmapped} unmapped\n`);
+    // Phase A: Yahoo screener (broad — 20-50 stocks per industry)
+    console.log(`Discovering constituents via Yahoo screener...\n`);
+    const screener = await discoverViaScreener({ onlySector: sector });
+    console.log(`  Screener: ${screener.inserted} new, ${screener.skippedExisting} existing, ${screener.skippedExchange} filtered (OTC)\n`);
+
+    // Phase B: ETF holdings (catches any top holdings the screener missed)
+    console.log(`Supplementing from ETF holdings...\n`);
+    const etf = await discoverConstituents(sector);
+    console.log(`  ETF: ${etf.inserted} new, ${etf.skipped} existing\n`);
   }
 
   // Step 2: Generate analytics
