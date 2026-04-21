@@ -8,6 +8,7 @@ import {
   stockClassifications,
   industryAnalytics,
   valueCandidates,
+  industryScreenResults,
 } from "@/db/schema";
 import { desc } from "drizzle-orm";
 
@@ -66,12 +67,19 @@ export async function GET(
     }
   }
 
-  // Get candidates for this industry
+  // Get candidates for this industry (legacy)
   const candidates = await db
     .select()
     .from(valueCandidates)
     .where(eq(valueCandidates.industryId, industry.id))
     .orderBy(desc(valueCandidates.score));
+
+  // Get screen results for this industry (new 5-state model)
+  const screenResults = await db
+    .select()
+    .from(industryScreenResults)
+    .where(eq(industryScreenResults.industryId, industry.id))
+    .orderBy(desc(industryScreenResults.compositeScore));
 
   return NextResponse.json({
     industry: {
@@ -117,6 +125,25 @@ export async function GET(
       reasonsFor: c.reasonsFor,
       reasonsAgainst: c.reasonsAgainst,
       hasValuationArtifact: c.hasValuationArtifact === 1,
+    })),
+    screenResults: screenResults.map((sr) => ({
+      ticker: sr.ticker,
+      companyName: sr.companyName,
+      screenState: sr.screenState,
+      cheapnessPass: sr.cheapnessPass === 1,
+      cheapnessSignalCount: sr.cheapnessSignalCount,
+      cheapnessSignals: sr.cheapnessSignals,
+      qualityPass: sr.qualityPass === 1,
+      qualityScore: sr.qualityScore,
+      qualitySignals: sr.qualitySignals,
+      trapFlags: sr.trapFlags,
+      hasValuationArtifact: sr.hasValuationArtifact === 1,
+      hasPeerArtifact: sr.hasPeerArtifact === 1,
+      artifactPublished: sr.artifactPublished === 1,
+      valuationLabel: sr.valuationLabel,
+      valuationConfidence: sr.valuationConfidence,
+      candidatePublishable: sr.candidatePublishable === 1,
+      compositeScore: sr.compositeScore,
     })),
   });
 }

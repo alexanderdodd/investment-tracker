@@ -239,7 +239,7 @@ export const industryScreenResults = pgTable("industry_screen_result", {
       fcfYieldVsMedian: number | null; // spread vs median in pp
     }>()
     .notNull()
-    .default({}),
+    .default({ fwdPeVsMedian: null, evEbitdaVsMedian: null, evEbitdaVs5yPctl: null, pbVsMedian: null, fcfYieldVsMedian: null }),
   cheapnessPass: integer("cheapness_pass").notNull().default(0),
   // Stage D — quality signals
   qualityScore: real("quality_score"), // 0-100 weighted composite
@@ -253,7 +253,7 @@ export const industryScreenResults = pgTable("industry_screen_result", {
       liquidityOk: boolean;
     }>()
     .notNull()
-    .default({}),
+    .default({ leverageOk: true, marginStabilityOk: true, dilutionOk: true, cashConversionOk: true, returnsOk: true, liquidityOk: true }),
   qualityPass: integer("quality_pass").notNull().default(0),
   // Trap flags
   trapFlags: jsonb("trap_flags").$type<string[]>().notNull().default([]),

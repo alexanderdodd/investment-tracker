@@ -511,7 +511,8 @@ export async function runIndustryScreen(onlySector?: SectorName): Promise<Screen
 
       if (valuations.length > 0 && valuations[0].structuredInsights) {
         const insights = parseStockValuationInsights(valuations[0].structuredInsights);
-        const peers = (insights as Record<string, unknown>).peerDetails;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const peers = (insights as any)?.peerDetails;
         const peerCount = Array.isArray(peers) ? peers.length : 0;
         valuationMap[stock.ticker] = {
           label: insights?.verdict ?? "Withheld",

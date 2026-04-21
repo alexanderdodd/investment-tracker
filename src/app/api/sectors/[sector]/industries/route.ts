@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/index";
-import { gicsSectors, gicsIndustries, gicsIndustryGroups, stockClassifications, industryAnalytics } from "@/db/schema";
+import { gicsSectors, gicsIndustries, gicsIndustryGroups, stockClassifications, industryAnalytics, industryScreenResults } from "@/db/schema";
 import { slugToSector } from "@/lib/sectors";
 import { gicsSectorByName } from "@/lib/gics-taxonomy";
 
@@ -66,8 +66,25 @@ export async function GET(
     }
   }
 
+  // Get screen result counts per industry
+  const screenRows = await db
+    .select({
+      industryId: industryScreenResults.industryId,
+      screenState: industryScreenResults.screenState,
+    })
+    .from(industryScreenResults)
+    .where(eq(industryScreenResults.sectorId, sectorId));
+
+  const screenCountsByIndustry: Record<string, Record<string, number>> = {};
+  for (const row of screenRows) {
+    if (!screenCountsByIndustry[row.industryId]) screenCountsByIndustry[row.industryId] = {};
+    screenCountsByIndustry[row.industryId][row.screenState] =
+      (screenCountsByIndustry[row.industryId][row.screenState] ?? 0) + 1;
+  }
+
   const result = industries.map((ind) => {
     const a = analyticsByIndustry[ind.id];
+    const sc = screenCountsByIndustry[ind.id] ?? {};
     return {
       id: ind.id,
       code: ind.code,
@@ -91,6 +108,13 @@ export async function GET(
             generatedAt: a.generatedAt.toISOString(),
           }
         : null,
+      screenCounts: {
+        published: sc.PUBLISHED_VALUE_CANDIDATE ?? 0,
+        screenPass: sc.SCREEN_PASS ?? 0,
+        deepWork: sc.NEEDS_DEEP_WORK ?? 0,
+        trapRisk: sc.EXCLUDED_VALUE_TRAP_RISK ?? 0,
+        watchlist: sc.WATCHLIST_ONLY ?? 0,
+      },
     };
   });
 

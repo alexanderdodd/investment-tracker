@@ -130,6 +130,51 @@ const CANDIDATE_BADGES: Record<string, { label: string; className: string }> = {
   },
 };
 
+const SCREEN_STATE_BADGES: Record<string, { label: string; icon: string; className: string }> = {
+  PUBLISHED_VALUE_CANDIDATE: {
+    label: "Published Candidate",
+    icon: "\u2605",
+    className: "border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  },
+  SCREEN_PASS: {
+    label: "Screen Pass",
+    icon: "\u25CE",
+    className: "border-blue-500/40 bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  },
+  NEEDS_DEEP_WORK: {
+    label: "Needs Deep Work",
+    icon: "\u25C6",
+    className: "border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  },
+  WATCHLIST_ONLY: {
+    label: "Watchlist Only",
+    icon: "\u00B7",
+    className: "border-zinc-300/40 bg-zinc-300/10 text-zinc-500 dark:text-zinc-500",
+  },
+  EXCLUDED_VALUE_TRAP_RISK: {
+    label: "Trap Risk",
+    icon: "\u26A0",
+    className: "border-red-500/40 bg-red-500/15 text-red-600 dark:text-red-400",
+  },
+};
+
+interface ScreenResultData {
+  ticker: string;
+  companyName: string;
+  screenState: string;
+  cheapnessPass: boolean;
+  cheapnessSignalCount: number;
+  qualityPass: boolean;
+  qualityScore: number | null;
+  trapFlags: string[];
+  hasValuationArtifact: boolean;
+  hasPeerArtifact: boolean;
+  artifactPublished: boolean;
+  valuationLabel: string | null;
+  candidatePublishable: boolean;
+  compositeScore: number;
+}
+
 const VALUATION_BADGES: Record<string, { label: string; className: string }> = {
   cheap: {
     label: "Cheap",
@@ -177,6 +222,7 @@ export default function IndustryDetailPage() {
   const [stocks, setStocks] = useState<IndustryStock[]>([]);
   const [analytics, setAnalytics] = useState<IndustryAnalyticsData | null>(null);
   const [candidates, setCandidates] = useState<CandidateData[]>([]);
+  const [screenResults, setScreenResults] = useState<ScreenResultData[]>([]);
   const [metrics, setMetrics] = useState<Record<string, StockMetrics>>({});
   const [loading, setLoading] = useState(true);
 
@@ -188,6 +234,7 @@ export default function IndustryDetailPage() {
         setStocks(data.stocks ?? []);
         setAnalytics(data.analytics ?? null);
         setCandidates(data.candidates ?? []);
+        setScreenResults(data.screenResults ?? []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -287,7 +334,100 @@ export default function IndustryDetailPage() {
           </div>
         )}
 
-        {/* Value Candidates */}
+        {/* Screen Results (new 5-state model) */}
+        {screenResults.length > 0 && (() => {
+          const nonWatchlist = screenResults.filter((sr) => sr.screenState !== "WATCHLIST_ONLY");
+          const stateCounts = screenResults.reduce((acc, sr) => {
+            acc[sr.screenState] = (acc[sr.screenState] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          return (
+            <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                  Value Screen Results
+                </h2>
+                <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                  {stateCounts.PUBLISHED_VALUE_CANDIDATE ? (
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      {stateCounts.PUBLISHED_VALUE_CANDIDATE} published
+                    </span>
+                  ) : null}
+                  {stateCounts.SCREEN_PASS ? <span>{stateCounts.SCREEN_PASS} screen pass</span> : null}
+                  {stateCounts.NEEDS_DEEP_WORK ? <span>{stateCounts.NEEDS_DEEP_WORK} needs deep work</span> : null}
+                  {stateCounts.EXCLUDED_VALUE_TRAP_RISK ? (
+                    <span className="text-red-500 dark:text-red-400">
+                      {stateCounts.EXCLUDED_VALUE_TRAP_RISK} trap risk
+                    </span>
+                  ) : null}
+                  {stateCounts.WATCHLIST_ONLY ? <span>{stateCounts.WATCHLIST_ONLY} watchlist</span> : null}
+                </div>
+              </div>
+              {nonWatchlist.length > 0 ? (
+                <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+                  {nonWatchlist.map((sr) => {
+                    const sBadge = SCREEN_STATE_BADGES[sr.screenState] ?? SCREEN_STATE_BADGES.WATCHLIST_ONLY;
+                    return (
+                      <div key={sr.ticker} className="px-6 py-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            href={`/stocks/${sr.ticker}/valuation`}
+                            className="text-sm font-semibold text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400 transition-colors"
+                          >
+                            {sr.ticker}
+                          </Link>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {sr.companyName}
+                          </span>
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${sBadge.className}`}>
+                            {sBadge.icon} {sBadge.label}
+                          </span>
+                          {sr.valuationLabel && (
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${(VALUATION_BADGES[sr.valuationLabel] ?? VALUATION_BADGES.withheld).className}`}>
+                              {(VALUATION_BADGES[sr.valuationLabel] ?? VALUATION_BADGES.withheld).label}
+                            </span>
+                          )}
+                          <span className="ml-auto text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                            Score: {sr.compositeScore}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-3 text-[10px]">
+                          <span className={sr.cheapnessPass ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"}>
+                            Cheap: {sr.cheapnessSignalCount} signals {sr.cheapnessPass ? "\u2713" : "\u2717"}
+                          </span>
+                          <span className={sr.qualityPass ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"}>
+                            Quality: {sr.qualityScore ?? 0}/100 {sr.qualityPass ? "\u2713" : "\u2717"}
+                          </span>
+                          <span className={sr.hasValuationArtifact ? "text-blue-600 dark:text-blue-400" : "text-zinc-400"}>
+                            Artifact: {sr.hasValuationArtifact ? "\u2713" : "\u2717"}
+                          </span>
+                          <span className={sr.hasPeerArtifact ? "text-blue-600 dark:text-blue-400" : "text-zinc-400"}>
+                            Peers: {sr.hasPeerArtifact ? "\u2713" : "\u2717"}
+                          </span>
+                        </div>
+                        {sr.trapFlags.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {sr.trapFlags.map((flag, i) => (
+                              <span key={i} className="text-[10px] text-red-500 dark:text-red-400">
+                                {flag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="px-6 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                  No stocks passed the value screen in this industry.
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Value Candidates (legacy) */}
         {candidates.length > 0 && (
           <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
             <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">

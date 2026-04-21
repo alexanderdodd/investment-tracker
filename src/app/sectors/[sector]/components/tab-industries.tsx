@@ -24,6 +24,13 @@ interface IndustryRow {
     confidence: number;
     generatedAt: string;
   } | null;
+  screenCounts?: {
+    published: number;
+    screenPass: number;
+    deepWork: number;
+    trapRisk: number;
+    watchlist: number;
+  };
 }
 
 const STATE_BADGES: Record<string, { label: string; className: string }> = {
@@ -117,17 +124,13 @@ export function TabIndustries({ sector, slug }: { sector: string; slug: string }
                 <th className="px-3 py-3 text-right font-medium">EV/EBITDA</th>
                 <th className="px-3 py-3 text-right font-medium">Op Margin</th>
                 <th className="px-3 py-3 text-right font-medium">ROIC</th>
-                <th className="px-3 py-3 text-right font-medium">Candidates</th>
+                <th className="px-3 py-3 text-right font-medium">Screen</th>
               </tr>
             </thead>
             <tbody>
               {industries.map((ind) => {
                 const state = ind.analytics?.industryState ?? "WITHHELD";
                 const badge = STATE_BADGES[state] ?? STATE_BADGES.WITHHELD;
-                const totalCandidates = ind.analytics
-                  ? ind.analytics.candidateCountValidated + ind.analytics.candidateCountPossible
-                  : 0;
-
                 return (
                   <tr
                     key={ind.id}
@@ -171,8 +174,33 @@ export function TabIndustries({ sector, slug }: { sector: string; slug: string }
                     <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
                       {formatPercent(ind.analytics?.medianRoic ?? null)}
                     </td>
-                    <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
-                      {totalCandidates > 0 ? totalCandidates : "-"}
+                    <td className="px-3 py-3 text-right text-sm">
+                      {ind.screenCounts && (ind.screenCounts.published + ind.screenCounts.screenPass + ind.screenCounts.deepWork) > 0 ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {ind.screenCounts.published > 0 && (
+                            <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400" title="Published candidates">
+                              {ind.screenCounts.published}P
+                            </span>
+                          )}
+                          {ind.screenCounts.screenPass > 0 && (
+                            <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400" title="Screen pass">
+                              {ind.screenCounts.screenPass}S
+                            </span>
+                          )}
+                          {ind.screenCounts.deepWork > 0 && (
+                            <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400" title="Needs deep work">
+                              {ind.screenCounts.deepWork}D
+                            </span>
+                          )}
+                          {ind.screenCounts.trapRisk > 0 && (
+                            <span className="text-[10px] font-medium text-red-500 dark:text-red-400" title="Trap risk">
+                              {ind.screenCounts.trapRisk}T
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-zinc-400 dark:text-zinc-600">-</span>
+                      )}
                     </td>
                   </tr>
                 );
