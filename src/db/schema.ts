@@ -204,6 +204,73 @@ export const valueCandidates = pgTable("value_candidate", {
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ─── Industry Screen Results ──────────────────────────────────────────────
+
+export const industryScreenResults = pgTable("industry_screen_result", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  ticker: text("ticker").notNull(),
+  companyName: text("company_name").notNull(),
+  industryId: text("industry_id")
+    .notNull()
+    .references(() => gicsIndustries.id),
+  sectorId: text("sector_id")
+    .notNull()
+    .references(() => gicsSectors.id),
+  snapshotAt: timestamp("snapshot_at", { mode: "date" }).notNull().defaultNow(),
+  screenState: text("screen_state")
+    .$type<
+      | "SCREEN_PASS"
+      | "NEEDS_DEEP_WORK"
+      | "PUBLISHED_VALUE_CANDIDATE"
+      | "WATCHLIST_ONLY"
+      | "EXCLUDED_VALUE_TRAP_RISK"
+    >()
+    .notNull(),
+  // Stage C — cheapness signals (industry-relative)
+  cheapnessSignalCount: integer("cheapness_signal_count").notNull().default(0),
+  cheapnessSignals: jsonb("cheapness_signals")
+    .$type<{
+      fwdPeVsMedian: number | null;   // ratio vs industry median (e.g., 0.82 = 82% of median)
+      evEbitdaVsMedian: number | null;
+      evEbitdaVs5yPctl: number | null; // percentile within own 5Y history
+      pbVsMedian: number | null;
+      fcfYieldVsMedian: number | null; // spread vs median in pp
+    }>()
+    .notNull()
+    .default({}),
+  cheapnessPass: integer("cheapness_pass").notNull().default(0),
+  // Stage D — quality signals
+  qualityScore: real("quality_score"), // 0-100 weighted composite
+  qualitySignals: jsonb("quality_signals")
+    .$type<{
+      leverageOk: boolean;
+      marginStabilityOk: boolean;
+      dilutionOk: boolean;
+      cashConversionOk: boolean;
+      returnsOk: boolean;
+      liquidityOk: boolean;
+    }>()
+    .notNull()
+    .default({}),
+  qualityPass: integer("quality_pass").notNull().default(0),
+  // Trap flags
+  trapFlags: jsonb("trap_flags").$type<string[]>().notNull().default([]),
+  // Artifact linkage
+  hasValuationArtifact: integer("has_valuation_artifact").notNull().default(0),
+  hasPeerArtifact: integer("has_peer_artifact").notNull().default(0),
+  artifactPublished: integer("artifact_published").notNull().default(0),
+  // Candidate gate fields
+  valuationLabel: text("valuation_label")
+    .$type<"cheap" | "fair" | "expensive" | "withheld">(),
+  valuationConfidence: real("valuation_confidence"),
+  candidatePublishable: integer("candidate_publishable").notNull().default(0),
+  // Composite score for ranking
+  compositeScore: real("composite_score").notNull().default(0),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // ─── Existing tables ───────────────────────────────────────────────────────
 
 export const sectorEmergingLeaders = pgTable("sector_emerging_leader", {

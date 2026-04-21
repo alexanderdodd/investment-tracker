@@ -28,6 +28,8 @@ npm run generate-industry-analytics -- --sector Technology
 npm run generate-candidates                      # Generate value candidates from analytics + valuations
 npm run generate-candidates -- --sector Technology
 npm run validate-industries            # Run 25-rule validation suite for industry feature
+npm run run-industry-screen            # Run 5-state deterministic value screen (Stages C+D)
+npm run run-industry-screen -- --sector Technology  # Single sector screen
 ```
 
 No test framework is configured yet. Use `npm run validate-industries` for industry feature integrity checks.

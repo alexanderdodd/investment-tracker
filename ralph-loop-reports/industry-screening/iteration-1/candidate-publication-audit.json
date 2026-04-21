@@ -1,0 +1,56 @@
+{
+  "publishedCandidates": [
+    {
+      "ticker": "ALL",
+      "cheapnessPass": true,
+      "qualityPass": true,
+      "hasArtifact": true,
+      "hasPeers": true,
+      "artifactPublished": true,
+      "valuationLabel": "cheap",
+      "publishable": true,
+      "trapFlags": []
+    },
+    {
+      "ticker": "KDP",
+      "cheapnessPass": true,
+      "qualityPass": true,
+      "hasArtifact": true,
+      "hasPeers": true,
+      "artifactPublished": true,
+      "valuationLabel": "cheap",
+      "publishable": true,
+      "trapFlags": []
+    }
+  ],
+  "screenPassBlockedFrom": [
+    {
+      "ticker": "MU",
+      "reason": "valuation_expensive"
+    },
+    {
+      "ticker": "META",
+      "reason": "artifact_not_published"
+    },
+    {
+      "ticker": "PEP",
+      "reason": "valuation_expensive"
+    }
+  ],
+  "traps": [
+    {
+      "ticker": "HRB",
+      "flags": [
+        "Negative operating margin (-150.3%)"
+      ]
+    },
+    {
+      "ticker": "ZIM",
+      "flags": [
+        "Negative operating margin (-2.0%)"
+      ]
+    }
+  ],
+  "leaks": 0,
+  "violations": []
+}
