@@ -639,3 +639,289 @@ export async function runIndustryScreen(onlySector?: SectorName): Promise<Screen
 
   return allResults;
 }
+
+// ─── Single-Industry Screen (for on-demand API) ──────────────────────────
+
+export interface ScreenStepLog {
+  stage: string;
+  description: string;
+  detail: string;
+  stocksAffected?: number;
+}
+
+export interface SingleIndustryScreenResult {
+  industry: { id: string; name: string; slug: string; sectorName: string; cyclicalityClass: string; frameworkId: string | null };
+  medians: {
+    forwardPe: number | null;
+    evEbitda: number | null;
+    priceToBook: number | null;
+    operatingMargin: number | null;
+    roic: number | null;
+    roe: number | null;
+    fcfYield: number | null;
+  };
+  methodology: ScreenStepLog[];
+  results: ScreenResult[];
+  summary: {
+    total: number;
+    published: number;
+    screenPass: number;
+    deepWork: number;
+    trapRisk: number;
+    watchlist: number;
+  };
+  screenedAt: string;
+}
+
+export async function screenSingleIndustry(industrySlug: string): Promise<SingleIndustryScreenResult | null> {
+  const db = getDb();
+  const methodology: ScreenStepLog[] = [];
+
+  // Step 1: Resolve industry
+  const industries = await db
+    .select()
+    .from(gicsIndustries)
+    .where(eq(gicsIndustries.slug, industrySlug));
+
+  if (industries.length === 0) return null;
+  const industry = industries[0];
+
+  // Look up sector name
+  const gicsSector = GICS_SECTORS.find((s) => `sector-${s.code}` === industry.sectorId);
+  const sectorName = gicsSector?.name ?? "Unknown";
+
+  methodology.push({
+    stage: "Resolve Industry",
+    description: "Identify the GICS industry and its classification parameters",
+    detail: `${industry.name} (${industry.code}) in ${sectorName}. Cyclicality: ${industry.cyclicalityClass}. Framework: ${industry.valueFrameworkId ?? "default"}.`,
+  });
+
+  // Step 2: Get industry medians
+  const allAnalytics = await db
+    .select()
+    .from(industryAnalytics)
+    .where(eq(industryAnalytics.industryId, industry.id));
+
+  let latestAnalytics: typeof allAnalytics[0] | null = null;
+  for (const a of allAnalytics) {
+    if (!latestAnalytics || a.generatedAt > latestAnalytics.generatedAt) {
+      latestAnalytics = a;
+    }
+  }
+
+  const medians = {
+    forwardPe: latestAnalytics?.medianForwardPe ?? null,
+    evEbitda: latestAnalytics?.medianEvEbitda ?? null,
+    priceToBook: latestAnalytics?.medianPriceToBook ?? null,
+    operatingMargin: latestAnalytics?.medianOperatingMargin ?? null,
+    roic: latestAnalytics?.medianRoic ?? null,
+    roe: latestAnalytics?.medianRoe ?? null,
+    fcfYield: latestAnalytics?.medianFcfYield ?? null,
+  };
+
+  const fmtM = (v: number | null, fmt: "x" | "%") =>
+    v === null ? "n/a" : fmt === "x" ? `${v.toFixed(1)}x` : `${(v * 100).toFixed(1)}%`;
+
+  methodology.push({
+    stage: "Compute Industry Medians",
+    description: "Establish the baseline valuation benchmarks for this industry from current constituent data",
+    detail: `Median Fwd P/E: ${fmtM(medians.forwardPe, "x")}, EV/EBITDA: ${fmtM(medians.evEbitda, "x")}, P/B: ${fmtM(medians.priceToBook, "x")}, Op Margin: ${fmtM(medians.operatingMargin, "%")}, ROIC: ${fmtM(medians.roic, "%")}.`,
+  });
+
+  // Step 3: Get stocks and metrics
+  const stocks = await db
+    .select()
+    .from(stockClassifications)
+    .where(eq(stockClassifications.industryId, industry.id));
+
+  const tickers = stocks.map((s) => s.ticker);
+  let allMetrics: Record<string, StockMetrics> = {};
+  try {
+    allMetrics = await fetchStockMetrics(tickers);
+  } catch {
+    methodology.push({
+      stage: "Fetch Market Data",
+      description: "Pull current valuation multiples and quality metrics for each stock",
+      detail: `Failed to fetch metrics for ${tickers.length} stocks.`,
+    });
+    return null;
+  }
+
+  const metricsFound = Object.keys(allMetrics).length;
+  methodology.push({
+    stage: "Fetch Market Data",
+    description: "Pull current valuation multiples and quality metrics for each stock from market data APIs",
+    detail: `Retrieved metrics for ${metricsFound} of ${tickers.length} stocks: forward P/E, EV/EBITDA, P/B, operating margin, ROIC, ROE, FCF.`,
+    stocksAffected: metricsFound,
+  });
+
+  // Step 4: Check valuation artifacts
+  const valuationMap: Record<string, { label: string; confidence: string; hasPeers: boolean; published: boolean }> = {};
+  for (const stock of stocks) {
+    const valuations = await db
+      .select()
+      .from(stockValuations)
+      .where(eq(stockValuations.ticker, stock.ticker))
+      .orderBy(desc(stockValuations.generatedAt))
+      .limit(1);
+
+    if (valuations.length > 0 && valuations[0].structuredInsights) {
+      const insights = parseStockValuationInsights(valuations[0].structuredInsights);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const peers = (insights as any)?.peerDetails;
+      const peerCount = Array.isArray(peers) ? peers.length : 0;
+      valuationMap[stock.ticker] = {
+        label: insights?.verdict ?? "Withheld",
+        confidence: insights?.confidence ?? "Low",
+        hasPeers: peerCount > 0,
+        published: valuations[0].status === "published",
+      };
+    }
+  }
+
+  const withArtifacts = Object.keys(valuationMap).length;
+  const withPublished = Object.values(valuationMap).filter((v) => v.published).length;
+  methodology.push({
+    stage: "Check Valuation Artifacts",
+    description: "Look up existing deep-valuation reports and peer analysis for each stock. A published artifact with peer data is required for full candidate publication.",
+    detail: `${withArtifacts} of ${tickers.length} stocks have valuation artifacts (${withPublished} published, ${withArtifacts - withPublished} withheld).`,
+    stocksAffected: withArtifacts,
+  });
+
+  // Step 5: Run cheapness screen (Stage C)
+  const fw = getFrameworkConfig(industry.valueFrameworkId);
+  const fwName = industry.valueFrameworkId ?? "default";
+  const enabledSignals: string[] = [];
+  if (fw.useFwdPe) enabledSignals.push("Fwd P/E vs median");
+  if (fw.useEvEbitda) enabledSignals.push("EV/EBITDA vs median");
+  if (fw.useEvEbitdaHistory) enabledSignals.push("EV/EBITDA vs 5Y history");
+  if (fw.useEvEbit) enabledSignals.push("EV/EBIT vs median");
+  if (fw.usePbRoe) enabledSignals.push("P/B + ROE vs median");
+  if (fw.useMarginDurability) enabledSignals.push("Margin durability");
+  if (fw.useFcfYield) enabledSignals.push("FCF yield vs median");
+
+  const screenResults: ScreenResult[] = [];
+  let cheapPassCount = 0;
+
+  for (const stock of stocks) {
+    const metrics = allMetrics[stock.ticker];
+    const valInfo = valuationMap[stock.ticker];
+
+    const cheapness = evaluateCheapness(
+      metrics, medians.forwardPe, medians.evEbitda, medians.priceToBook,
+      medians.fcfYield, medians.roe, industry.valueFrameworkId
+    );
+    const fundamentals = checkStableFundamentals(metrics);
+    const quality = evaluateQuality(metrics);
+
+    const hasValuationArtifact = !!valInfo;
+    const hasPeerArtifact = valInfo?.hasPeers ?? false;
+    const artifactPublished = valInfo?.published ?? false;
+    const valuationLabel = valInfo ? verdictToLabel(valInfo.label) : null;
+    const valuationConfidence = valInfo ? confidenceToNumber(valInfo.confidence) : null;
+
+    const screenState = assignScreenState(
+      cheapness.pass, fundamentals.stable, quality.pass, quality.trapFlags,
+      hasValuationArtifact, hasPeerArtifact, artifactPublished,
+      valuationLabel, valuationConfidence
+    );
+
+    const candidatePublishable = screenState === "PUBLISHED_VALUE_CANDIDATE";
+    const compositeScore = computeCompositeScore(
+      cheapness.signalCount, quality.score, valuationConfidence, hasPeerArtifact
+    );
+
+    if (cheapness.pass) cheapPassCount++;
+
+    screenResults.push({
+      ticker: stock.ticker,
+      companyName: stock.companyName,
+      industryId: industry.id,
+      sectorId: industry.sectorId,
+      screenState,
+      cheapnessSignalCount: cheapness.signalCount,
+      cheapnessSignals: cheapness.signals,
+      cheapnessPass: cheapness.pass,
+      qualityScore: quality.score,
+      qualitySignals: quality.signals,
+      qualityPass: quality.pass,
+      trapFlags: quality.trapFlags,
+      hasValuationArtifact,
+      hasPeerArtifact,
+      artifactPublished,
+      valuationLabel,
+      valuationConfidence,
+      candidatePublishable,
+      compositeScore,
+    });
+  }
+
+  methodology.push({
+    stage: "Cheapness Screen (Stage C)",
+    description: `Apply industry-relative cheapness signals using the ${fwName} framework. A stock passes if at least 2 signals indicate it trades at a meaningful discount to industry peers.`,
+    detail: `Signals used: ${enabledSignals.join(", ")}. Thresholds: P/E <= ${fw.peThreshold}x median, EV/EBITDA <= ${fw.evThreshold}x median, P/B <= ${fw.pbThreshold}x median. Result: ${cheapPassCount} of ${stocks.length} stocks pass cheapness.`,
+    stocksAffected: cheapPassCount,
+  });
+
+  // Step 6: Quality filter (Stage D)
+  const qualityPassCount = screenResults.filter((r) => r.qualityPass).length;
+  const trapCount = screenResults.filter((r) => r.screenState === "EXCLUDED_VALUE_TRAP_RISK").length;
+
+  methodology.push({
+    stage: "Quality Filter (Stage D)",
+    description: "Check financial health to separate genuine value from value traps. Evaluates leverage, margin stability, cash conversion, and returns on capital. Stocks that look cheap but have structural problems are flagged as trap risks.",
+    detail: `${qualityPassCount} stocks pass quality (score >= 45, no hard blockers). ${trapCount} stocks flagged as value traps due to negative margins, extreme leverage, or poor cash conversion.`,
+    stocksAffected: qualityPassCount,
+  });
+
+  // Step 7: Candidate gate
+  const published = screenResults.filter((r) => r.screenState === "PUBLISHED_VALUE_CANDIDATE").length;
+  const screenPass = screenResults.filter((r) => r.screenState === "SCREEN_PASS").length;
+  const deepWork = screenResults.filter((r) => r.screenState === "NEEDS_DEEP_WORK").length;
+
+  methodology.push({
+    stage: "Candidate Publication Gate",
+    description: "Apply the strictest gate: only stocks that pass cheapness + quality + have a published deep-valuation artifact with peer analysis + valuation confidence >= 65% can be surfaced as Published Value Candidates. Stocks that pass cheapness + quality but lack artifacts are marked as Needs Deep Work.",
+    detail: `${published} published candidates, ${screenPass} screen pass (have artifacts but blocked by label/confidence), ${deepWork} need deep work (cheap + quality OK but no artifact yet), ${trapCount} trap risks excluded.`,
+  });
+
+  // Store results
+  const batchTime = new Date();
+  for (const r of screenResults) {
+    await db.delete(industryScreenResults).where(eq(industryScreenResults.ticker, r.ticker));
+    await db.insert(industryScreenResults).values({
+      ticker: r.ticker, companyName: r.companyName, industryId: r.industryId,
+      sectorId: r.sectorId, snapshotAt: batchTime, screenState: r.screenState,
+      cheapnessSignalCount: r.cheapnessSignalCount, cheapnessSignals: r.cheapnessSignals,
+      cheapnessPass: r.cheapnessPass ? 1 : 0, qualityScore: r.qualityScore,
+      qualitySignals: r.qualitySignals, qualityPass: r.qualityPass ? 1 : 0,
+      trapFlags: r.trapFlags, hasValuationArtifact: r.hasValuationArtifact ? 1 : 0,
+      hasPeerArtifact: r.hasPeerArtifact ? 1 : 0, artifactPublished: r.artifactPublished ? 1 : 0,
+      valuationLabel: r.valuationLabel, valuationConfidence: r.valuationConfidence,
+      candidatePublishable: r.candidatePublishable ? 1 : 0, compositeScore: r.compositeScore,
+      generatedAt: batchTime,
+    });
+  }
+
+  const summary = {
+    total: screenResults.length,
+    published: screenResults.filter((r) => r.screenState === "PUBLISHED_VALUE_CANDIDATE").length,
+    screenPass: screenResults.filter((r) => r.screenState === "SCREEN_PASS").length,
+    deepWork: screenResults.filter((r) => r.screenState === "NEEDS_DEEP_WORK").length,
+    trapRisk: screenResults.filter((r) => r.screenState === "EXCLUDED_VALUE_TRAP_RISK").length,
+    watchlist: screenResults.filter((r) => r.screenState === "WATCHLIST_ONLY").length,
+  };
+
+  return {
+    industry: {
+      id: industry.id, name: industry.name, slug: industry.slug,
+      sectorName, cyclicalityClass: industry.cyclicalityClass,
+      frameworkId: industry.valueFrameworkId,
+    },
+    medians,
+    methodology,
+    results: screenResults.sort((a, b) => b.compositeScore - a.compositeScore),
+    summary,
+    screenedAt: batchTime.toISOString(),
+  };
+}
