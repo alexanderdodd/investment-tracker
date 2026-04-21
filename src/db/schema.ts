@@ -127,7 +127,7 @@ export const stockClassifications = pgTable("stock_classification", {
   subIndustryId: text("sub_industry_id")
     .references(() => gicsSubIndustries.id),
   source: text("source")
-    .$type<"gics_feed" | "curated_override">()
+    .$type<"gics_feed" | "curated_override" | "etf_discovery" | "yahoo_screener">()
     .notNull()
     .default("curated_override"),
   asOf: timestamp("as_of", { mode: "date" }).notNull().defaultNow(),
