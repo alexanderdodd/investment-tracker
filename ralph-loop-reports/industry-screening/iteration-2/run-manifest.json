@@ -1,0 +1,12 @@
+{
+  "iteration": 2,
+  "timestamp": "2026-04-21T10:01:07.976Z",
+  "focus": "SCR-005: framework-specific cheapness signals",
+  "frameworks": [
+    "cyclical_semiconductor_memory_v1",
+    "consumer_beverages_v1",
+    "property_casualty_insurance_v1",
+    "interactive_media_v1",
+    "default"
+  ]
+}

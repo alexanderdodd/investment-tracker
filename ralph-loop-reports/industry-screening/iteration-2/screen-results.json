@@ -1,0 +1,1370 @@
+{
+  "count": 194,
+  "stateCounts": {
+    "SCREEN_PASS": 3,
+    "PUBLISHED_VALUE_CANDIDATE": 2,
+    "NEEDS_DEEP_WORK": 35,
+    "WATCHLIST_ONLY": 152,
+    "EXCLUDED_VALUE_TRAP_RISK": 2
+  },
+  "results": [
+    {
+      "ticker": "META",
+      "screen_state": "SCREEN_PASS",
+      "cheapness_signal_count": 4,
+      "quality_score": 75,
+      "composite_score": 89
+    },
+    {
+      "ticker": "KDP",
+      "screen_state": "PUBLISHED_VALUE_CANDIDATE",
+      "cheapness_signal_count": 4,
+      "quality_score": 70,
+      "composite_score": 87
+    },
+    {
+      "ticker": "PEP",
+      "screen_state": "SCREEN_PASS",
+      "cheapness_signal_count": 3,
+      "quality_score": 75,
+      "composite_score": 79
+    },
+    {
+      "ticker": "MU",
+      "screen_state": "SCREEN_PASS",
+      "cheapness_signal_count": 3,
+      "quality_score": 75,
+      "composite_score": 75
+    },
+    {
+      "ticker": "ALL",
+      "screen_state": "PUBLISHED_VALUE_CANDIDATE",
+      "cheapness_signal_count": 2,
+      "quality_score": 72,
+      "composite_score": 68
+    },
+    {
+      "ticker": "TEL",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 4,
+      "quality_score": 72,
+      "composite_score": 62
+    },
+    {
+      "ticker": "MAT",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 4,
+      "quality_score": 68,
+      "composite_score": 60
+    },
+    {
+      "ticker": "CMCSA",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 4,
+      "quality_score": 68,
+      "composite_score": 60
+    },
+    {
+      "ticker": "ACN",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 4,
+      "quality_score": 68,
+      "composite_score": 60
+    },
+    {
+      "ticker": "ELV",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 4,
+      "quality_score": 60,
+      "composite_score": 58
+    },
+    {
+      "ticker": "TRV",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 70,
+      "composite_score": 57
+    },
+    {
+      "ticker": "COF",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 60,
+      "composite_score": 54
+    },
+    {
+      "ticker": "AMT",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 75,
+      "composite_score": 53
+    },
+    {
+      "ticker": "MO",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 75,
+      "composite_score": 53
+    },
+    {
+      "ticker": "QCOM",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 75,
+      "composite_score": 53
+    },
+    {
+      "ticker": "ADBE",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 75,
+      "composite_score": 53
+    },
+    {
+      "ticker": "MRK",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 75,
+      "composite_score": 53
+    },
+    {
+      "ticker": "LULU",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 75,
+      "composite_score": 53
+    },
+    {
+      "ticker": "EMR",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 72,
+      "composite_score": 52
+    },
+    {
+      "ticker": "OHI",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 72,
+      "composite_score": 52
+    },
+    {
+      "ticker": "PFE",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 72,
+      "composite_score": 52
+    },
+    {
+      "ticker": "PINS",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 70,
+      "composite_score": 51
+    },
+    {
+      "ticker": "CRM",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 70,
+      "composite_score": 51
+    },
+    {
+      "ticker": "DIS",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 70,
+      "composite_score": 51
+    },
+    {
+      "ticker": "MAS",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 71,
+      "composite_score": 51
+    },
+    {
+      "ticker": "PYPL",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 70,
+      "composite_score": 51
+    },
+    {
+      "ticker": "GM",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 66,
+      "composite_score": 50
+    },
+    {
+      "ticker": "EME",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 68,
+      "composite_score": 50
+    },
+    {
+      "ticker": "JLL",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 66,
+      "composite_score": 50
+    },
+    {
+      "ticker": "LKQ",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 66,
+      "composite_score": 50
+    },
+    {
+      "ticker": "COTY",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 66,
+      "composite_score": 50
+    },
+    {
+      "ticker": "HPQ",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 66,
+      "composite_score": 50
+    },
+    {
+      "ticker": "KR",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 65,
+      "composite_score": 50
+    },
+    {
+      "ticker": "MNST",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 75,
+      "composite_score": 49
+    },
+    {
+      "ticker": "AVGO",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 49
+    },
+    {
+      "ticker": "HRB",
+      "screen_state": "EXCLUDED_VALUE_TRAP_RISK",
+      "cheapness_signal_count": 3,
+      "quality_score": 60,
+      "composite_score": 48
+    },
+    {
+      "ticker": "WCC",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 3,
+      "quality_score": 59,
+      "composite_score": 48
+    },
+    {
+      "ticker": "DELL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 46
+    },
+    {
+      "ticker": "IBM",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 45
+    },
+    {
+      "ticker": "PNC",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 60,
+      "composite_score": 44
+    },
+    {
+      "ticker": "NEM",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 2,
+      "quality_score": 72,
+      "composite_score": 42
+    },
+    {
+      "ticker": "COP",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 2,
+      "quality_score": 72,
+      "composite_score": 42
+    },
+    {
+      "ticker": "MCD",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 2,
+      "quality_score": 72,
+      "composite_score": 42
+    },
+    {
+      "ticker": "KO",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 66,
+      "composite_score": 42
+    },
+    {
+      "ticker": "STAG",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 2,
+      "quality_score": 70,
+      "composite_score": 41
+    },
+    {
+      "ticker": "DD",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 2,
+      "quality_score": 70,
+      "composite_score": 41
+    },
+    {
+      "ticker": "KEX",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 2,
+      "quality_score": 70,
+      "composite_score": 41
+    },
+    {
+      "ticker": "UAL",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 2,
+      "quality_score": 68,
+      "composite_score": 40
+    },
+    {
+      "ticker": "TGT",
+      "screen_state": "NEEDS_DEEP_WORK",
+      "cheapness_signal_count": 2,
+      "quality_score": 62,
+      "composite_score": 39
+    },
+    {
+      "ticker": "AAPL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 39
+    },
+    {
+      "ticker": "MSFT",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 39
+    },
+    {
+      "ticker": "ZIM",
+      "screen_state": "EXCLUDED_VALUE_TRAP_RISK",
+      "cheapness_signal_count": 2,
+      "quality_score": 57,
+      "composite_score": 37
+    },
+    {
+      "ticker": "AMZN",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 36
+    },
+    {
+      "ticker": "DAL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 62,
+      "composite_score": 35
+    },
+    {
+      "ticker": "JNJ",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 34
+    },
+    {
+      "ticker": "GOOGL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 75,
+      "composite_score": 33
+    },
+    {
+      "ticker": "DOCS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 72,
+      "composite_score": 32
+    },
+    {
+      "ticker": "LMT",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 71,
+      "composite_score": 31
+    },
+    {
+      "ticker": "MMM",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 71,
+      "composite_score": 31
+    },
+    {
+      "ticker": "ETSY",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 68,
+      "composite_score": 30
+    },
+    {
+      "ticker": "AMCR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 68,
+      "composite_score": 30
+    },
+    {
+      "ticker": "VNO",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 66,
+      "composite_score": 30
+    },
+    {
+      "ticker": "AES",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 63,
+      "composite_score": 29
+    },
+    {
+      "ticker": "TFC",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 60,
+      "composite_score": 28
+    },
+    {
+      "ticker": "LEN",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 60,
+      "composite_score": 28
+    },
+    {
+      "ticker": "BAC",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 60,
+      "composite_score": 28
+    },
+    {
+      "ticker": "D",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 61,
+      "composite_score": 28
+    },
+    {
+      "ticker": "LEA",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 60,
+      "composite_score": 28
+    },
+    {
+      "ticker": "DUK",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 61,
+      "composite_score": 28
+    },
+    {
+      "ticker": "SLVM",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 59,
+      "composite_score": 28
+    },
+    {
+      "ticker": "CARR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 60,
+      "composite_score": 28
+    },
+    {
+      "ticker": "SNAP",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 57,
+      "composite_score": 27
+    },
+    {
+      "ticker": "BXP",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 55,
+      "composite_score": 27
+    },
+    {
+      "ticker": "WHR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 1,
+      "quality_score": 53,
+      "composite_score": 26
+    },
+    {
+      "ticker": "CL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "TPR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "HAS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "GIS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "PM",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "PG",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "SPG",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "CSX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "UNP",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "AMGN",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "GILD",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "LLY",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "VRSK",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "CTAS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "V",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "MA",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "WM",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "FAST",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "DE",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "CAT",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "HON",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "ROK",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "NFLX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "TMUS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "MSI",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "APH",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "NVDA",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "EBAY",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 75,
+      "composite_score": 23
+    },
+    {
+      "ticker": "GLW",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "VMC",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "TMO",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "A",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "ADP",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "SCI",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "ORLY",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "ETN",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "LIN",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "RSG",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "T",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "EQIX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "SLB",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "HCA",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "CSCO",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "VZ",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "VRTX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "MATX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 72,
+      "composite_score": 22
+    },
+    {
+      "ticker": "HIG",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "AMD",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "REG",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "DHR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "VEEV",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "WPC",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "MDT",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "UPS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 71,
+      "composite_score": 21
+    },
+    {
+      "ticker": "NWSA",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "POOL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 71,
+      "composite_score": 21
+    },
+    {
+      "ticker": "CB",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "VTR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "NOW",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "PKG",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 71,
+      "composite_score": 21
+    },
+    {
+      "ticker": "O",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "HD",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 71,
+      "composite_score": 21
+    },
+    {
+      "ticker": "EQR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "AVB",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 70,
+      "composite_score": 21
+    },
+    {
+      "ticker": "DG",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "CVX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 20
+    },
+    {
+      "ticker": "HAL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "FCX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "IP",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 20
+    },
+    {
+      "ticker": "RTX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 20
+    },
+    {
+      "ticker": "JCI",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "PWR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 20
+    },
+    {
+      "ticker": "FDX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "APTV",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "BWA",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "NKE",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "XOM",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 20
+    },
+    {
+      "ticker": "LOW",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "EL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "AXP",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 65,
+      "composite_score": 20
+    },
+    {
+      "ticker": "NLY",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 65,
+      "composite_score": 20
+    },
+    {
+      "ticker": "AGNC",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 65,
+      "composite_score": 20
+    },
+    {
+      "ticker": "PGR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 65,
+      "composite_score": 20
+    },
+    {
+      "ticker": "ORCL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 20
+    },
+    {
+      "ticker": "FOXA",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 68,
+      "composite_score": 20
+    },
+    {
+      "ticker": "HST",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 20
+    },
+    {
+      "ticker": "PK",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 66,
+      "composite_score": 20
+    },
+    {
+      "ticker": "PLD",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 62,
+      "composite_score": 19
+    },
+    {
+      "ticker": "GS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 62,
+      "composite_score": 19
+    },
+    {
+      "ticker": "VST",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 62,
+      "composite_score": 19
+    },
+    {
+      "ticker": "COST",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 62,
+      "composite_score": 19
+    },
+    {
+      "ticker": "GATX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 63,
+      "composite_score": 19
+    },
+    {
+      "ticker": "WMT",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 62,
+      "composite_score": 19
+    },
+    {
+      "ticker": "AWK",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 63,
+      "composite_score": 19
+    },
+    {
+      "ticker": "SRE",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "WTRG",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "JPM",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 60,
+      "composite_score": 18
+    },
+    {
+      "ticker": "ABT",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "UNH",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 60,
+      "composite_score": 18
+    },
+    {
+      "ticker": "MLM",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "JBHT",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "MS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "DHI",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 59,
+      "composite_score": 18
+    },
+    {
+      "ticker": "NEE",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "LYV",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 60,
+      "composite_score": 18
+    },
+    {
+      "ticker": "SO",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 59,
+      "composite_score": 18
+    },
+    {
+      "ticker": "ATO",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "SR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 61,
+      "composite_score": 18
+    },
+    {
+      "ticker": "USB",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 60,
+      "composite_score": 18
+    },
+    {
+      "ticker": "TSLA",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 60,
+      "composite_score": 18
+    },
+    {
+      "ticker": "SBUX",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 57,
+      "composite_score": 17
+    },
+    {
+      "ticker": "APD",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 58,
+      "composite_score": 17
+    },
+    {
+      "ticker": "INTC",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 54,
+      "composite_score": 16
+    },
+    {
+      "ticker": "WELL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 52,
+      "composite_score": 16
+    },
+    {
+      "ticker": "LUV",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 54,
+      "composite_score": 16
+    },
+    {
+      "ticker": "JNPR",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 49,
+      "composite_score": 15
+    },
+    {
+      "ticker": "BLL",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 49,
+      "composite_score": 15
+    },
+    {
+      "ticker": "CBRE",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 51,
+      "composite_score": 15
+    },
+    {
+      "ticker": "DFS",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 49,
+      "composite_score": 15
+    },
+    {
+      "ticker": "K",
+      "screen_state": "WATCHLIST_ONLY",
+      "cheapness_signal_count": 0,
+      "quality_score": 49,
+      "composite_score": 15
+    }
+  ]
+}

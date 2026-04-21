@@ -61,7 +61,89 @@ interface ScreenResult {
 }
 
 // ─── Stage C — Industry-Relative Cheapness Screen ─────────────────────────
-// A stock passes if >= 2 of 5 signals are true
+// A stock passes if >= 2 of N signals are true (N depends on framework)
+//
+// Framework-specific signal sets (spec §05):
+// - cyclical_semiconductor: EV/EBIT, EV/EBITDA, P/B (normalized earnings context)
+// - consumer_beverages: fwd P/E, EV/EBITDA, operating margin stability
+// - property_casualty_insurance: P/B (justified vs ROE), fwd P/E
+// - interactive_media: fwd P/E, EV/EBIT, margin durability
+// - default: all 5 generic signals
+
+type FrameworkId = string | null | undefined;
+
+interface FrameworkConfig {
+  // Which signals to evaluate (true = include in this framework)
+  useFwdPe: boolean;
+  useEvEbitda: boolean;
+  useEvEbitdaHistory: boolean;
+  usePbRoe: boolean;
+  useFcfYield: boolean;
+  // Additional framework-specific signals
+  useEvEbit: boolean;
+  useMarginDurability: boolean;
+  // Threshold overrides (null = use defaults)
+  peThreshold: number;     // default 0.85
+  evThreshold: number;     // default 0.85
+  pbThreshold: number;     // default 0.80
+}
+
+function getFrameworkConfig(frameworkId: FrameworkId): FrameworkConfig {
+  const defaults: FrameworkConfig = {
+    useFwdPe: true, useEvEbitda: true, useEvEbitdaHistory: true,
+    usePbRoe: true, useFcfYield: true, useEvEbit: false,
+    useMarginDurability: false, peThreshold: 0.85, evThreshold: 0.85, pbThreshold: 0.80,
+  };
+
+  switch (frameworkId) {
+    case "cyclical_semiconductor_memory_v1":
+      // Cyclical: EV/EBIT, EV/EBITDA, P/B are primary; P/E less reliable at cycle peaks
+      return {
+        ...defaults,
+        useFwdPe: false,     // P/E unreliable in cyclicals
+        useEvEbit: true,     // EV/EBIT primary for cyclicals
+        useEvEbitdaHistory: true,
+        usePbRoe: true,      // P/B important for capital-intensive
+        useFcfYield: false,  // FCF volatile in cyclicals
+        evThreshold: 0.80,   // Tighter threshold for cyclicals
+      };
+    case "consumer_beverages_v1":
+      // Defensive: fwd P/E, EV/EBITDA, margin stability are primary
+      return {
+        ...defaults,
+        useFwdPe: true,
+        useEvEbitda: true,
+        usePbRoe: false,     // P/B less meaningful for brand-heavy
+        useMarginDurability: true,
+        useFcfYield: true,
+      };
+    case "property_casualty_insurance_v1":
+      // Insurance: P/B (justified vs ROE) is primary, fwd P/E secondary
+      // Keep EV/EBITDA as supplementary — useful for holding companies
+      return {
+        ...defaults,
+        useFwdPe: true,
+        useEvEbitda: true,   // Keep as supplementary signal
+        useEvEbitdaHistory: false, // History less meaningful for insurance
+        usePbRoe: true,      // PRIMARY signal for insurance
+        useFcfYield: false,
+        pbThreshold: 0.85,   // Slightly relaxed — insurance often trades near book
+        peThreshold: 0.80,   // Tighter P/E for financials
+      };
+    case "interactive_media_v1":
+      // Platform: fwd P/E, EV/EBIT, FCF yield, margin durability
+      return {
+        ...defaults,
+        useFwdPe: true,
+        useEvEbit: true,
+        useEvEbitda: true,
+        usePbRoe: false,     // P/B less relevant for asset-light
+        useMarginDurability: true,
+      };
+    default:
+      return defaults;
+  }
+}
 
 function evaluateCheapness(
   metrics: StockMetrics | undefined,
@@ -69,8 +151,9 @@ function evaluateCheapness(
   medianEvEbitda: number | null,
   medianPb: number | null,
   medianFcfYield: number | null,
-  medianRoe: number | null
-): { signals: CheapnessSignals; signalCount: number; pass: boolean } {
+  medianRoe: number | null,
+  frameworkId: FrameworkId
+): { signals: CheapnessSignals; signalCount: number; pass: boolean; frameworkUsed: string } {
   const signals: CheapnessSignals = {
     fwdPeVsMedian: null,
     evEbitdaVsMedian: null,
@@ -79,52 +162,57 @@ function evaluateCheapness(
     fcfYieldVsMedian: null,
   };
   let signalCount = 0;
+  const fw = getFrameworkConfig(frameworkId);
+  const frameworkUsed = frameworkId ?? "default";
 
-  if (!metrics) return { signals, signalCount: 0, pass: false };
+  if (!metrics) return { signals, signalCount: 0, pass: false, frameworkUsed };
 
-  // Signal 1: Forward P/E <= 0.85x industry median
-  if (metrics.forwardPE !== null && medianFwdPe !== null && medianFwdPe > 0) {
+  // Signal: Forward P/E <= threshold * industry median
+  if (fw.useFwdPe && metrics.forwardPE !== null && medianFwdPe !== null && medianFwdPe > 0) {
     signals.fwdPeVsMedian = metrics.forwardPE / medianFwdPe;
-    if (signals.fwdPeVsMedian <= 0.85) signalCount++;
+    if (signals.fwdPeVsMedian <= fw.peThreshold) signalCount++;
   }
 
-  // Signal 2: EV/EBITDA <= 0.85x industry median
-  if (metrics.evToEbitda !== null && medianEvEbitda !== null && medianEvEbitda > 0) {
+  // Signal: EV/EBITDA <= threshold * industry median
+  if (fw.useEvEbitda && metrics.evToEbitda !== null && medianEvEbitda !== null && medianEvEbitda > 0) {
     signals.evEbitdaVsMedian = metrics.evToEbitda / medianEvEbitda;
-    if (signals.evEbitdaVsMedian <= 0.85) signalCount++;
+    if (signals.evEbitdaVsMedian <= fw.evThreshold) signalCount++;
   }
 
-  // Signal 3: EV/EBITDA <= 35th percentile of 5Y history
-  // We don't have 5Y history per stock yet — use a proxy: below 80% of current median
-  // This is a placeholder until time-series data is available
-  if (metrics.evToEbitda !== null && medianEvEbitda !== null && medianEvEbitda > 0) {
+  // Signal: EV/EBITDA historical proxy (<= 80% of median)
+  if (fw.useEvEbitdaHistory && metrics.evToEbitda !== null && medianEvEbitda !== null && medianEvEbitda > 0) {
     const pctlProxy = metrics.evToEbitda / medianEvEbitda;
     signals.evEbitdaVs5yPctl = pctlProxy;
     if (pctlProxy <= 0.80) signalCount++;
   }
 
-  // Signal 4: P/B <= 0.8x industry median AND ROE >= threshold
-  if (
-    metrics.priceToBook !== null &&
-    medianPb !== null &&
-    medianPb > 0 &&
-    metrics.roe !== null
-  ) {
+  // Signal: EV/EBIT <= 0.85x (framework-specific, uses evToEbit metric)
+  if (fw.useEvEbit && metrics.evToEbit !== null && medianEvEbitda !== null && medianEvEbitda > 0) {
+    // Use median EV/EBITDA as proxy for EV/EBIT median (tighter multiple)
+    const evEbitRatio = metrics.evToEbit / (medianEvEbitda * 1.15); // EBIT median ≈ EBITDA * 1.15
+    if (evEbitRatio <= fw.evThreshold) signalCount++;
+  }
+
+  // Signal: P/B <= threshold * industry median AND ROE >= hurdle
+  if (fw.usePbRoe && metrics.priceToBook !== null && medianPb !== null && medianPb > 0 && metrics.roe !== null) {
     signals.pbVsMedian = metrics.priceToBook / medianPb;
     const roeThreshold = medianRoe !== null ? Math.max(medianRoe * 0.7, 0.05) : 0.08;
-    if (signals.pbVsMedian <= 0.80 && metrics.roe >= roeThreshold) signalCount++;
+    if (signals.pbVsMedian <= fw.pbThreshold && metrics.roe >= roeThreshold) signalCount++;
   }
 
-  // Signal 5: FCF yield >= industry median + 2 percentage points
-  if (metrics.freeCashFlow !== null && medianFcfYield !== null) {
-    // FCF yield from metrics: compute as a spread vs median
-    // If stock FCF yield > 0 and median > 0, check spread
-    const stockFcfYield = medianFcfYield; // Placeholder: we'd need market cap to compute yield
-    signals.fcfYieldVsMedian = null; // Will be null until we have per-stock yield
-    // Skip this signal for now — need market cap data per stock
+  // Signal: Margin durability (operating margin > industry context + positive trend)
+  if (fw.useMarginDurability && metrics.operatingMargin !== null) {
+    if (metrics.operatingMargin > 0.12 && metrics.grossMargin !== null && metrics.grossMargin > 0.30) {
+      signalCount++;
+    }
   }
 
-  return { signals, signalCount, pass: signalCount >= 2 };
+  // Signal: FCF yield (placeholder — needs per-stock market cap)
+  if (fw.useFcfYield && metrics.freeCashFlow !== null && medianFcfYield !== null) {
+    signals.fcfYieldVsMedian = null; // Still placeholder
+  }
+
+  return { signals, signalCount, pass: signalCount >= 2, frameworkUsed };
 }
 
 // Stable-fundamentals modifier: cheapness only counts if fundamentals aren't collapsing
@@ -451,9 +539,10 @@ export async function runIndustryScreen(onlySector?: SectorName): Promise<Screen
         const metrics = allMetrics[stock.ticker];
         const valInfo = valuationMap[stock.ticker];
 
-        // Stage C: Cheapness
+        // Stage C: Cheapness (framework-aware)
         const cheapness = evaluateCheapness(
-          metrics, medianFwdPe, medianEvEbitda, medianPb, medianFcfYield, medianRoe
+          metrics, medianFwdPe, medianEvEbitda, medianPb, medianFcfYield, medianRoe,
+          industry.valueFrameworkId
         );
         const fundamentals = checkStableFundamentals(metrics);
 
