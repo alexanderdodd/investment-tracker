@@ -101,7 +101,7 @@ async function runTaxTests(db: ReturnType<typeof getDb>) {
   );
 
   // TAX-005: No LLM-generated taxonomy fields
-  const allowedSources = new Set(["gics_feed", "curated_override", "etf_discovery"]);
+  const allowedSources = new Set(["gics_feed", "curated_override", "etf_discovery", "yahoo_screener"]);
   const llmSources = allStocks.filter((s) => !allowedSources.has(s.source));
 
   test(

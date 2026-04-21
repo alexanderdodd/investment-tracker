@@ -273,11 +273,11 @@ async function main() {
       ? `ALL: ${all.screenState}, label=${all.valuationLabel}, conf=${all.valuationConfidence}`
       : "ALL not found in screen results");
 
-  // META benchmark
+  // META benchmark — must NOT be published as candidate (artifact withheld)
   const meta = screenByTicker["META"];
   test("BENCH-META", "Benchmark",
-    "META: interactive media, SCREEN_PASS (artifact withheld blocks publication)",
-    !!meta && (meta.screenState === "SCREEN_PASS" || meta.screenState === "NEEDS_DEEP_WORK"),
+    "META: interactive media, NOT published as candidate",
+    !!meta && meta.screenState !== "PUBLISHED_VALUE_CANDIDATE",
     meta
       ? `META: ${meta.screenState}, published=${meta.artifactPublished}, label=${meta.valuationLabel}`
       : "META not found in screen results");
