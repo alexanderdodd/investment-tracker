@@ -7,6 +7,7 @@ import { StockValuationView } from "./valuation-view";
 import { StockOverviewTab } from "./stock-overview-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
 import { sectorToSlug } from "@/lib/sectors";
+import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 
 type Tab = "overview" | "valuation";
 
@@ -28,6 +29,7 @@ export default function StockPage() {
   const [hasValuation, setHasValuation] = useState(false);
   const [watching, setWatching] = useState(false);
   const [watchLoading, setWatchLoading] = useState(false);
+  const [showSimBuy, setShowSimBuy] = useState(false);
   const [classification, setClassification] = useState<{
     sectorName: string;
     industryName: string;
@@ -156,6 +158,13 @@ export default function StockPage() {
               {watching ? "\u2605" : "\u2606"}
               {watching ? "Watching" : "Watch"}
             </button>
+            {/* Simulate Buy button */}
+            <button
+              onClick={() => setShowSimBuy(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400 transition-colors"
+            >
+              Simulate Buy
+            </button>
           </div>
           <div className="mt-1 flex items-center gap-3">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{ticker}</p>
@@ -214,6 +223,16 @@ export default function StockPage() {
           <StockValuationView ticker={ticker} onReportGenerated={refreshInsights} />
         )}
       </div>
+
+      {/* Simulate Buy Modal */}
+      {showSimBuy && (
+        <SimulateBuyModal
+          ticker={ticker}
+          companyName={insights?.companyName ?? ticker}
+          currentPrice={livePrice?.price ?? null}
+          onClose={() => setShowSimBuy(false)}
+        />
+      )}
     </div>
   );
 }

@@ -271,6 +271,65 @@ export const industryScreenResults = pgTable("industry_screen_result", {
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ─── Simulation Portfolios ────────────────────────────────────────────────
+
+export const simPortfolios = pgTable("sim_portfolio", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  startingCash: real("starting_cash").notNull(),
+  feeModel: text("fee_model")
+    .$type<"ibkr_pro" | "saxo_classic" | "commission_free">()
+    .notNull()
+    .default("ibkr_pro"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const simTrades = pgTable("sim_trade", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  portfolioId: text("portfolio_id")
+    .notNull()
+    .references(() => simPortfolios.id, { onDelete: "cascade" }),
+  ticker: text("ticker").notNull(),
+  companyName: text("company_name").notNull(),
+  tradeType: text("trade_type")
+    .$type<"buy" | "sell">()
+    .notNull()
+    .default("buy"),
+  shares: real("shares").notNull(),
+  pricePerShare: real("price_per_share").notNull(),
+  fees: real("fees").notNull().default(0),
+  totalCost: real("total_cost").notNull(),
+  // Benchmark prices at time of trade (for comparison)
+  spyPriceAtTrade: real("spy_price_at_trade"),
+  sectorEtfTicker: text("sector_etf_ticker"),
+  sectorEtfPriceAtTrade: real("sector_etf_price_at_trade"),
+  notes: text("notes"),
+  executedAt: timestamp("executed_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const simDividends = pgTable("sim_dividend", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  portfolioId: text("portfolio_id")
+    .notNull()
+    .references(() => simPortfolios.id, { onDelete: "cascade" }),
+  ticker: text("ticker").notNull(),
+  exDate: text("ex_date").notNull(),
+  amountPerShare: real("amount_per_share").notNull(),
+  sharesHeld: real("shares_held").notNull(),
+  totalAmount: real("total_amount").notNull(),
+  recordedAt: timestamp("recorded_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // ─── Existing tables ───────────────────────────────────────────────────────
 
 export const sectorEmergingLeaders = pgTable("sector_emerging_leader", {

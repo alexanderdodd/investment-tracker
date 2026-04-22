@@ -10,7 +10,7 @@ A paper-trading portfolio feature that lets users simulate buying stocks at real
 |----------|--------|-----------|
 | Multiple portfolios | Yes | Users can test different strategies: "Value Picks Q2 2026", "Dividend Income", etc. |
 | Buy + sell | Buy only (v1) | Sell support designed for later — schema includes sell capability |
-| Cash tracking | Virtual cash balance | Start with configurable amount (default $100K), deduct purchases + fees |
+| Cash tracking | Virtual cash balance | User chooses starting amount when creating portfolio (e.g., $6K, $13K, $100K — no default) |
 | Fee model | IBKR/Saxo realistic fees | Not commission-free — users should see real trading friction |
 | Benchmarks | Purchase price, SPY, sector ETF | All three, shown side by side |
 | Dividends | Track income | Yahoo provides historical div events per stock |
@@ -42,7 +42,7 @@ id: uuid
 userId: references user
 name: string ("Value Picks Q2 2026")
 description: string | null
-startingCash: decimal (default 100000)
+startingCash: decimal (user-chosen, no default — e.g. 6000, 13000, 100000)
 currentCash: decimal (computed: starting - sum of purchases)
 feeModel: "ibkr_pro" | "saxo_classic" | "commission_free"
 createdAt: timestamp

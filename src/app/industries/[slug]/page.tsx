@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { sectorToSlug } from "@/lib/sectors";
+import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 import {
   type StockMetrics,
   type MetricRating,
@@ -251,6 +252,7 @@ export default function IndustryDetailPage() {
   const [metrics, setMetrics] = useState<Record<string, StockMetrics>>({});
   const [loading, setLoading] = useState(true);
   const [screenRunning, setScreenRunning] = useState(false);
+  const [simBuyTarget, setSimBuyTarget] = useState<{ ticker: string; companyName: string } | null>(null);
   const [screenRun, setScreenRun] = useState<ScreenRunResult | null>(null);
 
   const runScreen = useCallback(async () => {
@@ -511,8 +513,16 @@ export default function IndustryDetailPage() {
                                 {(VALUATION_BADGES[sr.valuationLabel] ?? VALUATION_BADGES.withheld).label}
                               </span>
                             )}
-                            <span className="ml-auto text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                              Score: {sr.compositeScore}
+                            <span className="ml-auto flex items-center gap-2">
+                              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                Score: {sr.compositeScore}
+                              </span>
+                              <button
+                                onClick={() => setSimBuyTarget({ ticker: sr.ticker, companyName: sr.companyName })}
+                                className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400 transition-colors"
+                              >
+                                Buy
+                              </button>
                             </span>
                           </div>
                           <div className="mt-1 flex flex-wrap gap-3 text-[10px]">
@@ -654,6 +664,16 @@ export default function IndustryDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Simulate Buy Modal */}
+      {simBuyTarget && (
+        <SimulateBuyModal
+          ticker={simBuyTarget.ticker}
+          companyName={simBuyTarget.companyName}
+          currentPrice={null}
+          onClose={() => setSimBuyTarget(null)}
+        />
+      )}
     </div>
   );
 }
