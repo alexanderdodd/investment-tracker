@@ -39,7 +39,21 @@ export default async function Home() {
               </form>
             </div>
 
-            <nav className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <nav className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Link
+                href="/search"
+                className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-6 py-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              >
+                <span className="text-2xl">🔍</span>
+                <div>
+                  <p className="font-medium text-zinc-900 dark:text-zinc-100">
+                    Search Stocks
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Look up any ticker or company
+                  </p>
+                </div>
+              </Link>
               <Link
                 href="/sectors"
                 className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-6 py-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
