@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import {
   type StockValuationInsights,
   parseStockValuationInsights,
@@ -120,13 +121,17 @@ function PeerComparisonTable({ insights }: { insights: StockValuationInsights })
             {peers.map((peer) => (
               <tr
                 key={peer.ticker}
-                className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
-                onClick={() => window.open(`/stocks/${peer.ticker}/valuation`, "_blank")}
-                title={`Open ${peer.ticker} valuation`}
+                className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
               >
                 <td className="py-3 pr-4">
-                  <div className="font-medium text-zinc-900 dark:text-zinc-100">{peer.ticker}</div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">{peer.companyName}</div>
+                  <Link
+                    href={`/stocks/${peer.ticker}/valuation`}
+                    className="block group"
+                    title={`Open ${peer.ticker} valuation`}
+                  >
+                    <div className="font-medium text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400 transition-colors">{peer.ticker}</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">{peer.companyName}</div>
+                  </Link>
                 </td>
                 <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{formatMarketCap(peer.marketCap)}</td>
                 <td className="py-3 px-4 text-right text-zinc-700 dark:text-zinc-300">{formatMultiple(peer.trailingPe)}</td>

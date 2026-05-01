@@ -304,10 +304,22 @@ export default function PortfolioDetailPage() {
                 <div key={t.id} className="px-6 py-3 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {t.tradeType === "buy" ? "Buy" : "Sell"} {t.shares} {t.ticker}
+                      {t.tradeType === "buy" ? "Buy" : "Sell"} {t.shares}{" "}
+                      <Link
+                        href={`/stocks/${t.ticker}/valuation`}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        {t.ticker}
+                      </Link>
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {t.companyName} at {fmt(t.pricePerShare)}/share
+                      <Link
+                        href={`/stocks/${t.ticker}/valuation`}
+                        className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                      >
+                        {t.companyName}
+                      </Link>{" "}
+                      at {fmt(t.pricePerShare)}/share
                       {t.fees > 0 && ` + ${fmt(t.fees)} fees`}
                     </p>
                     {t.notes && (
