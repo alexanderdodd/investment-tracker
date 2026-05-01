@@ -498,13 +498,15 @@ export default function IndustryDetailPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <Link
                               href={`/stocks/${sr.ticker}/valuation`}
-                              className="text-sm font-semibold text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400 transition-colors"
+                              className="group flex items-baseline gap-2"
                             >
-                              {sr.ticker}
+                              <span className="text-sm font-semibold text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400 transition-colors">
+                                {sr.ticker}
+                              </span>
+                              <span className="text-xs text-zinc-500 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:text-zinc-300 transition-colors">
+                                {sr.companyName}
+                              </span>
                             </Link>
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                              {sr.companyName}
-                            </span>
                             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${sBadge.className}`}>
                               {sBadge.icon} {sBadge.label}
                             </span>
@@ -573,11 +575,15 @@ export default function IndustryDetailPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
                           href={`/stocks/${sr.ticker}/valuation`}
-                          className="text-sm font-semibold text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400 transition-colors"
+                          className="group flex items-baseline gap-2"
                         >
-                          {sr.ticker}
+                          <span className="text-sm font-semibold text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400 transition-colors">
+                            {sr.ticker}
+                          </span>
+                          <span className="text-xs text-zinc-500 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:text-zinc-300 transition-colors">
+                            {sr.companyName}
+                          </span>
                         </Link>
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400">{sr.companyName}</span>
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${sBadge.className}`}>
                           {sBadge.icon} {sBadge.label}
                         </span>
