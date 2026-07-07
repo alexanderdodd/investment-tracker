@@ -124,7 +124,7 @@ const SUMMARY_ROWS: {
     yearKey: "epsDiluted",
     label: "EPS Growth",
     description:
-      "Diluted earnings-per-share growth. CAGR for 10y/5y, year-over-year for 1y. A growth rate is undefined when a start or end year had negative EPS — shown as \"loss-making\" by design, not missing data.",
+      "Diluted earnings-per-share growth. CAGR for 10y/5y, year-over-year for 1y. Shows < 0% when a start or end year had negative EPS (loss-making) — a growth rate can't be computed through a loss.",
     negativeLabel: "loss-making",
   },
   {
@@ -132,7 +132,7 @@ const SUMMARY_ROWS: {
     yearKey: "equity",
     label: "Equity (BV) Growth",
     description:
-      "Book value (stockholders' equity) growth. Buyback-heavy companies can shrink equity while still compounding value — read together with ROIC. Undefined when equity was negative in a start or end year.",
+      "Book value (stockholders' equity) growth. Buyback-heavy companies can shrink equity while still compounding value — read together with ROIC. Shows < 0% when equity was negative in a start or end year.",
     negativeLabel: "negative equity",
   },
   {
@@ -140,7 +140,7 @@ const SUMMARY_ROWS: {
     yearKey: "fcf",
     label: "FCF Growth",
     description:
-      "Free cash flow (operating cash flow − capex) growth. CAGR for 10y/5y, year-over-year for 1y. Undefined when FCF was negative in a start or end year — shown as \"cash-burning\" by design.",
+      "Free cash flow (operating cash flow − capex) growth. CAGR for 10y/5y, year-over-year for 1y. Shows < 0% when FCF was negative in a start or end year (cash-burning).",
     negativeLabel: "cash-burning",
   },
 ];
@@ -178,10 +178,11 @@ function SummaryCell({
 }) {
   if (stat.value === null && negativeLabel) {
     return (
-      <td className="px-3 py-3 text-right">
-        <span className="text-xs italic text-red-600/80 dark:text-red-400/80">
-          {negativeLabel}
-        </span>
+      <td
+        className={`px-3 py-3 text-right text-sm font-medium ${RATING_COLORS.bad}`}
+        title={negativeLabel}
+      >
+        {"< 0%"}
       </td>
     );
   }
