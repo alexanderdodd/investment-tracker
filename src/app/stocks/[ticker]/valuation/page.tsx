@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { StockValuationView } from "./valuation-view";
@@ -11,6 +11,35 @@ import { sectorToSlug } from "@/lib/sectors";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 
 type Tab = "overview" | "growth" | "valuation";
+
+// Remember the selected tab across stock pages: opening a new stock lands on
+// whatever tab was last used. Backed by localStorage via useSyncExternalStore
+// so it survives navigation without hydration mismatches.
+const TAB_STORAGE_KEY = "stock-page-tab";
+const TABS: readonly Tab[] = ["overview", "growth", "valuation"];
+
+function subscribeTab(callback: () => void) {
+  window.addEventListener("stock-tab-change", callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener("stock-tab-change", callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+function getTabSnapshot(): Tab {
+  const stored = localStorage.getItem(TAB_STORAGE_KEY);
+  return TABS.includes(stored as Tab) ? (stored as Tab) : "overview";
+}
+
+function useRememberedTab(): [Tab, (tab: Tab) => void] {
+  const tab = useSyncExternalStore(subscribeTab, getTabSnapshot, () => "overview" as Tab);
+  const setTab = useCallback((next: Tab) => {
+    localStorage.setItem(TAB_STORAGE_KEY, next);
+    window.dispatchEvent(new Event("stock-tab-change"));
+  }, []);
+  return [tab, setTab];
+}
 
 function verdictColor(verdict: string) {
   switch (verdict) {
@@ -24,7 +53,7 @@ function verdictColor(verdict: string) {
 export default function StockPage() {
   const params = useParams();
   const ticker = (params.ticker as string).toUpperCase();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useRememberedTab();
   const [livePrice, setLivePrice] = useState<{ price: number; previousClose: number | null } | null>(null);
   const [insights, setInsights] = useState<StockValuationInsights | null>(null);
   const [hasValuation, setHasValuation] = useState(false);
