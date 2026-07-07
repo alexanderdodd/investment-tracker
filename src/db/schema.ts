@@ -8,6 +8,7 @@ import {
   real,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
+import type { GrowthHistoryPayload } from "@/lib/sec-edgar/growth-history";
 
 export const users = pgTable("user", {
   id: text("id")
@@ -409,5 +410,15 @@ export const stockValuations = pgTable("stock_valuation", {
   researchDocument: text("research_document").notNull(),
   structuredInsights: jsonb("structured_insights"),
   sourceAccessions: text("source_accessions"),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// Cached Big Five growth history (SEC EDGAR XBRL, deterministic).
+// One row per ticker — computed payload is small (~5-15 KB); the raw
+// EDGAR companyfacts source it derives from is 5-20 MB, hence the cache.
+export const stockGrowthHistories = pgTable("stock_growth_history", {
+  ticker: text("ticker").primaryKey(),
+  cik: text("cik"),
+  payload: jsonb("payload").$type<GrowthHistoryPayload>().notNull(),
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });

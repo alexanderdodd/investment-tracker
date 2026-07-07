@@ -89,6 +89,15 @@ const BUYBACK_TAGS = [
   "PaymentsForRepurchaseOfEquity",
 ];
 
+/** Income tax expense (for effective tax rate) */
+const TAX_EXPENSE_TAGS = ["IncomeTaxExpenseBenefit"];
+
+/** Pre-tax income (for effective tax rate) */
+const PRETAX_INCOME_TAGS = [
+  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+  "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+];
+
 // Balance sheet tags (instant values)
 const CASH_TAGS = ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsAndShortTermInvestments", "Cash"];
 const SHORT_TERM_INVESTMENTS_TAGS = ["AvailableForSaleSecuritiesDebtSecuritiesCurrent", "ShortTermInvestments", "MarketableSecuritiesCurrent", "AvailableForSaleSecuritiesCurrent"];
@@ -107,6 +116,20 @@ const DILUTED_SHARES_TAGS = ["WeightedAverageNumberOfDilutedSharesOutstanding"];
 // ---------------------------------------------------------------------------
 // Core extraction logic
 // ---------------------------------------------------------------------------
+
+/**
+ * All unit arrays matching the revenue tag candidates, in priority order.
+ * Needed for long histories: companies switched revenue tags when ASC 606
+ * landed (~2018), so a 10-year series must merge the new and old tags.
+ */
+export function findAllRevenueUnitArrays(facts: CompanyFacts): XbrlUnit[][] {
+  const arrays: XbrlUnit[][] = [];
+  for (const tag of REVENUE_TAGS) {
+    const units = facts.facts["us-gaap"]?.[tag]?.units["USD"];
+    if (units && units.length > 0) arrays.push(units);
+  }
+  return arrays;
+}
 
 type PeriodFilter = "duration" | "instant";
 
@@ -306,6 +329,8 @@ export interface XbrlExtraction {
   dividendsPaidUnits: XbrlUnit[] | null;
   buybackUnits: XbrlUnit[] | null;
   dilutedSharesUnits: XbrlUnit[] | null;
+  taxExpenseUnits: XbrlUnit[] | null;
+  pretaxIncomeUnits: XbrlUnit[] | null;
 
   // Instant-based lookups (balance sheet)
   cashUnits: XbrlUnit[] | null;
@@ -374,6 +399,8 @@ export function extractAllXbrl(facts: CompanyFacts): XbrlExtraction {
     dividendsPaidUnits: extract("dividendsPaid", DIVIDENDS_PAID_TAGS),
     buybackUnits: extract("buyback", BUYBACK_TAGS),
     dilutedSharesUnits: extract("dilutedShares", DILUTED_SHARES_TAGS, "shares"),
+    taxExpenseUnits: extract("taxExpense", TAX_EXPENSE_TAGS),
+    pretaxIncomeUnits: extract("pretaxIncome", PRETAX_INCOME_TAGS),
 
     cashUnits: extract("cash", CASH_TAGS),
     shortTermInvestmentsUnits: extract("shortTermInvestments", SHORT_TERM_INVESTMENTS_TAGS),

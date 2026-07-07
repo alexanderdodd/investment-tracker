@@ -5,11 +5,12 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { StockValuationView } from "./valuation-view";
 import { StockOverviewTab } from "./stock-overview-tab";
+import { GrowthRatesTab } from "./growth-rates-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
 import { sectorToSlug } from "@/lib/sectors";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 
-type Tab = "overview" | "valuation";
+type Tab = "overview" | "growth" | "valuation";
 
 function verdictColor(verdict: string) {
   switch (verdict) {
@@ -199,6 +200,16 @@ export default function StockPage() {
             Overview
           </button>
           <button
+            onClick={() => setTab("growth")}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === "growth"
+                ? "border-b-2 border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+            }`}
+          >
+            Growth
+          </button>
+          <button
             onClick={() => setTab("valuation")}
             className={`px-4 py-2.5 text-sm font-medium transition-colors ${
               tab === "valuation"
@@ -219,6 +230,7 @@ export default function StockPage() {
         {tab === "overview" && (
           <StockOverviewTab ticker={ticker} sector={insights?.sector} />
         )}
+        {tab === "growth" && <GrowthRatesTab ticker={ticker} />}
         {tab === "valuation" && (
           <StockValuationView ticker={ticker} onReportGenerated={refreshInsights} />
         )}

@@ -74,8 +74,8 @@ function getDiscreteEntries(units: XbrlUnit[]): DiscreteEntry[] {
 /**
  * Get all FY (full-year) entries for deriving Q4.
  */
-function getAnnualEntries(units: XbrlUnit[]): { fy: number; start: string; end: string; val: number }[] {
-  const byFyEnd = new Map<string, { fy: number; start: string; end: string; val: number; duration: number }>();
+function getAnnualEntries(units: XbrlUnit[]): { fy: number; start: string; end: string; val: number; filed: string }[] {
+  const byFyEnd = new Map<string, { fy: number; start: string; end: string; val: number; filed: string; duration: number }>();
 
   for (const u of units) {
     if (u.fp !== "FY" || !u.start || !u.end) continue;
@@ -85,7 +85,7 @@ function getAnnualEntries(units: XbrlUnit[]): { fy: number; start: string; end: 
     const duration = new Date(u.end).getTime() - new Date(u.start).getTime();
     const existing = byFyEnd.get(key);
     if (!existing || duration > existing.duration) {
-      byFyEnd.set(key, { fy: u.fy, start: u.start, end: u.end, val: u.val, duration });
+      byFyEnd.set(key, { fy: u.fy, start: u.start, end: u.end, val: u.val, filed: u.filed, duration });
     }
   }
 
@@ -302,6 +302,8 @@ export function computeTTM(units: XbrlUnit[]): TtmResult | null {
  * different physical fiscal years. Using end-date year ensures each physical
  * year gets a unique, stable identifier that can be joined across metrics.
  */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export function buildAnnualHistory(
   units: XbrlUnit[],
   years = 10
@@ -311,11 +313,20 @@ export function buildAnnualHistory(
   // Deduplicate by end-date year (the calendar year the fiscal year ends in).
   // This is the stable identifier — the SEC fy field is unreliable for
   // non-calendar fiscal years.
-  const byEndYear = new Map<number, { endYear: number; val: number }>();
+  const byEndYear = new Map<number, { endYear: number; val: number; filed: string }>();
   for (const a of annuals) {
+    // 10-K comparative disclosures include quarterly values tagged fp="FY";
+    // only a true full-year duration qualifies as an annual entry.
+    const duration = new Date(a.end).getTime() - new Date(a.start).getTime();
+    if (duration < 330 * DAY_MS || duration > 400 * DAY_MS) continue;
+
+    // Prefer the original as-filed value over later comparative re-reports —
+    // re-reports can be restated on a different basis (e.g. post-split EPS),
+    // and a mixed basis would corrupt growth calculations.
     const endYear = parseInt(a.end.substring(0, 4), 10);
-    if (!byEndYear.has(endYear)) {
-      byEndYear.set(endYear, { endYear, val: a.val });
+    const existing = byEndYear.get(endYear);
+    if (!existing || a.filed < existing.filed) {
+      byEndYear.set(endYear, { endYear, val: a.val, filed: a.filed });
     }
   }
 
@@ -323,4 +334,36 @@ export function buildAnnualHistory(
     .sort((a, b) => a.endYear - b.endYear)
     .slice(-years)
     .map((e) => ({ fiscalYear: e.endYear, value: e.val }));
+}
+
+/**
+ * Build an annual history of a balance-sheet (instant) metric from XBRL units.
+ *
+ * Balance-sheet entries are point-in-time: they carry an `instant` date (or
+ * `end` without `start`), never a duration, so `buildAnnualHistory` can't see
+ * them. Restricts to 10-K entries so mid-year 10-Q snapshots don't leak in —
+ * 10-Ks also carry prior-year comparatives, which backfill earlier years.
+ * Uses the same calendar-end-year join key as `buildAnnualHistory`.
+ */
+export function buildAnnualInstantHistory(
+  units: XbrlUnit[],
+  years = 10
+): { fiscalYear: number; value: number }[] {
+  const byEndYear = new Map<number, { date: string; val: number }>();
+  for (const u of units) {
+    if (u.form !== "10-K") continue;
+    const date = u.instant ?? (u.end && !u.start ? u.end : undefined);
+    if (!date) continue;
+    const endYear = parseInt(date.substring(0, 4), 10);
+    const existing = byEndYear.get(endYear);
+    // Keep the latest date within the year — that's the fiscal-year-end sheet
+    if (!existing || date > existing.date) {
+      byEndYear.set(endYear, { date, val: u.val });
+    }
+  }
+
+  return Array.from(byEndYear.entries())
+    .sort((a, b) => a[0] - b[0])
+    .slice(-years)
+    .map(([fiscalYear, e]) => ({ fiscalYear, value: e.val }));
 }
