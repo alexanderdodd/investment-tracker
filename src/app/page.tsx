@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth, signIn, signOut } from "@/auth";
+import { StockSearchBox } from "@/components/stock-search-box";
 
 export default async function Home() {
   const session = await auth();
@@ -37,6 +38,10 @@ export default async function Home() {
                   Sign out
                 </button>
               </form>
+            </div>
+
+            <div className="w-full sm:w-[34rem]">
+              <StockSearchBox />
             </div>
 
             <nav className="grid grid-cols-1 gap-3 sm:grid-cols-2">
