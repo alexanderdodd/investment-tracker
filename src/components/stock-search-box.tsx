@@ -14,7 +14,7 @@ type SearchResult = {
 
 const MAX_DROPDOWN_RESULTS = 6;
 
-export function StockSearchBox() {
+export function StockSearchBox({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -86,10 +86,17 @@ export function StockSearchBox() {
       } else {
         router.push(`/search?q=${encodeURIComponent(trimmed)}`);
       }
-      setOpen(false);
+      dismiss();
     } else if (e.key === "Escape") {
       setOpen(false);
     }
+  }
+
+  // Close the dropdown and clear the query — the destination page makes a
+  // lingering query in the box read as stale state.
+  function dismiss() {
+    setOpen(false);
+    setQuery("");
   }
 
   const trimmed = query.trim();
@@ -102,13 +109,19 @@ export function StockSearchBox() {
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => trimmed.length > 0 && results.length > 0 && setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Search any stock — e.g. Apple, AAPL, KO"
-        className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-600 dark:focus:border-zinc-600"
+        placeholder={compact ? "Search stocks…" : "Search any stock — e.g. Apple, AAPL, KO"}
+        className={`w-full border border-zinc-200 bg-white text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-600 dark:focus:border-zinc-600 ${
+          compact ? "rounded-lg px-3 py-1.5 text-sm" : "rounded-xl px-4 py-3 text-base"
+        }`}
         autoComplete="off"
         spellCheck={false}
       />
       {loading && (
-        <span className="absolute right-4 top-3.5 text-xs text-zinc-400 dark:text-zinc-500">
+        <span
+          className={`absolute right-3 text-xs text-zinc-400 dark:text-zinc-500 ${
+            compact ? "top-2" : "top-3.5"
+          }`}
+        >
           Searching…
         </span>
       )}
@@ -128,7 +141,7 @@ export function StockSearchBox() {
                 >
                   <Link
                     href={`/stocks/${r.ticker}/valuation`}
-                    onClick={() => setOpen(false)}
+                    onClick={dismiss}
                     className={`flex items-center justify-between gap-4 px-4 py-2.5 transition-colors ${
                       i === highlighted
                         ? "bg-zinc-50 dark:bg-zinc-800/50"
@@ -160,7 +173,7 @@ export function StockSearchBox() {
           )}
           <Link
             href={`/search?q=${encodeURIComponent(trimmed)}`}
-            onClick={() => setOpen(false)}
+            onClick={dismiss}
             className="block border-t border-zinc-100 px-4 py-2.5 text-center text-xs font-medium text-blue-500 hover:bg-zinc-50 dark:border-zinc-800/50 dark:text-blue-400 dark:hover:bg-zinc-800/50 transition-colors"
           >
             See all results for &ldquo;{trimmed}&rdquo;
