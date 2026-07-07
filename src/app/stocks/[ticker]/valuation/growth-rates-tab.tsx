@@ -98,38 +98,50 @@ function fmtEps(v: number | null): string {
 
 const SUMMARY_ROWS: {
   key: keyof GrowthSummary;
+  /** Per-year field the row is derived from — used to explain undefined cells */
+  yearKey: keyof GrowthYearRow;
   label: string;
   description: string;
+  /** Shown instead of "—" when the rate is undefined because of negative values */
+  negativeLabel?: string;
 }[] = [
   {
     key: "roic",
+    yearKey: "roic",
     label: "ROIC",
     description:
       "Return on Invested Capital: after-tax operating income ÷ (equity + debt). Rule #1 wants ≥10% every year — 10y/5y columns show the average, 1y the latest fiscal year.",
   },
   {
     key: "salesGrowth",
+    yearKey: "revenue",
     label: "Sales Growth",
     description:
       "Revenue growth rate. 10y/5y columns are compound annual growth rates (CAGR); 1y is the latest year-over-year change. Rule #1 threshold: ≥10%/yr.",
   },
   {
     key: "epsGrowth",
+    yearKey: "epsDiluted",
     label: "EPS Growth",
     description:
-      "Diluted earnings-per-share growth. CAGR for 10y/5y, year-over-year for 1y. Undefined (—) when an endpoint year had negative EPS.",
+      "Diluted earnings-per-share growth. CAGR for 10y/5y, year-over-year for 1y. A growth rate is undefined when a start or end year had negative EPS — shown as \"loss-making\" by design, not missing data.",
+    negativeLabel: "loss-making",
   },
   {
     key: "equityGrowth",
+    yearKey: "equity",
     label: "Equity (BV) Growth",
     description:
-      "Book value (stockholders' equity) growth. Buyback-heavy companies can shrink equity while still compounding value — read together with ROIC.",
+      "Book value (stockholders' equity) growth. Buyback-heavy companies can shrink equity while still compounding value — read together with ROIC. Undefined when equity was negative in a start or end year.",
+    negativeLabel: "negative equity",
   },
   {
     key: "fcfGrowth",
+    yearKey: "fcf",
     label: "FCF Growth",
     description:
-      "Free cash flow (operating cash flow − capex) growth. CAGR for 10y/5y, year-over-year for 1y.",
+      "Free cash flow (operating cash flow − capex) growth. CAGR for 10y/5y, year-over-year for 1y. Undefined when FCF was negative in a start or end year — shown as \"cash-burning\" by design.",
+    negativeLabel: "cash-burning",
   },
 ];
 
@@ -154,7 +166,26 @@ const CHART_TOOLTIP_STYLE = {
   color: "#e4e4e7",
 };
 
-function SummaryCell({ stat, target }: { stat: PeriodStat; target: number }) {
+function SummaryCell({
+  stat,
+  target,
+  negativeLabel,
+}: {
+  stat: PeriodStat;
+  target: number;
+  /** Set when the rate is undefined because of negative underlying values */
+  negativeLabel?: string;
+}) {
+  if (stat.value === null && negativeLabel) {
+    return (
+      <td className="px-3 py-3 text-right">
+        <span className="text-xs italic text-red-600/80 dark:text-red-400/80">
+          {negativeLabel}
+        </span>
+      </td>
+    );
+  }
+
   const rating = rateBigFive(stat.value);
   return (
     <td className={`px-3 py-3 text-right text-sm font-medium ${RATING_COLORS[rating]}`}>
@@ -168,7 +199,13 @@ function SummaryCell({ stat, target }: { stat: PeriodStat; target: number }) {
   );
 }
 
-function BigFiveSummaryTable({ summary }: { summary: GrowthSummary }) {
+function BigFiveSummaryTable({
+  summary,
+  years,
+}: {
+  summary: GrowthSummary;
+  years: GrowthYearRow[];
+}) {
   return (
     <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
@@ -192,21 +229,35 @@ function BigFiveSummaryTable({ summary }: { summary: GrowthSummary }) {
             </tr>
           </thead>
           <tbody>
-            {SUMMARY_ROWS.map((row) => (
-              <tr
-                key={row.key}
-                className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
-              >
-                <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
-                  <MetricTooltip label={row.label} description={row.description}>
-                    <span>{row.label}</span>
-                  </MetricTooltip>
-                </td>
-                {PERIODS.map((p) => (
-                  <SummaryCell key={p.key} stat={summary[row.key][p.key]} target={p.target} />
-                ))}
-              </tr>
-            ))}
+            {SUMMARY_ROWS.map((row) => {
+              // A rate can be undefined because the underlying series has
+              // negative years (loss-making, cash-burning) — surface that
+              // instead of a bare "—" that reads like missing data.
+              const hasNegative = years.some((y) => {
+                const v = y[row.yearKey] as number | null;
+                return v !== null && v <= 0;
+              });
+              return (
+                <tr
+                  key={row.key}
+                  className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
+                >
+                  <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
+                    <MetricTooltip label={row.label} description={row.description}>
+                      <span>{row.label}</span>
+                    </MetricTooltip>
+                  </td>
+                  {PERIODS.map((p) => (
+                    <SummaryCell
+                      key={p.key}
+                      stat={summary[row.key][p.key]}
+                      target={p.target}
+                      negativeLabel={hasNegative ? row.negativeLabel : undefined}
+                    />
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -565,7 +616,7 @@ export function GrowthRatesTab({ ticker }: { ticker: string }) {
 
   return (
     <div className="space-y-6">
-      <BigFiveSummaryTable summary={data.summary} />
+      <BigFiveSummaryTable summary={data.summary} years={data.years} />
       <BigFiveChart years={data.years} />
 
       <div>
