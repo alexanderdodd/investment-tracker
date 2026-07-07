@@ -266,6 +266,119 @@ function BigFiveSummaryTable({
   );
 }
 
+// Rule #1 debt check: total debt ÷ current free cash flow = years to pay
+// off the debt. The book's rule of thumb: payable within 3 years is okay.
+function ratePayoff(years: number): MetricRating {
+  if (years <= 3) return "good";
+  if (years <= 5) return "caution";
+  return "bad";
+}
+
+function DebtPayoffCard({ years }: { years: GrowthYearRow[] }) {
+  const rows = years
+    .filter((y) => y.totalDebt !== null || y.fcf !== null)
+    .map((y) => ({
+      fiscalYear: y.fiscalYear,
+      debt: y.totalDebt,
+      fcf: y.fcf,
+      payoff:
+        y.totalDebt !== null && y.fcf !== null && y.fcf > 0
+          ? y.totalDebt / y.fcf
+          : null,
+    }));
+  if (rows.length === 0) return null;
+
+  const latest = rows[rows.length - 1];
+  const debtFree = latest.debt !== null && latest.debt === 0;
+
+  let headline: string;
+  let headlineColor: string;
+  if (debtFree) {
+    headline = "Debt-free";
+    headlineColor = RATING_COLORS.good;
+  } else if (latest.payoff !== null) {
+    headline = `${latest.payoff.toFixed(1)} years`;
+    headlineColor = RATING_COLORS[ratePayoff(latest.payoff)];
+  } else if (latest.fcf !== null && latest.fcf <= 0) {
+    headline = "n/a — negative FCF";
+    headlineColor = RATING_COLORS.bad;
+  } else {
+    headline = "—";
+    headlineColor = RATING_COLORS.neutral;
+  }
+
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-baseline justify-between border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            <MetricTooltip
+              label="Debt payoff"
+              description="Total debt ÷ current free cash flow — how many years of FCF it would take to clear the debt. Rule #1: a healthy business can pay off its debt within 3 years of free cash flow."
+            >
+              <span>Debt payoff</span>
+            </MetricTooltip>
+          </h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Rule #1: payable within 3 years of free cash flow
+          </p>
+        </div>
+        <p className={`text-lg font-semibold ${headlineColor}`}>
+          {headline}
+          {!debtFree && latest.payoff !== null && (
+            <span className="ml-1.5 text-xs font-normal text-zinc-400 dark:text-zinc-500">
+              FY{latest.fiscalYear}
+            </span>
+          )}
+        </p>
+      </div>
+      <div className="overflow-x-auto px-6 py-3">
+        <table className="w-full min-w-[380px]">
+          <thead>
+            <tr className="text-left text-[11px] text-zinc-400 dark:text-zinc-500">
+              <th className="py-1 font-medium">FY</th>
+              <th className="py-1 text-right font-medium">Total debt</th>
+              <th className="py-1 text-right font-medium">FCF</th>
+              <th className="py-1 text-right font-medium">Years to pay off</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...rows].reverse().map((r) => (
+              <tr
+                key={r.fiscalYear}
+                className="border-t border-zinc-50 text-xs dark:border-zinc-800/50"
+              >
+                <td className="py-1.5 text-zinc-500 dark:text-zinc-400">{r.fiscalYear}</td>
+                <td className="py-1.5 text-right font-medium text-zinc-900 dark:text-zinc-100">
+                  {fmtDollars(r.debt)}
+                </td>
+                <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">
+                  {fmtDollars(r.fcf)}
+                </td>
+                <td
+                  className={`py-1.5 text-right font-medium ${
+                    r.debt !== null && r.debt === 0
+                      ? RATING_COLORS.good
+                      : r.payoff !== null
+                        ? RATING_COLORS[ratePayoff(r.payoff)]
+                        : "text-zinc-400 dark:text-zinc-500"
+                  }`}
+                >
+                  {r.debt !== null && r.debt === 0
+                    ? "debt-free"
+                    : r.payoff !== null
+                      ? r.payoff.toFixed(1)
+                      : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 type ChartMode = "indexed" | "perShare";
 
 function BigFiveChart({ years }: { years: GrowthYearRow[] }) {
@@ -618,6 +731,7 @@ export function GrowthRatesTab({ ticker }: { ticker: string }) {
   return (
     <div className="space-y-6">
       <BigFiveSummaryTable summary={data.summary} years={data.years} />
+      <DebtPayoffCard years={data.years} />
       <BigFiveChart years={data.years} />
 
       <div>
