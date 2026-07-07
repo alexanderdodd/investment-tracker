@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { calculateFee, FEE_MODEL_LABELS, type FeeModel } from "@/lib/sim-fees";
 
 interface Portfolio {
@@ -21,6 +22,9 @@ function fmt(v: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(v);
 }
 
+// Preselect the portfolio last bought into, so repeat buys skip the dropdown
+const PORTFOLIO_STORAGE_KEY = "last-buy-portfolio";
+
 export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }: SimulateBuyModalProps) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("");
@@ -34,9 +38,12 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
     fetch("/api/portfolios")
       .then((r) => r.json())
       .then((data) => {
-        setPortfolios(data.portfolios ?? []);
-        if (data.portfolios?.length > 0) {
-          setSelectedPortfolio(data.portfolios[0].id);
+        const list: Portfolio[] = data.portfolios ?? [];
+        setPortfolios(list);
+        if (list.length > 0) {
+          const remembered = localStorage.getItem(PORTFOLIO_STORAGE_KEY);
+          const match = list.find((p) => p.id === remembered);
+          setSelectedPortfolio((match ?? list[0]).id);
         }
       })
       .catch(() => {})
@@ -62,6 +69,7 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
       });
       const data = await res.json();
       if (res.ok) {
+        localStorage.setItem(PORTFOLIO_STORAGE_KEY, selectedPortfolio);
         setResult({
           success: true,
           message: `Bought ${shareCount} shares of ${ticker} at ${fmt(data.trade.pricePerShare)} (${fmt(data.trade.totalCost)} total). Cash remaining: ${fmt(data.trade.cashRemaining)}`,
@@ -114,9 +122,9 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
         ) : portfolios.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">No portfolios yet.</p>
-            <a href="/portfolios" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400">
+            <Link href="/portfolios" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400">
               Create a portfolio first
-            </a>
+            </Link>
           </div>
         ) : !result?.success && (
           <div className="space-y-4">
