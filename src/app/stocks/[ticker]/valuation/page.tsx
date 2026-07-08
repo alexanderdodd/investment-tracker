@@ -6,17 +6,18 @@ import Link from "next/link";
 import { StockValuationView } from "./valuation-view";
 import { StockOverviewTab } from "./stock-overview-tab";
 import { GrowthRatesTab } from "./growth-rates-tab";
+import { StickerPriceTab } from "./sticker-price-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
 import { sectorToSlug } from "@/lib/sectors";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 
-type Tab = "overview" | "growth" | "valuation";
+type Tab = "overview" | "growth" | "sticker" | "valuation";
 
 // Remember the selected tab across stock pages: opening a new stock lands on
 // whatever tab was last used. Backed by localStorage via useSyncExternalStore
 // so it survives navigation without hydration mismatches.
 const TAB_STORAGE_KEY = "stock-page-tab";
-const TABS: readonly Tab[] = ["overview", "growth", "valuation"];
+const TABS: readonly Tab[] = ["overview", "growth", "sticker", "valuation"];
 
 function subscribeTab(callback: () => void) {
   window.addEventListener("stock-tab-change", callback);
@@ -239,6 +240,16 @@ export default function StockPage() {
             Growth
           </button>
           <button
+            onClick={() => setTab("sticker")}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === "sticker"
+                ? "border-b-2 border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+            }`}
+          >
+            Sticker Price
+          </button>
+          <button
             onClick={() => setTab("valuation")}
             className={`px-4 py-2.5 text-sm font-medium transition-colors ${
               tab === "valuation"
@@ -260,6 +271,7 @@ export default function StockPage() {
           <StockOverviewTab ticker={ticker} sector={insights?.sector} />
         )}
         {tab === "growth" && <GrowthRatesTab ticker={ticker} />}
+        {tab === "sticker" && <StickerPriceTab ticker={ticker} />}
         {tab === "valuation" && (
           <StockValuationView ticker={ticker} onReportGenerated={refreshInsights} />
         )}
