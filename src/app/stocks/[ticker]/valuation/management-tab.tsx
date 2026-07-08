@@ -55,6 +55,8 @@ interface ManagementSec {
   transactions: InsiderTransaction[];
   ceoOwnership: { date: string; owner: string; shares: number }[];
   execChanges: { date: string; filingUrl: string }[];
+  ceoComp?: { fiscalYear: number; totalComp: number; compActuallyPaid: number | null }[];
+  proxyUrl?: string | null;
   form4Available: number;
   form4Parsed: number;
 }
@@ -64,6 +66,7 @@ interface ManagementBrief {
   ceoSince: string | null;
   founderLed: boolean | null;
   assessment: string;
+  compensation?: string;
   recentStatements: string;
   positives: string[];
   redFlags: string[];
@@ -125,6 +128,14 @@ const MD_COMPONENTS = {
 };
 
 type TxFilter = "trades" | "all";
+
+// Stored briefs can predate the string-coercion fix in the generator —
+// Markdown requires string children, so normalize defensively here too
+function asMarkdown(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) return v.map((x) => `- ${String(x)}`).join("\n");
+  return "";
+}
 
 interface FetchResult {
   ticker: string;
@@ -364,6 +375,66 @@ export function ManagementTab({ ticker }: { ticker: string }) {
         </div>
       )}
 
+      {/* CEO compensation */}
+      {data.sec?.ceoComp && data.sec.ceoComp.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-baseline justify-between border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                CEO compensation
+              </h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                From the proxy statement&apos;s Pay-versus-Performance disclosure
+              </p>
+            </div>
+            {data.sec.proxyUrl && (
+              <a
+                href={data.sec.proxyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-500 hover:underline dark:text-blue-400"
+              >
+                Proxy filing ↗
+              </a>
+            )}
+          </div>
+          <div className="overflow-x-auto px-6 py-3">
+            <table className="w-full min-w-[400px]">
+              <thead>
+                <tr className="text-left text-[11px] text-zinc-400 dark:text-zinc-500">
+                  <th className="py-1 font-medium">FY</th>
+                  <th className="py-1 text-right font-medium">Total comp (SCT)</th>
+                  <th className="py-1 text-right font-medium">Actually paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...data.sec.ceoComp].reverse().map((c) => (
+                  <tr
+                    key={c.fiscalYear}
+                    className="border-t border-zinc-50 text-xs dark:border-zinc-800/50"
+                  >
+                    <td className="py-1.5 text-zinc-500 dark:text-zinc-400">{c.fiscalYear}</td>
+                    <td className="py-1.5 text-right font-medium text-zinc-900 dark:text-zinc-100">
+                      {fmtMoney(c.totalComp)}
+                    </td>
+                    <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">
+                      {fmtMoney(c.compActuallyPaid)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 pb-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+              &ldquo;Total comp&rdquo; is the Summary Compensation Table figure (equity at
+              grant-date value); &ldquo;actually paid&rdquo; marks equity awards to market — it
+              swings with the stock. The Yahoo &ldquo;Pay&rdquo; column above excludes equity
+              awards entirely, which is why it looks far smaller. For what the bonus rewards,
+              see the brief below or the proxy&apos;s CD&amp;A section.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Insider transactions */}
       {data.sec?.available && (
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -553,14 +624,23 @@ export function ManagementTab({ ticker }: { ticker: string }) {
                 )}
               </div>
 
-              <Markdown components={MD_COMPONENTS}>{data.brief.assessment}</Markdown>
+              <Markdown components={MD_COMPONENTS}>{asMarkdown(data.brief.assessment)}</Markdown>
 
-              {data.brief.recentStatements && (
+              {asMarkdown(data.brief.compensation) && (
+                <div>
+                  <h3 className="mb-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    Compensation &amp; incentives
+                  </h3>
+                  <Markdown components={MD_COMPONENTS}>{asMarkdown(data.brief.compensation)}</Markdown>
+                </div>
+              )}
+
+              {asMarkdown(data.brief.recentStatements) && (
                 <div>
                   <h3 className="mb-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                     Recent statements
                   </h3>
-                  <Markdown components={MD_COMPONENTS}>{data.brief.recentStatements}</Markdown>
+                  <Markdown components={MD_COMPONENTS}>{asMarkdown(data.brief.recentStatements)}</Markdown>
                 </div>
               )}
 

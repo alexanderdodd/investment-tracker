@@ -64,6 +64,15 @@ export interface ExecChangeEvent {
   filingUrl: string;
 }
 
+export interface CeoCompYear {
+  /** Calendar year the fiscal year ends in */
+  fiscalYear: number;
+  /** Summary Compensation Table total (ecd:PeoTotalCompAmt) — grant-date value */
+  totalComp: number;
+  /** "Compensation actually paid" (ecd:PeoActuallyPaidCompAmt) — equity marked to market */
+  compActuallyPaid: number | null;
+}
+
 export interface ManagementPayload {
   ticker: string;
   companyName: string | null;
@@ -75,6 +84,11 @@ export interface ManagementPayload {
   ceoOwnership: CeoOwnershipPoint[];
   /** 8-K filings with Item 5.02 (officer/director departures & appointments) */
   execChanges: ExecChangeEvent[];
+  /** CEO pay per fiscal year, from the proxy statement's tagged
+   *  Pay-versus-Performance disclosure (one DEF 14A covers ~5 years) */
+  ceoComp: CeoCompYear[];
+  /** Link to the proxy statement the comp data came from */
+  proxyUrl: string | null;
   form4Available: number;
   form4Parsed: number;
 }
@@ -171,6 +185,52 @@ function parseForm4(xml: string, filingUrl: string): ParsedForm4 {
 }
 
 // ---------------------------------------------------------------------------
+// CEO compensation from the proxy statement's inline XBRL.
+// The Pay-versus-Performance disclosure (required since 2022) is tagged with
+// the ecd taxonomy inside the DEF 14A HTML — data.sec.gov's structured APIs
+// don't aggregate it, so we extract the tags directly.
+// ---------------------------------------------------------------------------
+
+function parseProxyCeoComp(html: string): CeoCompYear[] {
+  const factRe =
+    /<ix:nonfraction[^>]*name="ecd:(PeoTotalCompAmt|PeoActuallyPaidCompAmt)"[^>]*contextref="([^"]+)"[^>]*>([\s\S]*?)<\/ix:nonfraction>/gi;
+  const facts: { tag: string; ctx: string; value: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = factRe.exec(html)) !== null) {
+    const raw = m[3].replace(/<[^>]+>/g, "").replace(/[,$\s]/g, "");
+    const value = parseFloat(raw);
+    if (!isNaN(value)) facts.push({ tag: m[1], ctx: m[2], value });
+  }
+  if (facts.length === 0) return [];
+
+  const ctxRe =
+    /<xbrli:context id="([^"]+)">[\s\S]*?<xbrli:startdate>([^<]+)<\/xbrli:startdate>[\s\S]*?<xbrli:enddate>([^<]+)<\/xbrli:enddate>[\s\S]*?<\/xbrli:context>/gi;
+  const ctxEndYear = new Map<string, number>();
+  while ((m = ctxRe.exec(html)) !== null) {
+    ctxEndYear.set(m[1], parseInt(m[3].substring(0, 4), 10));
+  }
+
+  const byYear = new Map<number, { total?: number; paid?: number }>();
+  for (const f of facts) {
+    const year = ctxEndYear.get(f.ctx);
+    if (year === undefined) continue;
+    const entry = byYear.get(year) ?? {};
+    if (f.tag === "PeoTotalCompAmt") entry.total = f.value;
+    else entry.paid = f.value;
+    byYear.set(year, entry);
+  }
+
+  return Array.from(byYear.entries())
+    .filter(([, e]) => e.total !== undefined)
+    .map(([fiscalYear, e]) => ({
+      fiscalYear,
+      totalComp: e.total!,
+      compActuallyPaid: e.paid ?? null,
+    }))
+    .sort((a, b) => a.fiscalYear - b.fiscalYear);
+}
+
+// ---------------------------------------------------------------------------
 // Builder
 // ---------------------------------------------------------------------------
 
@@ -190,6 +250,8 @@ export async function buildManagementData(ticker: string): Promise<ManagementPay
       transactions: [],
       ceoOwnership: [],
       execChanges: [],
+      ceoComp: [],
+      proxyUrl: null,
       form4Available: 0,
       form4Parsed: 0,
     };
@@ -200,7 +262,11 @@ export async function buildManagementData(ticker: string): Promise<ManagementPay
 
   const form4Refs: { accession: string; doc: string; filed: string }[] = [];
   const execChanges: ExecChangeEvent[] = [];
+  let proxyRef: { accession: string; doc: string } | null = null;
   for (let i = 0; i < recent.form.length; i++) {
+    if (recent.form[i] === "DEF 14A" && !proxyRef) {
+      proxyRef = { accession: recent.accessionNumber[i], doc: recent.primaryDocument[i] };
+    }
     if (recent.form[i] === "4" && form4Refs.length < MAX_FORM4_FETCHES) {
       form4Refs.push({
         accession: recent.accessionNumber[i],
@@ -237,6 +303,19 @@ export async function buildManagementData(ticker: string): Promise<ManagementPay
 
   transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
 
+  // CEO compensation from the latest proxy statement (5 years per filing)
+  let ceoComp: CeoCompYear[] = [];
+  let proxyUrl: string | null = null;
+  if (proxyRef) {
+    try {
+      const proxyHtml = await fetchFilingDocument(cik, proxyRef.accession, proxyRef.doc);
+      ceoComp = parseProxyCeoComp(proxyHtml);
+      proxyUrl = filingIndexUrl(cik, proxyRef.accession);
+    } catch {
+      // Comp data is a bonus — don't fail the whole payload over it
+    }
+  }
+
   // CEO ownership over time: direct shares after each CEO transaction
   const ceoOwnership: CeoOwnershipPoint[] = transactions
     .filter((t) => t.isCeo && t.sharesOwnedAfter !== null && t.date)
@@ -253,6 +332,8 @@ export async function buildManagementData(ticker: string): Promise<ManagementPay
     transactions,
     ceoOwnership,
     execChanges,
+    ceoComp,
+    proxyUrl,
     form4Available,
     form4Parsed: parsed,
   };

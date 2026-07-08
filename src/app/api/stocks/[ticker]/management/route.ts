@@ -197,6 +197,8 @@ export async function POST(
           transactions: [],
           ceoOwnership: [],
           execChanges: [],
+          ceoComp: [],
+          proxyUrl: null,
           form4Available: 0,
           form4Parsed: 0,
         } satisfies ManagementPayload),
