@@ -63,6 +63,12 @@ export default function StockPage() {
   const [watching, setWatching] = useState(false);
   const [watchLoading, setWatchLoading] = useState(false);
   const [showSimBuy, setShowSimBuy] = useState(false);
+  const [profile, setProfile] = useState<{
+    name: string | null;
+    description: string | null;
+    website: string | null;
+  } | null>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
   const [classification, setClassification] = useState<{
     sectorName: string;
     industryName: string;
@@ -121,6 +127,14 @@ export default function StockPage() {
       .catch(() => {});
   }, [ticker]);
 
+  // Load company profile (name + business description from Yahoo)
+  useEffect(() => {
+    fetch(`/api/stocks/${ticker}/profile`)
+      .then((r) => r.json())
+      .then((data) => setProfile(data))
+      .catch(() => {});
+  }, [ticker]);
+
   async function toggleWatch() {
     setWatchLoading(true);
     try {
@@ -156,7 +170,7 @@ export default function StockPage() {
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {insights?.companyName ?? ticker}
+              {insights?.companyName ?? profile?.name ?? ticker}
             </h1>
             {/* Live price */}
             {livePrice && (
@@ -199,7 +213,7 @@ export default function StockPage() {
               Simulate Buy
             </button>
           </div>
-          <div className="mt-1 flex items-center gap-3">
+          <div className="mt-1 flex flex-wrap items-center gap-3">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{ticker}</p>
             {(classification || insights?.sector) && (
               <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
@@ -216,7 +230,52 @@ export default function StockPage() {
                 )}
               </div>
             )}
+            <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500">
+              <a
+                href={`https://finance.yahoo.com/quote/${ticker}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+              >
+                Yahoo Finance ↗
+              </a>
+              <a
+                href={`https://www.msn.com/en-us/money/stockdetails?symbol=${ticker}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+              >
+                MSN Money ↗
+              </a>
+              {profile?.website && (
+                <a
+                  href={profile.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                >
+                  Website ↗
+                </a>
+              )}
+            </div>
           </div>
+          {profile?.description && (
+            <div className="mt-3 max-w-3xl">
+              <p
+                className={`text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 ${
+                  descExpanded ? "" : "line-clamp-2"
+                }`}
+              >
+                {profile.description}
+              </p>
+              <button
+                onClick={() => setDescExpanded((v) => !v)}
+                className="mt-0.5 text-xs text-blue-500 hover:underline dark:text-blue-400"
+              >
+                {descExpanded ? "Show less" : "Read more"}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Tabs */}

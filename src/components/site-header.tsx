@@ -27,6 +27,25 @@ export function SiteHeader() {
           </span>
         </Link>
 
+        <Link
+          href="/watchlist"
+          title="My Watchlist"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg p-1.5 text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          <svg
+            className="h-5 w-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9L12 3z" />
+          </svg>
+          <span className="hidden text-sm font-medium sm:inline">Watchlist</span>
+        </Link>
+
         <div className="ml-auto w-full max-w-xs sm:max-w-sm">
           <StockSearchBox compact />
         </div>
