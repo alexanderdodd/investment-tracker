@@ -293,6 +293,16 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
             the sticker price.
           </p>
         )}
+        {calc === null && growth !== null && growth <= 0 && (
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs leading-relaxed text-amber-700 dark:text-amber-400">
+            No sticker price: the growth rate used is{" "}
+            <span className="font-semibold">{(growth * 100).toFixed(1)}%</span> — earnings are
+            expected to shrink, and Rule #1&apos;s formula only prices growing earners (a
+            negative rate makes the projected P/E meaningless). This is the method saying
+            &ldquo;pass&rdquo;: current EPS is likely a cyclical peak. Override the growth
+            rate below to model your own assumption.
+          </div>
+        )}
       </div>
 
       {/* Derivation table */}
