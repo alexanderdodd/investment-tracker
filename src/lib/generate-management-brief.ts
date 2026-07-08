@@ -12,6 +12,8 @@ import type { ManagementPayload } from "./sec-edgar/management";
 
 // Online model for web-grounded research (matches generate-sector-analysis.ts)
 const RESEARCH_MODEL = "google/gemini-2.5-flash:online";
+// Cheap non-web model for the JSON repair fallback
+const REPAIR_MODEL = "google/gemini-2.5-flash";
 
 export interface ManagementBrief {
   ceoName: string | null;
@@ -84,11 +86,34 @@ export function buildBriefContext(
   };
 }
 
-function stripJsonFences(text: string): string {
-  return text
-    .replace(/^[\s\S]*?```(?:json)?\s*/m, (m) => (m.includes("```") ? "" : m))
-    .replace(/```[\s\S]*$/m, "")
-    .trim();
+/**
+ * Extract a JSON object from model output. Models wrap JSON in markdown
+ * fences, prepend commentary, or leave trailing text — try progressively
+ * more aggressive candidates and return the first that parses.
+ */
+function tryParseJson(text: string): Record<string, unknown> | null {
+  const candidates: string[] = [text.trim()];
+
+  // Fenced block content: ```json ... ```
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) candidates.push(fence[1].trim());
+
+  // Outermost brace span
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first !== -1 && last > first) candidates.push(text.slice(first, last + 1));
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
 }
 
 export async function generateManagementBrief(ctx: BriefContext): Promise<ManagementBrief> {
@@ -146,9 +171,23 @@ Respond with ONLY a JSON object (no markdown fences, no commentary) with exactly
     return "";
   };
 
-  const cleaned = stripJsonFences(text);
-  try {
-    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+  let parsed = tryParseJson(text);
+
+  // Repair pass: the research model sometimes emits almost-JSON (unescaped
+  // newlines, stray commentary). A cheap non-web model converts it reliably.
+  if (!parsed) {
+    try {
+      const { text: repaired } = await generateText({
+        model: openrouter()(REPAIR_MODEL),
+        prompt: `Convert the following into a single STRICT valid JSON object with exactly these fields: ceoName (string|null), ceoSince (string|null), founderLed (boolean|null), assessment (string), compensation (string), recentStatements (string), positives (string[]), redFlags (string[]). Preserve the content; fix only the formatting. Output ONLY the JSON object.\n\n${text}`,
+      });
+      parsed = tryParseJson(repaired);
+    } catch {
+      // fall through to raw-text fallback
+    }
+  }
+
+  if (parsed) {
     return {
       ceoName: typeof parsed.ceoName === "string" ? parsed.ceoName : null,
       ceoSince: typeof parsed.ceoSince === "string" ? parsed.ceoSince : null,
@@ -159,17 +198,18 @@ Respond with ONLY a JSON object (no markdown fences, no commentary) with exactly
       positives: Array.isArray(parsed.positives) ? parsed.positives.map(String) : [],
       redFlags: Array.isArray(parsed.redFlags) ? parsed.redFlags.map(String) : [],
     };
-  } catch {
-    // Model ignored the JSON instruction — keep the raw text as the assessment
-    return {
-      ceoName: null,
-      ceoSince: null,
-      founderLed: null,
-      assessment: text,
-      compensation: "",
-      recentStatements: "",
-      positives: [],
-      redFlags: [],
-    };
   }
+
+  // Last resort — keep the raw text as the assessment, minus any fences so
+  // it at least reads as prose rather than a JSON dump
+  return {
+    ceoName: null,
+    ceoSince: null,
+    founderLed: null,
+    assessment: text.replace(/```(?:json)?/g, "").trim(),
+    compensation: "",
+    recentStatements: "",
+    positives: [],
+    redFlags: [],
+  };
 }
