@@ -136,11 +136,17 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
     fetchMonthlyCloses(upperTicker),
   ]);
 
-  // EPS: prefer Yahoo TTM; fall back to latest SEC fiscal year (split-adjusted)
+  // Foreign filers report in their home currency (kept unconverted, per app
+  // convention) while the share price is USD — SEC-derived dollar figures
+  // can't be mixed with the price, so the sticker leans on Yahoo's USD data.
+  const filingCurrencyIsUsd = (payload?.currency ?? "USD") === "USD";
+
+  // EPS: prefer Yahoo TTM (USD, matches the price); fall back to the latest
+  // SEC fiscal year only when the filing currency is USD
   let eps = summary.trailingEps;
   let epsSource: StickerPriceInputs["epsSource"] = eps !== null ? "yahoo-ttm" : null;
   let epsFiscalYear: number | null = null;
-  if (eps === null && payload?.available) {
+  if (eps === null && payload?.available && filingCurrencyIsUsd) {
     const latestEpsRow = [...payload.years].reverse().find((y) => y.epsDiluted !== null);
     if (latestEpsRow) {
       eps = latestEpsRow.epsDiluted;
@@ -171,18 +177,23 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
       const last = lastByFy.get(fy);
       if (!last || date > last.date) lastByFy.set(fy, { date, close });
     }
+    // Year-end prices are pure USD price data — valid for every ticker
     for (const [fy, { close }] of Array.from(lastByFy.entries()).sort((a, b) => a[0] - b[0])) {
       yearEndPrices.push({ fiscalYear: fy, price: close });
     }
-    for (const row of payload.years) {
-      const high = highByFy.get(row.fiscalYear);
-      if (high !== undefined && row.epsDiluted !== null && row.epsDiluted > 0) {
-        peYearsUsed.push({
-          fiscalYear: row.fiscalYear,
-          eps: row.epsDiluted,
-          highPrice: high,
-          highPe: high / row.epsDiluted,
-        });
+    // Historical P/E divides USD prices by per-FY EPS — only valid when the
+    // filing currency is USD (and the listed share maps 1:1 to filed shares)
+    if (filingCurrencyIsUsd) {
+      for (const row of payload.years) {
+        const high = highByFy.get(row.fiscalYear);
+        if (high !== undefined && row.epsDiluted !== null && row.epsDiluted > 0) {
+          peYearsUsed.push({
+            fiscalYear: row.fiscalYear,
+            eps: row.epsDiluted,
+            highPrice: high,
+            highPe: high / row.epsDiluted,
+          });
+        }
       }
     }
   }

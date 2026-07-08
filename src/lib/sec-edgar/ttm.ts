@@ -79,7 +79,8 @@ function getAnnualEntries(units: XbrlUnit[]): { fy: number; start: string; end: 
 
   for (const u of units) {
     if (u.fp !== "FY" || !u.start || !u.end) continue;
-    if (u.form !== "10-K" && u.form !== "10-Q") continue;
+    // 20-F = the annual report of foreign private issuers (IFRS filers)
+    if (u.form !== "10-K" && u.form !== "10-Q" && u.form !== "20-F") continue;
 
     const key = `${u.fy}-${u.end}`;
     const duration = new Date(u.end).getTime() - new Date(u.start).getTime();
@@ -351,7 +352,7 @@ export function buildAnnualInstantHistory(
 ): { fiscalYear: number; value: number }[] {
   const byEndYear = new Map<number, { date: string; val: number }>();
   for (const u of units) {
-    if (u.form !== "10-K") continue;
+    if (u.form !== "10-K" && u.form !== "20-F") continue;
     const date = u.instant ?? (u.end && !u.start ? u.end : undefined);
     if (!date) continue;
     const endYear = parseInt(date.substring(0, 4), 10);

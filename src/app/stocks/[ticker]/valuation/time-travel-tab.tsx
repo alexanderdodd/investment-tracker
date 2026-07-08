@@ -21,6 +21,7 @@ interface GrowthPayload {
   available: boolean;
   unavailableReason: string | null;
   fiscalYearEndMonth: string | null;
+  currency?: string | null;
   years: GrowthYearRow[];
   summary: GrowthSummary | null;
 }
@@ -157,6 +158,9 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
     calc: StickerCalc | null;
   } | null => {
     if (!summaryThen || truncYears.length === 0) return null;
+    // Foreign filers' EPS is in the filing currency while prices are USD —
+    // the as-of sticker can't be computed without mixing units
+    if ((growth?.currency ?? "USD") !== "USD") return null;
     const epsRow = [...truncYears].reverse().find((y) => y.epsDiluted !== null);
     const eps = epsRow?.epsDiluted ?? null;
     const eq = summaryThen.equityGrowth;
@@ -174,7 +178,7 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
       highPe,
       calc: computeSticker(eps, growthUsed, highPe),
     };
-  }, [summaryThen, truncYears, sticker, effectiveCutoff]);
+  }, [summaryThen, truncYears, sticker, effectiveCutoff, growth?.currency]);
 
   const priceThen = useMemo(() => {
     if (effectiveCutoff === null) return null;
@@ -289,6 +293,13 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
             </table>
           </div>
         </div>
+      )}
+
+      {growth?.currency && growth.currency !== "USD" && (
+        <p className="rounded-xl border border-zinc-200 bg-white px-5 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+          This company files in {growth.currency}; the as-of sticker price is skipped because
+          its EPS can&apos;t be compared with USD share prices without currency conversion.
+        </p>
       )}
 
       {/* Sticker price as of cutoff */}

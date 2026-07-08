@@ -32,6 +32,9 @@ export interface GrowthHistoryPayload {
   companyName: string | null;
   cik: string | null;
   fiscalYearEndMonth: string | null;
+  /** Filing currency of the monetary values ("USD", "BRL", "JPY", …).
+   *  Values are kept in the filing currency, never converted. */
+  currency?: string | null;
   available: boolean;
   unavailableReason: string | null;
   years: GrowthYearRow[];
@@ -131,6 +134,54 @@ function splitFactorForYear(
   return splits.reduce((factor, s) => (s.date > fyEnd ? factor * s.ratio : factor), 1);
 }
 
+const COMMON_SPLIT_RATIOS = [1.5, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20];
+
+/**
+ * Detect splits directly from the filed share-count series: a split shows as
+ * the diluted share count jumping N× in one year while EPS drops ~1/N
+ * (reciprocal move — mergers dilute shares without the EPS reciprocity).
+ *
+ * Primary source for split adjustment: it is self-consistent with the
+ * filings and catches local-share splits that ADR-based feeds miss entirely
+ * (e.g. Toyota's 2021 5:1 split, invisible on the unsplit ADR). Returns a
+ * cumulative factor per fiscal year, 1 for the latest.
+ */
+function detectSplitFactors(
+  years: number[],
+  shares: Map<number, number>,
+  eps: Map<number, number>
+): Map<number, number> {
+  const factors = new Map<number, number>();
+  let cum = 1;
+  // Walk newest → oldest; a split between y and y+1 multiplies every year ≤ y
+  for (let i = years.length - 1; i >= 0; i--) {
+    const y = years[i];
+    factors.set(y, cum);
+    const prev = years[i - 1];
+    if (prev === undefined) break;
+    const sNew = shares.get(y);
+    const sOld = shares.get(prev);
+    const eNew = eps.get(y);
+    const eOld = eps.get(prev);
+    if (!sNew || !sOld || sOld <= 0) continue;
+    const ratio = sNew / sOld;
+    if (ratio < 1.4 && ratio > 0.7) continue; // buyback/dilution noise
+    // Require reciprocal EPS movement to rule out issuance-driven jumps
+    if (eNew != null && eOld != null && eOld !== 0) {
+      const reciprocity = Math.abs(Math.log(Math.abs((eNew / eOld) * ratio)));
+      if (reciprocity > Math.log(1.8)) continue;
+    }
+    const target = ratio >= 1.4 ? ratio : 1 / ratio;
+    const nearest = COMMON_SPLIT_RATIOS.reduce((best, r) =>
+      Math.abs(Math.log(target / r)) < Math.abs(Math.log(target / best)) ? r : best
+    );
+    if (Math.abs(Math.log(target / nearest)) > Math.log(1.25)) continue; // not clean enough
+    cum *= ratio >= 1.4 ? nearest : 1 / nearest;
+    // cum now applies to `prev` and everything older; set on next iteration
+  }
+  return factors;
+}
+
 function unavailable(
   ticker: string,
   reason: string,
@@ -194,21 +245,40 @@ export async function buildGrowthHistory(ticker: string): Promise<GrowthHistoryP
   ).sort((a, b) => a - b).slice(-HISTORY_YEARS);
 
   if (allYears.filter((y) => revenue.has(y)).length < 2) {
-    // Foreign private issuers (20-F) file under ifrs-full, which the
-    // us-gaap extractor doesn't read — they land here too.
-    return unavailable(upper, "No US-GAAP annual filings (10-K) found in SEC EDGAR for this ticker.", {
+    return unavailable(upper, "No structured annual filings (10-K or 20-F) found in SEC EDGAR for this ticker.", {
       companyName,
       cik,
       fiscalYearEndMonth,
     });
   }
 
+  // Per-share values are as-originally-filed; put them on the current
+  // post-split basis. Prefer split factors detected from the share-count
+  // series itself (catches local splits that ADR feeds miss); fall back to
+  // Yahoo's split events when the filings don't reveal any.
+  // Where the filings omit share counts, net income ÷ EPS implies them —
+  // net income is split-invariant, so the implied series still shows the jump.
+  const netIncome = seriesToMap(
+    xbrl.netIncomeUnits ? buildAnnualHistory(xbrl.netIncomeUnits, HISTORY_YEARS) : null
+  );
+  const sharesForDetection = new Map(dilutedShares);
+  for (const fy of allYears) {
+    if (sharesForDetection.has(fy)) continue;
+    const ni = netIncome.get(fy);
+    const e = eps.get(fy);
+    if (ni !== undefined && e !== undefined && e !== 0) {
+      sharesForDetection.set(fy, Math.abs(ni / e));
+    }
+  }
+  const detectedFactors = detectSplitFactors(allYears, sharesForDetection, eps);
+  const anyDetected = Array.from(detectedFactors.values()).some((f) => f !== 1);
+
   const years: GrowthYearRow[] = allYears.map((fy) => {
     const get = (m: Map<number, number>) => m.get(fy) ?? null;
 
-    // Per-share values are as-originally-filed; put them on the current
-    // post-split basis so growth rates aren't distorted by splits.
-    const splitFactor = splitFactorForYear(fy, submissions.fiscalYearEnd, splits);
+    const splitFactor = anyDetected
+      ? (detectedFactors.get(fy) ?? 1)
+      : splitFactorForYear(fy, submissions.fiscalYearEnd, splits);
     const epsRaw = get(eps);
     const sharesRaw = get(dilutedShares);
 
@@ -270,6 +340,7 @@ export async function buildGrowthHistory(ticker: string): Promise<GrowthHistoryP
     companyName,
     cik,
     fiscalYearEndMonth,
+    currency: xbrl.currency,
     available: true,
     unavailableReason: null,
     years,

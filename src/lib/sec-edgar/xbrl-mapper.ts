@@ -5,11 +5,14 @@
  * tag in priority order and returns the first match.
  */
 
-import type { CompanyFacts, XbrlUnit } from "./client";
+import type { CompanyFacts, XbrlConcept, XbrlUnit } from "./client";
 
 // ---------------------------------------------------------------------------
 // Tag priority lists — first match wins
 // ---------------------------------------------------------------------------
+
+// Tag lists mix US-GAAP names with their ifrs-full equivalents (20-F filers);
+// extraction searches both taxonomies.
 
 /** Revenue */
 const REVENUE_TAGS = [
@@ -22,6 +25,10 @@ const REVENUE_TAGS = [
   // Banks / insurance
   "InterestAndDividendIncomeOperating",
   "InterestIncomeExpenseNet",
+  // IFRS
+  "Revenue",
+  "RevenueFromContractsWithCustomers",
+  "RevenueFromSaleOfGoods",
 ];
 
 /** Gross profit */
@@ -31,6 +38,8 @@ const GROSS_PROFIT_TAGS = ["GrossProfit"];
 const OPERATING_INCOME_TAGS = [
   "OperatingIncomeLoss",
   "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+  // IFRS
+  "ProfitLossFromOperatingActivities",
 ];
 
 /** Net income */
@@ -43,17 +52,23 @@ const NET_INCOME_TAGS = [
 /** EPS diluted */
 const EPS_DILUTED_TAGS = [
   "EarningsPerShareDiluted",
+  // IFRS
+  "DilutedEarningsLossPerShare",
 ];
 
 /** EPS basic */
 const EPS_BASIC_TAGS = [
   "EarningsPerShareBasic",
+  // IFRS
+  "BasicEarningsLossPerShare",
 ];
 
 /** Operating cash flow */
 const OCF_TAGS = [
   "NetCashProvidedByUsedInOperatingActivities",
   "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+  // IFRS
+  "CashFlowsFromUsedInOperatingActivities",
 ];
 
 /** Capital expenditures (usually negative in XBRL, we take absolute value) */
@@ -61,6 +76,8 @@ const CAPEX_TAGS = [
   "PaymentsToAcquirePropertyPlantAndEquipment",
   "PaymentsToAcquireProductiveAssets",
   "CapitalExpenditureDiscontinuedOperations",
+  // IFRS
+  "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
 ];
 
 /** Depreciation & amortization */
@@ -90,28 +107,35 @@ const BUYBACK_TAGS = [
 ];
 
 /** Income tax expense (for effective tax rate) */
-const TAX_EXPENSE_TAGS = ["IncomeTaxExpenseBenefit"];
+const TAX_EXPENSE_TAGS = ["IncomeTaxExpenseBenefit", "IncomeTaxExpenseContinuingOperations"];
 
 /** Pre-tax income (for effective tax rate) */
 const PRETAX_INCOME_TAGS = [
   "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
   "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+  // IFRS
+  "ProfitLossBeforeTax",
 ];
 
 // Balance sheet tags (instant values)
-const CASH_TAGS = ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsAndShortTermInvestments", "Cash"];
+const CASH_TAGS = ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsAndShortTermInvestments", "Cash", "CashAndCashEquivalents"];
 const SHORT_TERM_INVESTMENTS_TAGS = ["AvailableForSaleSecuritiesDebtSecuritiesCurrent", "ShortTermInvestments", "MarketableSecuritiesCurrent", "AvailableForSaleSecuritiesCurrent"];
 const LT_INVESTMENTS_TAGS = ["AvailableForSaleSecuritiesDebtSecuritiesNoncurrent", "MarketableSecuritiesNoncurrent", "LongTermInvestments"];
-const CURRENT_DEBT_TAGS = ["DebtCurrent", "LongTermDebtCurrent", "ShortTermBorrowings"];
-const LONG_TERM_DEBT_TAGS = ["LongTermDebtAndCapitalLeaseObligations", "LongTermDebtNoncurrent", "LongTermDebt"];
-const TOTAL_EQUITY_TAGS = ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"];
+const CURRENT_DEBT_TAGS = ["DebtCurrent", "LongTermDebtCurrent", "ShortTermBorrowings", "ShorttermBorrowings", "CurrentPortionOfLongtermBorrowings"];
+const LONG_TERM_DEBT_TAGS = ["LongTermDebtAndCapitalLeaseObligations", "LongTermDebtNoncurrent", "LongTermDebt", "LongtermBorrowings", "NoncurrentPortionOfNoncurrentBorrowings"];
+const TOTAL_EQUITY_TAGS = ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest", "Equity", "EquityAttributableToOwnersOfParent"];
 const GOODWILL_TAGS = ["Goodwill"];
 const INVENTORY_TAGS = ["InventoryNet"];
 const RECEIVABLES_TAGS = ["AccountsReceivableNetCurrent", "AccountsReceivableNet", "ReceivablesNetCurrent"];
 // Prefer DEI cover-page shares (exact integer from filing cover) over
 // us-gaap balance-sheet shares (often rounded to millions)
 const SHARES_OUTSTANDING_TAGS = ["EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"];
-const DILUTED_SHARES_TAGS = ["WeightedAverageNumberOfDilutedSharesOutstanding"];
+const DILUTED_SHARES_TAGS = [
+  "WeightedAverageNumberOfDilutedSharesOutstanding",
+  // IFRS
+  "AdjustedWeightedAverageShares",
+  "WeightedAverageShares",
+];
 
 // ---------------------------------------------------------------------------
 // Core extraction logic
@@ -125,10 +149,33 @@ const DILUTED_SHARES_TAGS = ["WeightedAverageNumberOfDilutedSharesOutstanding"];
 export function findAllRevenueUnitArrays(facts: CompanyFacts): XbrlUnit[][] {
   const arrays: XbrlUnit[][] = [];
   for (const tag of REVENUE_TAGS) {
-    const units = facts.facts["us-gaap"]?.[tag]?.units["USD"];
+    const concept = facts.facts["us-gaap"]?.[tag] ?? facts.facts["ifrs-full"]?.[tag];
+    if (!concept) continue;
+    const unitKey = pickUnitKey(concept, "money");
+    const units = unitKey ? concept.units[unitKey] : undefined;
     if (units && units.length > 0) arrays.push(units);
   }
   return arrays;
+}
+
+type UnitKind = "money" | "perShare" | "shares";
+
+/**
+ * Choose the unit key for a concept. US filers report USD; 20-F filers
+ * report their home currency (BRL, JPY, EUR…) — per the app's convention,
+ * values are kept in the filing currency, never converted. Prefers USD when
+ * present, otherwise the unit with the most data.
+ */
+function pickUnitKey(concept: XbrlConcept, kind: UnitKind): string | null {
+  const keys = Object.keys(concept.units);
+  let candidates: string[];
+  if (kind === "shares") candidates = keys.filter((k) => k === "shares");
+  else if (kind === "perShare") candidates = keys.filter((k) => k.includes("/shares"));
+  else candidates = keys.filter((k) => !k.includes("/") && k !== "shares" && k !== "pure");
+  if (candidates.length === 0) return null;
+  const usd = candidates.find((k) => k === "USD" || k === "USD/shares");
+  if (usd) return usd;
+  return candidates.sort((a, b) => concept.units[b].length - concept.units[a].length)[0];
 }
 
 type PeriodFilter = "duration" | "instant";
@@ -190,10 +237,10 @@ export function getValueForPeriod(
   periodType: PeriodFilter = "duration",
   formFilter?: string
 ): number | null {
-  // Filter to 10-K and 10-Q forms
+  // Filter to annual/quarterly report forms (20-F = foreign private issuers)
   const filtered = units.filter((u) => {
     if (formFilter) return u.form === formFilter;
-    return u.form === "10-K" || u.form === "10-Q";
+    return u.form === "10-K" || u.form === "10-Q" || u.form === "20-F";
   });
 
   if (periodType === "instant") {
@@ -302,7 +349,7 @@ export function getValueForPeriod(
 export function getLatestInstantValue(units: XbrlUnit[]): { value: number; date: string; accession: string } | null {
   // Find entries that are point-in-time: either instant field exists, or end exists without start
   const instants = units
-    .filter((u) => (u.form === "10-K" || u.form === "10-Q") && (u.instant || (u.end && !u.start)))
+    .filter((u) => (u.form === "10-K" || u.form === "10-Q" || u.form === "20-F") && (u.instant || (u.end && !u.start)))
     .map((u) => ({ val: u.val, date: (u.instant ?? u.end)!, accn: u.accn }))
     .sort((a, b) => (b.date > a.date ? 1 : -1));
 
@@ -347,38 +394,54 @@ export interface XbrlExtraction {
   // Tags that matched (for provenance)
   matchedTags: Record<string, string>;
   missingFields: string[];
+  /** Dominant reporting currency of the monetary facts ("USD", "BRL", …) */
+  currency: string | null;
 }
 
 export function extractAllXbrl(facts: CompanyFacts): XbrlExtraction {
   const matchedTags: Record<string, string> = {};
   const missingFields: string[] = [];
+  const currencyVotes: Record<string, number> = {};
 
-  function extract(name: string, tags: string[], unitKey = "USD"): XbrlUnit[] | null {
-    // Prefer the tag with the most recent data, not just the first match
+  function extract(name: string, tags: string[], kind: UnitKind = "money"): XbrlUnit[] | null {
+    // Prefer the tag with the most recent data, not just the first match.
+    // Searches US-GAAP first, then IFRS (20-F filers), then DEI.
     let bestUnits: XbrlUnit[] | null = null;
     let bestTag = "";
+    let bestUnitKey = "";
     let bestRecency = "";
 
     for (const tag of tags) {
-      const concept = facts.facts["us-gaap"]?.[tag] ?? facts.facts["dei"]?.[tag];
-      if (!concept) continue;
-      const units = concept.units[unitKey];
-      if (!units || units.length === 0) continue;
+      // The same tag can exist in BOTH taxonomies (e.g. Toyota's ProfitLoss:
+      // us-gaap through its 2021 IFRS switch, ifrs-full after) — treat each
+      // as a separate candidate and let recency decide
+      for (const taxonomy of ["us-gaap", "ifrs-full", "dei"] as const) {
+        const concept = facts.facts[taxonomy]?.[tag];
+        if (!concept) continue;
+        const unitKey = pickUnitKey(concept, kind);
+        if (!unitKey) continue;
+        const units = concept.units[unitKey];
+        if (!units || units.length === 0) continue;
 
-      const latestEnd = units.reduce((max, u) => {
-        const end = u.end ?? u.instant ?? "";
-        return end > max ? end : max;
-      }, "");
+        const latestEnd = units.reduce((max, u) => {
+          const end = u.end ?? u.instant ?? "";
+          return end > max ? end : max;
+        }, "");
 
-      if (!bestUnits || latestEnd > bestRecency) {
-        bestUnits = units;
-        bestTag = tag;
-        bestRecency = latestEnd;
+        if (!bestUnits || latestEnd > bestRecency) {
+          bestUnits = units;
+          bestTag = tag;
+          bestUnitKey = unitKey;
+          bestRecency = latestEnd;
+        }
       }
     }
 
     if (bestUnits) {
       matchedTags[name] = bestTag;
+      if (kind === "money") {
+        currencyVotes[bestUnitKey] = (currencyVotes[bestUnitKey] ?? 0) + 1;
+      }
       return bestUnits;
     }
     missingFields.push(name);
@@ -390,8 +453,8 @@ export function extractAllXbrl(facts: CompanyFacts): XbrlExtraction {
     grossProfitUnits: extract("grossProfit", GROSS_PROFIT_TAGS),
     operatingIncomeUnits: extract("operatingIncome", OPERATING_INCOME_TAGS),
     netIncomeUnits: extract("netIncome", NET_INCOME_TAGS),
-    epsDilutedUnits: extract("epsDiluted", EPS_DILUTED_TAGS, "USD/shares"),
-    epsBasicUnits: extract("epsBasic", EPS_BASIC_TAGS, "USD/shares"),
+    epsDilutedUnits: extract("epsDiluted", EPS_DILUTED_TAGS, "perShare"),
+    epsBasicUnits: extract("epsBasic", EPS_BASIC_TAGS, "perShare"),
     ocfUnits: extract("ocf", OCF_TAGS),
     capexUnits: extract("capex", CAPEX_TAGS),
     daUnits: extract("da", DA_TAGS),
@@ -415,5 +478,7 @@ export function extractAllXbrl(facts: CompanyFacts): XbrlExtraction {
 
     matchedTags,
     missingFields,
+    currency:
+      Object.entries(currencyVotes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
   };
 }

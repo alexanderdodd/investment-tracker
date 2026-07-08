@@ -56,6 +56,7 @@ interface GrowthData {
   ticker: string;
   companyName: string | null;
   fiscalYearEndMonth: string | null;
+  currency?: string | null;
   available: boolean;
   unavailableReason: string | null;
   years: GrowthYearRow[];
@@ -75,18 +76,25 @@ function fmtPct(v: number | null): string {
   return `${(v * 100).toFixed(1)}%`;
 }
 
-function fmtDollars(v: number | null): string {
-  if (v === null) return "—";
-  const sign = v < 0 ? "-" : "";
-  const abs = Math.abs(v);
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
-  return `${sign}$${abs.toFixed(2)}`;
+// Foreign filers' values stay in their filing currency — label them with the
+// currency code instead of a dollar sign
+function moneyPrefix(currency?: string | null): string {
+  return !currency || currency === "USD" ? "$" : `${currency} `;
 }
 
-function fmtEps(v: number | null): string {
+function fmtDollars(v: number | null, currency?: string | null): string {
   if (v === null) return "—";
-  return `$${v.toFixed(2)}`;
+  const sign = v < 0 ? "-" : "";
+  const p = moneyPrefix(currency);
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `${sign}${p}${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}${p}${(abs / 1e6).toFixed(1)}M`;
+  return `${sign}${p}${abs.toFixed(2)}`;
+}
+
+function fmtEps(v: number | null, currency?: string | null): string {
+  if (v === null) return "—";
+  return `${moneyPrefix(currency)}${v.toFixed(2)}`;
 }
 
 const SUMMARY_ROWS: {
@@ -267,7 +275,7 @@ function ratePayoff(years: number): MetricRating {
   return "bad";
 }
 
-function DebtPayoffCard({ years }: { years: GrowthYearRow[] }) {
+function DebtPayoffCard({ years, currency }: { years: GrowthYearRow[]; currency?: string | null }) {
   const rows = years
     .filter((y) => y.totalDebt !== null || y.fcf !== null)
     .map((y) => ({
@@ -343,10 +351,10 @@ function DebtPayoffCard({ years }: { years: GrowthYearRow[] }) {
               >
                 <td className="py-1.5 text-zinc-500 dark:text-zinc-400">{r.fiscalYear}</td>
                 <td className="py-1.5 text-right font-medium text-zinc-900 dark:text-zinc-100">
-                  {fmtDollars(r.debt)}
+                  {fmtDollars(r.debt, currency)}
                 </td>
                 <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">
-                  {fmtDollars(r.fcf)}
+                  {fmtDollars(r.fcf, currency)}
                 </td>
                 <td
                   className={`py-1.5 text-right font-medium ${
@@ -374,7 +382,7 @@ function DebtPayoffCard({ years }: { years: GrowthYearRow[] }) {
 
 type ChartMode = "indexed" | "perShare";
 
-function BigFiveChart({ years }: { years: GrowthYearRow[] }) {
+function BigFiveChart({ years, currency }: { years: GrowthYearRow[]; currency?: string | null }) {
   const [mode, setMode] = useState<ChartMode>("indexed");
 
   const { chartData, omittedCount } = useMemo(() => {
@@ -475,7 +483,7 @@ function BigFiveChart({ years }: { years: GrowthYearRow[] }) {
               domain={mode === "indexed" ? ["auto", "auto"] : undefined}
               allowDataOverflow={mode === "indexed"}
               tickFormatter={(v: number) =>
-                mode === "indexed" ? v.toFixed(0) : `$${v.toFixed(0)}`
+                mode === "indexed" ? v.toFixed(0) : `${moneyPrefix(currency)}${v.toFixed(0)}`
               }
               width={44}
             />
@@ -484,7 +492,7 @@ function BigFiveChart({ years }: { years: GrowthYearRow[] }) {
               formatter={(value: unknown, name: unknown) => [
                 mode === "indexed"
                   ? Number(value).toFixed(0)
-                  : `$${Number(value).toFixed(2)}`,
+                  : `${moneyPrefix(currency)}${Number(value).toFixed(2)}`,
                 String(name),
               ]}
               labelFormatter={(label: unknown) => `FY ${label}`}
@@ -517,7 +525,7 @@ function BigFiveChart({ years }: { years: GrowthYearRow[] }) {
 interface BreakdownCategory {
   key: keyof GrowthYearRow;
   title: string;
-  format: (v: number | null) => string;
+  format: (v: number | null, currency?: string | null) => string;
   showYoY: boolean;
 }
 
@@ -526,15 +534,17 @@ const BREAKDOWN_CATEGORIES: BreakdownCategory[] = [
   { key: "epsDiluted", title: "EPS (Diluted)", format: fmtEps, showYoY: true },
   { key: "equity", title: "Equity (Book Value)", format: fmtDollars, showYoY: true },
   { key: "fcf", title: "Free Cash Flow", format: fmtDollars, showYoY: true },
-  { key: "roic", title: "ROIC", format: fmtPct, showYoY: false },
+  { key: "roic", title: "ROIC", format: (v) => fmtPct(v), showYoY: false },
 ];
 
 function BreakdownCard({
   category,
   years,
+  currency,
 }: {
   category: BreakdownCategory;
   years: GrowthYearRow[];
+  currency?: string | null;
 }) {
   const points = years.map((y) => ({
     fiscalYear: y.fiscalYear,
@@ -556,7 +566,7 @@ function BreakdownCard({
         </h3>
         {latest && (
           <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">
-            {category.format(latest.value)}
+            {category.format(latest.value, currency)}
             <span className="ml-1 text-xs font-normal text-zinc-400 dark:text-zinc-500">
               FY{latest.fiscalYear}
             </span>
@@ -580,7 +590,7 @@ function BreakdownCard({
               formatter={(value: unknown) => [
                 category.key === "roic"
                   ? `${Number(value).toFixed(1)}%`
-                  : category.format(Number(value)),
+                  : category.format(Number(value), currency),
                 category.title,
               ]}
               labelFormatter={(label: unknown) => `FY ${label}`}
@@ -625,7 +635,7 @@ function BreakdownCard({
                 >
                   <td className="py-1.5 text-zinc-500 dark:text-zinc-400">{p.fiscalYear}</td>
                   <td className="py-1.5 text-right font-medium text-zinc-900 dark:text-zinc-100">
-                    {category.format(p.value)}
+                    {category.format(p.value, currency)}
                   </td>
                   {category.showYoY && (
                     <td
@@ -724,8 +734,8 @@ export function GrowthRatesTab({ ticker }: { ticker: string }) {
   return (
     <div className="space-y-6">
       <BigFiveSummaryTable summary={data.summary} years={data.years} />
-      <DebtPayoffCard years={data.years} />
-      <BigFiveChart years={data.years} />
+      <DebtPayoffCard years={data.years} currency={data.currency} />
+      <BigFiveChart years={data.years} currency={data.currency} />
 
       <div>
         <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -733,17 +743,20 @@ export function GrowthRatesTab({ ticker }: { ticker: string }) {
         </h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {visibleCategories.map((c) => (
-            <BreakdownCard key={c.key} category={c} years={data.years} />
+            <BreakdownCard key={c.key} category={c} years={data.years} currency={data.currency} />
           ))}
         </div>
       </div>
 
       <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+        {data.currency && data.currency !== "USD"
+          ? `Amounts are in ${data.currency} as filed (20-F, IFRS) — not converted to USD; growth rates and ROIC are currency-independent. `
+          : ""}
         {data.fiscalYearEndMonth && data.fiscalYearEndMonth !== "December"
           ? `Fiscal years end in ${data.fiscalYearEndMonth}; years are labeled by the calendar year the fiscal year ends in. `
           : ""}
-        Source: SEC EDGAR XBRL (10-K filings). Growth = CAGR for 10y/5y, year-over-year for 1y;
-        ROIC = after-tax operating income ÷ (equity + debt), averaged over the period.
+        Source: SEC EDGAR XBRL (10-K / 20-F filings). Growth = CAGR for 10y/5y, year-over-year
+        for 1y; ROIC = after-tax operating income ÷ (equity + debt), averaged over the period.
       </p>
     </div>
   );
