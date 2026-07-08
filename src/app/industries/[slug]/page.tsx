@@ -6,6 +6,7 @@ import Link from "next/link";
 import { sectorToSlug } from "@/lib/sectors";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 import { RuleOneTable } from "@/components/rule-one-table";
+import { RuleOneScreenPanel } from "./rule-one-screen-panel";
 import {
   type StockMetrics,
   type MetricRating,
@@ -600,6 +601,9 @@ export default function IndustryDetailPage() {
             ) : null;
           })()}
         </div>
+
+        {/* Rule #1 Screen */}
+        <RuleOneScreenPanel slug={slug} />
 
         {/* Top Stocks in Industry */}
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">

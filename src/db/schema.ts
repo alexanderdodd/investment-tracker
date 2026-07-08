@@ -11,6 +11,7 @@ import type { AdapterAccountType } from "next-auth/adapters";
 import type { GrowthHistoryPayload } from "@/lib/sec-edgar/growth-history";
 import type { ManagementPayload } from "@/lib/sec-edgar/management";
 import type { ManagementBrief } from "@/lib/generate-management-brief";
+import type { RuleOneScreenResult } from "@/lib/rule-one-screen";
 
 export const users = pgTable("user", {
   id: text("id")
@@ -427,6 +428,13 @@ export const stockGrowthHistories = pgTable("stock_growth_history", {
 
 // Cached insider/management data (SEC Form 4 parse — expensive: ~120 archive
 // fetches per build) plus the LLM-generated management brief.
+// Latest Rule #1 screen result per industry (Big Five → sticker → moat/mgmt)
+export const ruleOneScreens = pgTable("rule_one_screen", {
+  industrySlug: text("industry_slug").primaryKey(),
+  payload: jsonb("payload").$type<RuleOneScreenResult>().notNull(),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const stockManagements = pgTable("stock_management", {
   ticker: text("ticker").primaryKey(),
   cik: text("cik"),
