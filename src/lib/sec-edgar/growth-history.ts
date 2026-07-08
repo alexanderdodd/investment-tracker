@@ -64,15 +64,20 @@ function seriesToMap(series: Series | null): Map<number, number> {
 }
 
 /**
- * Merge annual histories from several tag variants of the same concept.
- * Earlier arrays win on conflicting years; later ones fill the gaps
- * (e.g. pre-ASC-606 revenue tags supplying years before 2018).
+ * Merge annual revenue histories from several tag variants, taking the
+ * LARGEST value per year. Two reasons: tag switches leave gaps (pre-ASC-606
+ * years live under old tags), and for some companies the ASC 606 tag only
+ * covers part of total revenue — e.g. commodity firms like ADM report most
+ * revenue under derivatives accounting, so RevenueFromContractWithCustomer
+ * is a small slice of Revenues. Components never exceed the total, so max
+ * per year recovers the true top line.
  */
 function mergedAnnualHistory(unitArrays: XbrlUnit[][], years: number): Map<number, number> {
   const merged = new Map<number, number>();
   for (const units of unitArrays) {
     for (const { fiscalYear, value } of buildAnnualHistory(units, years)) {
-      if (!merged.has(fiscalYear)) merged.set(fiscalYear, value);
+      const existing = merged.get(fiscalYear);
+      if (existing === undefined || value > existing) merged.set(fiscalYear, value);
     }
   }
   return merged;
