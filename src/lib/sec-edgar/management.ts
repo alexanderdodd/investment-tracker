@@ -12,6 +12,7 @@ import {
   fetchFilingDocument,
   filingIndexUrl,
 } from "./client";
+import { extractCompBreakdown, type CompBreakdown } from "../extract-comp-table";
 
 // Form 4s are frequent filers' paperwork; cap how many XMLs we pull per
 // build to stay polite with EDGAR (~15s at the throttled rate).
@@ -87,6 +88,9 @@ export interface ManagementPayload {
   /** CEO pay per fiscal year, from the proxy statement's tagged
    *  Pay-versus-Performance disclosure (one DEF 14A covers ~5 years) */
   ceoComp: CeoCompYear[];
+  /** Salary/bonus/equity split per officer from the proxy's Summary
+   *  Compensation Table (LLM-extracted — the SCT isn't XBRL-tagged) */
+  compBreakdown?: CompBreakdown | null;
   /** Link to the proxy statement the comp data came from */
   proxyUrl: string | null;
   form4Available: number;
@@ -192,14 +196,20 @@ function parseForm4(xml: string, filingUrl: string): ParsedForm4 {
 // ---------------------------------------------------------------------------
 
 function parseProxyCeoComp(html: string): CeoCompYear[] {
-  const factRe =
-    /<ix:nonfraction[^>]*name="ecd:(PeoTotalCompAmt|PeoActuallyPaidCompAmt)"[^>]*contextref="([^"]+)"[^>]*>([\s\S]*?)<\/ix:nonfraction>/gi;
+  // Attribute order varies by filer (MSFT: name before contextRef; NVDA the
+  // reverse) — match the whole element, then pull attributes independently
+  const elementRe = /<ix:nonfraction\b([^>]*)>([\s\S]*?)<\/ix:nonfraction>/gi;
   const facts: { tag: string; ctx: string; value: number }[] = [];
   let m: RegExpExecArray | null;
-  while ((m = factRe.exec(html)) !== null) {
-    const raw = m[3].replace(/<[^>]+>/g, "").replace(/[,$\s]/g, "");
+  while ((m = elementRe.exec(html)) !== null) {
+    const attrs = m[1];
+    const nameMatch = attrs.match(/name="ecd:(PeoTotalCompAmt|PeoActuallyPaidCompAmt)"/i);
+    if (!nameMatch) continue;
+    const ctxMatch = attrs.match(/contextref="([^"]+)"/i);
+    if (!ctxMatch) continue;
+    const raw = m[2].replace(/<[^>]+>/g, "").replace(/[,$\s]/g, "");
     const value = parseFloat(raw);
-    if (!isNaN(value)) facts.push({ tag: m[1], ctx: m[2], value });
+    if (!isNaN(value)) facts.push({ tag: nameMatch[1], ctx: ctxMatch[1], value });
   }
   if (facts.length === 0) return [];
 
@@ -303,14 +313,17 @@ export async function buildManagementData(ticker: string): Promise<ManagementPay
 
   transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
 
-  // CEO compensation from the latest proxy statement (5 years per filing)
+  // CEO compensation from the latest proxy statement (5 years per filing),
+  // plus the per-officer salary/bonus/equity split from its SCT
   let ceoComp: CeoCompYear[] = [];
+  let compBreakdown: CompBreakdown | null = null;
   let proxyUrl: string | null = null;
   if (proxyRef) {
     try {
       const proxyHtml = await fetchFilingDocument(cik, proxyRef.accession, proxyRef.doc);
       ceoComp = parseProxyCeoComp(proxyHtml);
       proxyUrl = filingIndexUrl(cik, proxyRef.accession);
+      compBreakdown = await extractCompBreakdown(proxyHtml);
     } catch {
       // Comp data is a bonus — don't fail the whole payload over it
     }
@@ -333,6 +346,7 @@ export async function buildManagementData(ticker: string): Promise<ManagementPay
     ceoOwnership,
     execChanges,
     ceoComp,
+    compBreakdown,
     proxyUrl,
     form4Available,
     form4Parsed: parsed,

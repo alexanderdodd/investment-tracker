@@ -50,6 +50,18 @@ interface InsiderTransaction {
   filingUrl: string;
 }
 
+interface OfficerComp {
+  name: string;
+  fiscalYear: number | null;
+  salary: number | null;
+  bonus: number | null;
+  nonEquityIncentive: number | null;
+  stockAwards: number | null;
+  optionAwards: number | null;
+  otherComp: number | null;
+  total: number | null;
+}
+
 interface ManagementSec {
   available: boolean;
   unavailableReason: string | null;
@@ -57,6 +69,7 @@ interface ManagementSec {
   ceoOwnership: { date: string; owner: string; shares: number }[];
   execChanges: { date: string; filingUrl: string }[];
   ceoComp?: { fiscalYear: number; totalComp: number; compActuallyPaid: number | null }[];
+  compBreakdown?: { officers: OfficerComp[]; bonusPlanNote: string | null } | null;
   proxyUrl?: string | null;
   form4Available: number;
   form4Parsed: number;
@@ -95,6 +108,41 @@ function fmtMoney(v: number | null): string {
   if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
   if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(0)}k`;
   return `${sign}$${abs.toFixed(2)}`;
+}
+
+// Match a Yahoo officer name ("Mr. Jen-Hsun Huang") to an SCT name
+// ("Jen-Hsun Huang"): same last token + same first initial after stripping
+// honorifics and suffixes
+const NAME_SUFFIXES = new Set([
+  "mr", "ms", "mrs", "dr", "prof", "jr", "sr", "ii", "iii", "iv",
+  "jd", "phd", "ph", "lca", "esq", "cpa", "mba", "cfa",
+]);
+
+function nameTokens(name: string): string[] {
+  const tokens = name
+    .toLowerCase()
+    .replace(/[^a-z\s-]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t && !NAME_SUFFIXES.has(t));
+  // Degree suffixes like "J.D." tokenize into stray single letters at the
+  // end ("teter j d") — drop trailing initials so the surname survives
+  while (tokens.length > 1 && tokens[tokens.length - 1].length === 1) tokens.pop();
+  return tokens;
+}
+
+function officerCompFor(name: string, comp: OfficerComp[] | undefined): OfficerComp | null {
+  if (!comp) return null;
+  const t = nameTokens(name);
+  if (t.length === 0) return null;
+  const last = t[t.length - 1];
+  const firstInitial = t[0][0];
+  return (
+    comp.find((c) => {
+      const ct = nameTokens(c.name);
+      if (ct.length === 0) return false;
+      return ct[ct.length - 1] === last && ct[0][0] === firstInitial;
+    }) ?? null
+  );
 }
 
 function isTopCeo(title: string): boolean {
@@ -383,46 +431,96 @@ export function ManagementTab({ ticker }: { ticker: string }) {
   return (
     <div className="space-y-6">
       {/* Leadership */}
-      {data.yahoo.officers.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Leadership</h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Officers and latest reported compensation (Yahoo Finance)
-            </p>
+      {data.yahoo.officers.length > 0 && (() => {
+        const breakdown = data.sec?.compBreakdown ?? null;
+        const compFY = breakdown?.officers[0]?.fiscalYear ?? null;
+        return (
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Leadership</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {breakdown
+                  ? `Officers with the salary/bonus/equity split from the proxy's Summary Compensation Table${compFY ? ` (FY${compFY})` : ""}`
+                  : "Officers and latest reported compensation (Yahoo Finance)"}
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className={`w-full ${breakdown ? "min-w-[760px]" : "min-w-[520px]"}`}>
+                <thead>
+                  <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                    <th className="px-4 py-2.5 font-medium">Name</th>
+                    <th className="px-3 py-2.5 font-medium">Title</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Age</th>
+                    {breakdown ? (
+                      <>
+                        <th className="px-3 py-2.5 text-right font-medium">Salary</th>
+                        <th className="px-3 py-2.5 text-right font-medium">
+                          <MetricTooltip
+                            label="Bonus / incentive"
+                            description={`Discretionary cash bonus plus the non-equity incentive plan payout (the performance-based cash bonus).${breakdown.bonusPlanNote ? ` What it rewards here: ${breakdown.bonusPlanNote}` : ""}`}
+                          >
+                            <span>Bonus</span>
+                          </MetricTooltip>
+                        </th>
+                        <th className="px-3 py-2.5 text-right font-medium">Stock awards</th>
+                        <th className="px-4 py-2.5 text-right font-medium">Total (SCT)</th>
+                      </>
+                    ) : (
+                      <th className="px-4 py-2.5 text-right font-medium">Pay</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.yahoo.officers.slice(0, 8).map((o) => {
+                    const ceoRow = isTopCeo(o.title);
+                    const comp = breakdown ? officerCompFor(o.name, breakdown.officers) : null;
+                    const bonusTotal =
+                      comp && (comp.bonus !== null || comp.nonEquityIncentive !== null)
+                        ? (comp.bonus ?? 0) + (comp.nonEquityIncentive ?? 0)
+                        : null;
+                    return (
+                      <tr
+                        key={o.name}
+                        className={`border-b border-zinc-50 text-sm last:border-b-0 dark:border-zinc-800/50 ${ceoRow ? "bg-zinc-50/60 dark:bg-zinc-800/30" : ""}`}
+                      >
+                        <td className={`px-4 py-2.5 ${ceoRow ? "font-semibold text-zinc-900 dark:text-zinc-100" : "text-zinc-700 dark:text-zinc-300"}`}>
+                          {o.name.replace(/^(Mr\.|Ms\.|Mrs\.|Dr\.)\s+/, "")}
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-zinc-500 dark:text-zinc-400">{o.title}</td>
+                        <td className="px-3 py-2.5 text-right text-xs text-zinc-500 dark:text-zinc-400">{o.age ?? "—"}</td>
+                        {breakdown ? (
+                          <>
+                            <td className="px-3 py-2.5 text-right text-zinc-700 dark:text-zinc-300">
+                              {fmtMoney(comp?.salary ?? null)}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-zinc-700 dark:text-zinc-300">
+                              {fmtMoney(bonusTotal)}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-zinc-700 dark:text-zinc-300">
+                              {fmtMoney(comp?.stockAwards ?? null)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-medium text-zinc-900 dark:text-zinc-100">
+                              {fmtMoney(comp?.total ?? null)}
+                            </td>
+                          </>
+                        ) : (
+                          <td className="px-4 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">{fmtMoney(o.totalPay)}</td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {breakdown?.bonusPlanNote && (
+              <p className="border-t border-zinc-100 px-6 py-2.5 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                <span className="font-medium text-zinc-600 dark:text-zinc-300">What the bonus rewards:</span>{" "}
+                {breakdown.bonusPlanNote}
+              </p>
+            )}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px]">
-              <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                  <th className="px-4 py-2.5 font-medium">Name</th>
-                  <th className="px-3 py-2.5 font-medium">Title</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Age</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Pay</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.yahoo.officers.slice(0, 8).map((o) => {
-                  const ceoRow = isTopCeo(o.title);
-                  return (
-                    <tr
-                      key={o.name}
-                      className={`border-b border-zinc-50 text-sm last:border-b-0 dark:border-zinc-800/50 ${ceoRow ? "bg-zinc-50/60 dark:bg-zinc-800/30" : ""}`}
-                    >
-                      <td className={`px-4 py-2.5 ${ceoRow ? "font-semibold text-zinc-900 dark:text-zinc-100" : "text-zinc-700 dark:text-zinc-300"}`}>
-                        {o.name.replace(/^(Mr\.|Ms\.|Mrs\.|Dr\.)\s+/, "")}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-zinc-500 dark:text-zinc-400">{o.title}</td>
-                      <td className="px-3 py-2.5 text-right text-xs text-zinc-500 dark:text-zinc-400">{o.age ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">{fmtMoney(o.totalPay)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Insider pulse */}
       <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
