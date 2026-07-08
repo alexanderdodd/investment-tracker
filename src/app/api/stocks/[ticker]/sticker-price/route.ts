@@ -39,6 +39,9 @@ export interface StickerPriceInputs {
   /** Median of yearly high P/Es (FY high price ÷ FY diluted EPS) */
   historicalHighPe: number | null;
   peYearsUsed: YearlyPe[];
+  /** Last monthly close within each fiscal year — lets the Time Travel tab
+   *  compare a past sticker price with the price back then */
+  yearEndPrices: { fiscalYear: number; price: number }[];
 }
 
 function median(values: number[]): number | null {
@@ -98,7 +101,7 @@ async function fetchMonthlyCloses(
   ticker: string
 ): Promise<{ date: Date; close: number }[]> {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=12y&interval=1mo`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=20y&interval=1mo`;
     const res = await fetch(url, { headers: { "User-Agent": UA } });
     if (!res.ok) return [];
     const json = await res.json();
@@ -158,12 +161,19 @@ export async function GET(
   // Historical high P/E: per fiscal year, high monthly close ÷ that FY's diluted
   // EPS (both split-adjusted); median across years for robustness
   const peYearsUsed: YearlyPe[] = [];
+  const yearEndPrices: { fiscalYear: number; price: number }[] = [];
   if (payload?.available && closes.length > 0) {
     const fyEndMonth = MONTH_NUMBER[payload.fiscalYearEndMonth ?? "December"] ?? 12;
     const highByFy = new Map<number, number>();
+    const lastByFy = new Map<number, { date: Date; close: number }>();
     for (const { date, close } of closes) {
       const fy = fiscalYearOf(date, fyEndMonth);
       highByFy.set(fy, Math.max(highByFy.get(fy) ?? 0, close));
+      const last = lastByFy.get(fy);
+      if (!last || date > last.date) lastByFy.set(fy, { date, close });
+    }
+    for (const [fy, { close }] of Array.from(lastByFy.entries()).sort((a, b) => a[0] - b[0])) {
+      yearEndPrices.push({ fiscalYear: fy, price: close });
     }
     for (const row of payload.years) {
       const high = highByFy.get(row.fiscalYear);
@@ -200,6 +210,7 @@ export async function GET(
     equityGrowth,
     historicalHighPe,
     peYearsUsed,
+    yearEndPrices,
   };
 
   return NextResponse.json(body);

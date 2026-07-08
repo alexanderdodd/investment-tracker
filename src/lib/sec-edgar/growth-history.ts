@@ -18,40 +18,14 @@ import {
 import { extractAllXbrl, findAllRevenueUnitArrays } from "./xbrl-mapper";
 import { buildAnnualHistory, buildAnnualInstantHistory } from "./ttm";
 
-export interface GrowthYearRow {
-  fiscalYear: number;
-  revenue: number | null;
-  epsDiluted: number | null;
-  equity: number | null;
-  ocf: number | null;
-  capex: number | null;
-  fcf: number | null;
-  operatingIncome: number | null;
-  totalDebt: number | null;
-  totalCash: number | null;
-  dilutedShares: number | null;
-  roic: number | null;
-}
+import {
+  buildGrowthSummary,
+  type GrowthYearRow,
+  type GrowthSummary,
+} from "./growth-math";
 
-export interface PeriodStat {
-  value: number | null;
-  /** Actual span used, when shorter history forced a smaller window */
-  spanYears: number | null;
-}
-
-export interface BigFiveRow {
-  tenYear: PeriodStat;
-  fiveYear: PeriodStat;
-  oneYear: PeriodStat;
-}
-
-export interface GrowthSummary {
-  roic: BigFiveRow;
-  salesGrowth: BigFiveRow;
-  epsGrowth: BigFiveRow;
-  equityGrowth: BigFiveRow;
-  fcfGrowth: BigFiveRow;
-}
+// Re-exported for existing importers (schema, routes, tabs)
+export type { GrowthYearRow, PeriodStat, BigFiveRow, GrowthSummary } from "./growth-math";
 
 export interface GrowthHistoryPayload {
   ticker: string;
@@ -64,8 +38,10 @@ export interface GrowthHistoryPayload {
   summary: GrowthSummary | null;
 }
 
-// One more than 10 so a true 10-year CAGR has both endpoints
-const HISTORY_YEARS = 11;
+// 16 years: enough that the Time Travel tab can compute a true 10-year
+// window as of ~5 years ago (XBRL coverage starts around 2009-2011, so
+// older filers simply top out there)
+const HISTORY_YEARS = 16;
 
 const FALLBACK_TAX_RATE = 0.21;
 
@@ -102,56 +78,6 @@ function mergedAnnualHistory(unitArrays: XbrlUnit[][], years: number): Map<numbe
   return merged;
 }
 
-const NULL_STAT: PeriodStat = { value: null, spanYears: null };
-
-/**
- * CAGR over up to `targetSpan` years, ending at the latest non-null point.
- * Uses the earliest available point within the window, reporting the actual
- * span so the UI can label e.g. "(7y)" for shorter histories. Null when
- * either endpoint is non-positive (CAGR is undefined) or the span is < 2
- * years (that's YoY territory).
- */
-function computeCagr(points: { fiscalYear: number; value: number | null }[], targetSpan: number): PeriodStat {
-  const valid = points.filter((p) => p.value !== null);
-  if (valid.length < 2) return NULL_STAT;
-  const end = valid[valid.length - 1];
-  const windowStart = valid.filter((p) => p.fiscalYear >= end.fiscalYear - targetSpan);
-  const start = windowStart[0];
-  const span = end.fiscalYear - start.fiscalYear;
-  if (span < 2) return NULL_STAT;
-  if (start.value! <= 0 || end.value! <= 0) return { value: null, spanYears: span };
-  return { value: Math.pow(end.value! / start.value!, 1 / span) - 1, spanYears: span };
-}
-
-/** Latest year vs the year immediately before it. */
-function computeYoY(points: { fiscalYear: number; value: number | null }[]): PeriodStat {
-  const valid = points.filter((p) => p.value !== null);
-  if (valid.length < 2) return NULL_STAT;
-  const end = valid[valid.length - 1];
-  const prev = valid.find((p) => p.fiscalYear === end.fiscalYear - 1);
-  if (!prev || prev.value! <= 0) return NULL_STAT;
-  return { value: end.value! / prev.value! - 1, spanYears: 1 };
-}
-
-function growthRow(points: { fiscalYear: number; value: number | null }[]): BigFiveRow {
-  return {
-    tenYear: computeCagr(points, 10),
-    fiveYear: computeCagr(points, 5),
-    oneYear: computeYoY(points),
-  };
-}
-
-/** Average of non-null per-year ROICs within the trailing window. */
-function roicAverage(points: { fiscalYear: number; value: number | null }[], windowYears: number): PeriodStat {
-  const valid = points.filter((p) => p.value !== null);
-  if (valid.length === 0) return NULL_STAT;
-  const endYear = valid[valid.length - 1].fiscalYear;
-  const window = valid.filter((p) => p.fiscalYear > endYear - windowYears);
-  if (window.length === 0) return NULL_STAT;
-  const sum = window.reduce((acc, p) => acc + p.value!, 0);
-  return { value: sum / window.length, spanYears: window.length };
-}
-
 interface SplitEvent {
   date: string; // ISO date
   ratio: number; // e.g. 4 for a 4-for-1 split
@@ -165,7 +91,7 @@ interface SplitEvent {
  */
 async function fetchSplitEvents(ticker: string): Promise<SplitEvent[]> {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1mo&range=15y&events=splits`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1mo&range=20y&events=splits`;
     const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
     if (!res.ok) return [];
     const json = await res.json();
@@ -332,21 +258,7 @@ export async function buildGrowthHistory(ticker: string): Promise<GrowthHistoryP
     };
   });
 
-  const pick = (key: keyof GrowthYearRow) =>
-    years.map((r) => ({ fiscalYear: r.fiscalYear, value: r[key] as number | null }));
-
-  const roicPoints = pick("roic");
-  const summary: GrowthSummary = {
-    roic: {
-      tenYear: roicAverage(roicPoints, 10),
-      fiveYear: roicAverage(roicPoints, 5),
-      oneYear: roicAverage(roicPoints, 1),
-    },
-    salesGrowth: growthRow(pick("revenue")),
-    epsGrowth: growthRow(pick("epsDiluted")),
-    equityGrowth: growthRow(pick("equity")),
-    fcfGrowth: growthRow(pick("fcf")),
-  };
+  const summary: GrowthSummary = buildGrowthSummary(years);
 
   return {
     ticker: upper,
