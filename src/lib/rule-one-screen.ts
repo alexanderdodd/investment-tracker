@@ -2,12 +2,13 @@
  * Rule #1 industry screen — Phil Town's methodology as a staged funnel:
  *
  *   Stage 1  Big Five: ROIC + the four growth rates (10y) must clear 10%/yr
- *   Stage 2  Sticker price: is the survivor trading below fair value / MOS?
- *   Stage 3  For opportunities: LLM-researched moat (Town's five moat types)
- *            and management sentiment
+ *   Stage 2  Moat & management: LLM-researched moat (Town's five moat types)
+ *            and management sentiment for every Big Five passer
+ *   Stage 3  Sticker price last: is it trading below fair value / MOS?
  *
- * Stages 1-2 are fully deterministic (SEC EDGAR + Yahoo). Stage 3 is the
- * only LLM step and runs on at most MAX_FINALISTS stocks.
+ * This follows the Four Ms order — judge the business quality first, look
+ * at the price last. Stages 1 and 3 are fully deterministic (SEC EDGAR +
+ * Yahoo). Stage 2 is the only LLM step, capped at MAX_ASSESSED stocks.
  */
 
 import { eq } from "drizzle-orm";
@@ -22,7 +23,7 @@ import { openrouter } from "./ai";
 const RESEARCH_MODEL = "google/gemini-2.5-flash:online";
 
 const MAX_STOCKS = 25;
-const MAX_FINALISTS = 5;
+const MAX_ASSESSED = 5;
 const BIG_FIVE_PASS_SCORE = 3;
 
 export interface RuleOneBigFive {
@@ -224,12 +225,33 @@ export async function runRuleOneScreen(
     done++;
   }
 
-  // Stage 2: sticker price for Big Five passers
+  // Stage 2: moat + management for EVERY Big Five passer (best scores first
+  // when the cap bites) — judge the business before looking at the price
   const passers = results.filter((r) => r.passedBigFive);
+  const assessed = [...passers]
+    .sort((a, b) => b.bigFiveScore - a.bigFiveScore)
+    .slice(0, MAX_ASSESSED);
+  done = 0;
+  for (const r of assessed) {
+    onProgress?.({
+      stage: 2,
+      message: `Moat & management: ${r.ticker}`,
+      done,
+      total: assessed.length,
+    });
+    const assessment = await assessMoatAndManagement(r.ticker, r.companyName, r.bigFive);
+    if (assessment) {
+      r.moat = assessment.moat;
+      r.management = assessment.management;
+    }
+    done++;
+  }
+
+  // Stage 3: sticker price last — only now does the price enter the picture
   done = 0;
   for (const r of passers) {
     onProgress?.({
-      stage: 2,
+      stage: 3,
       message: `Sticker price: ${r.ticker}`,
       done,
       total: passers.length,
@@ -251,26 +273,9 @@ export async function runRuleOneScreen(
     done++;
   }
 
-  // Stage 3: moat + management for stocks trading below sticker
-  const finalists = passers
-    .filter((r) => r.verdict === "mos" || r.verdict === "sticker")
-    .sort((a, b) => (b.discountToSticker ?? 0) - (a.discountToSticker ?? 0))
-    .slice(0, MAX_FINALISTS);
-  done = 0;
-  for (const r of finalists) {
-    onProgress?.({
-      stage: 3,
-      message: `Moat & management: ${r.ticker}`,
-      done,
-      total: finalists.length,
-    });
-    const assessment = await assessMoatAndManagement(r.ticker, r.companyName, r.bigFive);
-    if (assessment) {
-      r.moat = assessment.moat;
-      r.management = assessment.management;
-    }
-    done++;
-  }
+  const belowSticker = passers.filter(
+    (r) => r.verdict === "mos" || r.verdict === "sticker"
+  ).length;
 
   // Order: finalists by discount, then remaining passers, then the rest by score
   results.sort((a, b) => {
@@ -290,7 +295,7 @@ export async function runRuleOneScreen(
     totalStocks: classifications.length,
     evaluated: universe.length,
     passedBigFive: passers.length,
-    belowSticker: finalists.length,
+    belowSticker,
     stocks: results,
   };
 }

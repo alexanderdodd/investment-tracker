@@ -138,7 +138,7 @@ export function RuleOneScreenPanel({ slug }: { slug: string }) {
             Rule #1 Screen
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Big Five → sticker price → moat &amp; management for the survivors
+            Big Five → moat &amp; management for the passers → sticker price last
             {generatedAt &&
               ` · last run ${new Date(generatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
           </p>
@@ -171,8 +171,9 @@ export function RuleOneScreenPanel({ slug }: { slug: string }) {
       {!result && !running && !error && (
         <p className="px-6 py-8 text-sm text-zinc-500 dark:text-zinc-400">
           Not run yet for this industry. The screen evaluates every classified stock against
-          the Big Five (≥3 of 5 at 10%/yr to pass), prices survivors against their sticker,
-          and researches moat &amp; management for anything trading below fair value.
+          the Big Five (≥3 of 5 at 10%/yr to pass), researches moat &amp; management for the
+          passers, and only then prices them against their sticker — quality first, price
+          last.
         </p>
       )}
 
@@ -203,7 +204,7 @@ export function RuleOneScreenPanel({ slug }: { slug: string }) {
           {finalists.map((s) => (
             <div
               key={s.ticker}
-              className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] px-5 py-4 dark:bg-emerald-500/[0.06]"
+              className="rounded-xl border border-zinc-200 bg-zinc-50/50 px-5 py-4 dark:border-zinc-700 dark:bg-zinc-800/30"
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <Link href={`/stocks/${s.ticker}/valuation`} className="group">
@@ -221,12 +222,22 @@ export function RuleOneScreenPanel({ slug }: { slug: string }) {
                     className={`rounded-full border px-2.5 py-0.5 font-medium ${
                       s.verdict === "mos"
                         ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        : s.verdict === "sticker"
+                          ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          : s.verdict === "above"
+                            ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
+                            : "border-zinc-400/40 bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"
                     }`}
                   >
-                    {s.verdict === "mos" ? "Below MOS" : "Below sticker"}
+                    {s.verdict === "mos"
+                      ? "Below MOS"
+                      : s.verdict === "sticker"
+                        ? "Below sticker"
+                        : s.verdict === "above"
+                          ? "Above sticker"
+                          : "No sticker"}
                     {s.discountToSticker !== null &&
-                      ` · ${(s.discountToSticker * 100).toFixed(0)}% off`}
+                      ` · ${(Math.abs(s.discountToSticker) * 100).toFixed(0)}% ${s.discountToSticker >= 0 ? "off" : "over"}`}
                   </span>
                   {s.moat && (
                     <span
@@ -279,7 +290,7 @@ export function RuleOneScreenPanel({ slug }: { slug: string }) {
           {passersOnly.length > 0 && (
             <div>
               <p className="mb-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                Passed the Big Five but not on sale
+                More Big Five passers (beyond the top {5} assessed)
               </p>
               <div className="flex flex-wrap gap-2">
                 {passersOnly.map((s) => (
@@ -353,10 +364,11 @@ export function RuleOneScreenPanel({ slug }: { slug: string }) {
           )}
 
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-            Pass = at least 3 of the Big Five ≥ 10%/yr over 10 years (SEC filings). Sticker
-            uses the default Rule #1 inputs. Moat &amp; management are AI-researched for the
-            top {finalists.length > 0 ? finalists.length : 5} stocks trading below sticker —
-            treat as a starting point, not a verdict.
+            Pass = at least 3 of the Big Five ≥ 10%/yr over 10 years (SEC filings). Moat &amp;
+            management are AI-researched for the top 5 passers by Big Five score — treat as a
+            starting point, not a verdict. Sticker (default Rule #1 inputs) is evaluated last:
+            a wonderful business above sticker just goes on the watchlist until the price
+            comes to you.
           </p>
         </div>
       )}
