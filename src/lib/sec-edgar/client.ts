@@ -143,6 +143,8 @@ export interface EdgarSubmissions {
       reportDate: string[];
       form: string[];
       primaryDocument: string[];
+      /** 8-K item numbers, comma-separated (e.g. "5.02,9.01") */
+      items: string[];
     };
   };
 }
@@ -150,6 +152,33 @@ export interface EdgarSubmissions {
 export async function getSubmissions(cik: string): Promise<EdgarSubmissions> {
   const res = await throttledFetch(`${BASE}/submissions/CIK${cik}.json`);
   return res.json();
+}
+
+/**
+ * Fetch a raw filing document from the EDGAR archives (e.g. a Form 4 XML).
+ * Strips the XSL-rendering prefix some primaryDocument paths carry
+ * ("xslF345X05/wk-form4.xml" → "wk-form4.xml").
+ */
+export async function fetchFilingDocument(
+  cik: string,
+  accessionNumber: string,
+  primaryDocument: string
+): Promise<string> {
+  const cikNum = String(parseInt(cik, 10));
+  const accession = accessionNumber.replace(/-/g, "");
+  const doc = primaryDocument.includes("/")
+    ? primaryDocument.slice(primaryDocument.lastIndexOf("/") + 1)
+    : primaryDocument;
+  const url = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accession}/${doc}`;
+  const res = await throttledFetch(url);
+  return res.text();
+}
+
+/** Human-viewable URL for a filing's index page. */
+export function filingIndexUrl(cik: string, accessionNumber: string): string {
+  const cikNum = String(parseInt(cik, 10));
+  const accession = accessionNumber.replace(/-/g, "");
+  return `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accession}/`;
 }
 
 // ---------------------------------------------------------------------------

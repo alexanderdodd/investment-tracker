@@ -9,6 +9,8 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { GrowthHistoryPayload } from "@/lib/sec-edgar/growth-history";
+import type { ManagementPayload } from "@/lib/sec-edgar/management";
+import type { ManagementBrief } from "@/lib/generate-management-brief";
 
 export const users = pgTable("user", {
   id: text("id")
@@ -421,4 +423,15 @@ export const stockGrowthHistories = pgTable("stock_growth_history", {
   cik: text("cik"),
   payload: jsonb("payload").$type<GrowthHistoryPayload>().notNull(),
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// Cached insider/management data (SEC Form 4 parse — expensive: ~120 archive
+// fetches per build) plus the LLM-generated management brief.
+export const stockManagements = pgTable("stock_management", {
+  ticker: text("ticker").primaryKey(),
+  cik: text("cik"),
+  payload: jsonb("payload").$type<ManagementPayload>().notNull(),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+  brief: jsonb("brief").$type<ManagementBrief>(),
+  briefGeneratedAt: timestamp("brief_generated_at", { mode: "date" }),
 });
