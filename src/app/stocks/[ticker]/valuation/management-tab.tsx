@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Markdown from "react-markdown";
+import { MetricTooltip } from "@/components/metric-tooltip";
 import {
   ResponsiveContainer,
   LineChart,
@@ -129,6 +130,142 @@ const MD_COMPONENTS = {
 
 type TxFilter = "trades" | "all";
 
+interface PersonAgg {
+  owner: string;
+  role: string | null;
+  isCeo: boolean;
+  boughtShares: number;
+  boughtValue: number;
+  soldShares: number;
+  soldValue: number;
+  /** Latest direct holding on record */
+  currentStake: number | null;
+  /** Reconstructed direct holding at the start of the window */
+  startingStake: number | null;
+  /** (current − starting) / starting — the real "are they dumping?" number.
+   *  Execs who exercise options and sell same-day show ~0% here even with
+   *  large sale totals, which is the correct reading. */
+  stakeChange: number | null;
+}
+
+/**
+ * Aggregate discretionary insider activity per person over the last ~12
+ * months of parsed filings. Buys = open-market purchases (code P); sells =
+ * open-market sales (code S). Grants, option exercises, and tax withholding
+ * are excluded — they're compensation mechanics, not conviction. The
+ * starting stake is reconstructed by reverse-applying every direct
+ * transaction from the person's latest reported holding.
+ */
+function aggregateInsiders(transactions: InsiderTransaction[]): {
+  people: PersonAgg[];
+  totals: { boughtShares: number; boughtValue: number; soldShares: number; soldValue: number; stakeChange: number | null };
+  windowFrom: string | null;
+  windowTo: string | null;
+} {
+  const dated = transactions.filter((t) => t.date);
+  if (dated.length === 0) {
+    return {
+      people: [],
+      totals: { boughtShares: 0, boughtValue: 0, soldShares: 0, soldValue: 0, stakeChange: null },
+      windowFrom: null,
+      windowTo: null,
+    };
+  }
+  const latest = dated.reduce((max, t) => (t.date > max ? t.date : max), dated[0].date);
+  const cutoffMs = new Date(latest).getTime() - 365 * 24 * 60 * 60 * 1000;
+  const window = dated.filter((t) => new Date(t.date).getTime() >= cutoffMs);
+  const windowFrom = window.reduce((min, t) => (t.date < min ? t.date : min), window[0].date);
+
+  const byOwner = new Map<string, InsiderTransaction[]>();
+  for (const t of window) {
+    const list = byOwner.get(t.owner) ?? [];
+    list.push(t);
+    byOwner.set(t.owner, list);
+  }
+
+  const people: PersonAgg[] = [];
+  for (const [owner, txs] of byOwner) {
+    const sorted = [...txs].sort((a, b) => (a.date < b.date ? -1 : 1));
+    let boughtShares = 0, boughtValue = 0, soldShares = 0, soldValue = 0;
+    for (const t of sorted) {
+      if (t.code === "P") {
+        boughtShares += t.shares ?? 0;
+        boughtValue += t.value ?? 0;
+      } else if (t.code === "S") {
+        soldShares += t.shares ?? 0;
+        soldValue += t.value ?? 0;
+      }
+    }
+
+    // Direct-holding transactions carry sharesOwnedAfter — walk them to get
+    // the current stake and reverse-apply to reconstruct the starting stake
+    const direct = sorted.filter((t) => t.sharesOwnedAfter !== null);
+    const currentStake = direct.length > 0 ? direct[direct.length - 1].sharesOwnedAfter : null;
+    let startingStake: number | null = null;
+    if (direct.length > 0) {
+      const first = direct[0];
+      startingStake =
+        first.sharesOwnedAfter! + (first.acquired ? -(first.shares ?? 0) : (first.shares ?? 0));
+      if (startingStake < 0) startingStake = 0;
+    }
+    const stakeChange =
+      startingStake !== null && startingStake > 0 && currentStake !== null
+        ? currentStake / startingStake - 1
+        : null;
+
+    if (boughtShares === 0 && soldShares === 0) continue; // no discretionary trades
+
+    const latestTx = sorted[sorted.length - 1];
+    people.push({
+      owner,
+      role: latestTx.role,
+      isCeo: sorted.some((t) => t.isCeo),
+      boughtShares,
+      boughtValue,
+      soldShares,
+      soldValue,
+      currentStake,
+      startingStake,
+      stakeChange,
+    });
+  }
+
+  people.sort((a, b) => (b.soldValue + b.boughtValue) - (a.soldValue + a.boughtValue));
+
+  const totals = people.reduce(
+    (acc, p) => ({
+      boughtShares: acc.boughtShares + p.boughtShares,
+      boughtValue: acc.boughtValue + p.boughtValue,
+      soldShares: acc.soldShares + p.soldShares,
+      soldValue: acc.soldValue + p.soldValue,
+      starting: acc.starting + (p.startingStake ?? 0),
+      current: acc.current + (p.currentStake ?? 0),
+    }),
+    { boughtShares: 0, boughtValue: 0, soldShares: 0, soldValue: 0, starting: 0, current: 0 }
+  );
+
+  return {
+    people,
+    totals: {
+      boughtShares: totals.boughtShares,
+      boughtValue: totals.boughtValue,
+      soldShares: totals.soldShares,
+      soldValue: totals.soldValue,
+      stakeChange: totals.starting > 0 ? totals.current / totals.starting - 1 : null,
+    },
+    windowFrom,
+    windowTo: latest,
+  };
+}
+
+function stakeChangeColor(change: number | null): string {
+  if (change === null) return "text-zinc-400 dark:text-zinc-500";
+  if (change <= -0.2) return "text-red-600 dark:text-red-400";
+  if (change <= -0.05) return "text-amber-600 dark:text-amber-400";
+  if (change >= 0.05) return "text-emerald-600 dark:text-emerald-400";
+  return "text-zinc-700 dark:text-zinc-300";
+}
+
 // Stored briefs can predate the string-coercion fix in the generator —
 // Markdown requires string children, so normalize defensively here too
 function asMarkdown(v: unknown): string {
@@ -205,6 +342,11 @@ export function ManagementTab({ ticker }: { ticker: string }) {
       label: p.date.slice(0, 7),
     }));
   }, [data]);
+
+  const insiderAgg = useMemo(
+    () => aggregateInsiders(data?.sec?.transactions ?? []),
+    [data]
+  );
 
   if (loading) {
     return (
@@ -435,18 +577,128 @@ export function ManagementTab({ ticker }: { ticker: string }) {
         </div>
       )}
 
-      {/* Insider transactions */}
+      {/* Insider activity by person */}
       {data.sec?.available && (
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                Insider transactions
-              </h2>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                From the last {data.sec.form4Parsed} SEC Form 4 filings
-              </p>
+          <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Insider activity by person
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Open-market buys and sells over the last 12 months of filings
+              {insiderAgg.windowFrom && ` (${insiderAgg.windowFrom} → ${insiderAgg.windowTo})`} —
+              grants, option exercises, and tax withholding excluded. Direct holdings only:
+              founders often hold most shares via trusts (indirect), tracked separately on
+              Form 4
+            </p>
+          </div>
+          {insiderAgg.people.length === 0 ? (
+            <p className="px-6 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              No discretionary open-market buys or sells in the parsed filings — only
+              compensation mechanics (grants, withholding). That itself is normal.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px]">
+                <thead>
+                  <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                    <th className="px-4 py-2.5 font-medium">Insider</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Bought</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Sold</th>
+                    <th className="px-3 py-2.5 text-right font-medium">
+                      <MetricTooltip
+                        label="Stake change (12m)"
+                        description="Change in the person's direct holding over the window. This is the honest 'are they dumping?' number: an exec who exercises options and sells them the same day shows big Sold totals but ~0% stake change — their actual exposure didn't move. −30% means they really cut their stake by a third."
+                      >
+                        <span>Stake change</span>
+                      </MetricTooltip>
+                    </th>
+                    <th className="px-3 py-2.5 text-right font-medium">Stake now</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Net value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {insiderAgg.people.map((p) => {
+                    const netValue = p.boughtValue - p.soldValue;
+                    return (
+                      <tr
+                        key={p.owner}
+                        className="border-b border-zinc-50 text-sm last:border-b-0 dark:border-zinc-800/50"
+                      >
+                        <td className="px-4 py-2.5">
+                          <p className="text-sm text-zinc-900 dark:text-zinc-100">
+                            {p.owner}
+                            {p.isCeo && (
+                              <span className="ml-1.5 inline-flex items-center rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                                CEO
+                              </span>
+                            )}
+                          </p>
+                          {p.role && (
+                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{p.role}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400">
+                          {p.boughtShares > 0 ? fmtShares(p.boughtShares) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-red-600 dark:text-red-400">
+                          {p.soldShares > 0 ? fmtShares(p.soldShares) : "—"}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right font-medium ${stakeChangeColor(p.stakeChange)}`}>
+                          {p.stakeChange !== null
+                            ? `${p.stakeChange > 0 ? "+" : ""}${(p.stakeChange * 100).toFixed(1)}%`
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-zinc-600 dark:text-zinc-300">
+                          {p.currentStake !== null ? fmtShares(p.currentStake) : "—"}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right font-medium ${netValue > 0 ? "text-emerald-600 dark:text-emerald-400" : netValue < 0 ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`}>
+                          {netValue !== 0 ? `${netValue > 0 ? "+" : "-"}${fmtMoney(Math.abs(netValue)).replace("-", "")}` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Overall */}
+                  <tr className="border-t border-zinc-200 bg-zinc-50/60 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-800/30">
+                    <td className="px-4 py-2.5 text-zinc-900 dark:text-zinc-100">
+                      All insiders
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400">
+                      {insiderAgg.totals.boughtShares > 0 ? fmtShares(insiderAgg.totals.boughtShares) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-red-600 dark:text-red-400">
+                      {insiderAgg.totals.soldShares > 0 ? fmtShares(insiderAgg.totals.soldShares) : "—"}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right ${stakeChangeColor(insiderAgg.totals.stakeChange)}`}>
+                      {insiderAgg.totals.stakeChange !== null
+                        ? `${insiderAgg.totals.stakeChange > 0 ? "+" : ""}${(insiderAgg.totals.stakeChange * 100).toFixed(1)}%`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2.5" />
+                    <td className={`px-4 py-2.5 text-right ${insiderAgg.totals.boughtValue - insiderAgg.totals.soldValue >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                      {(() => {
+                        const net = insiderAgg.totals.boughtValue - insiderAgg.totals.soldValue;
+                        return net !== 0 ? `${net > 0 ? "+" : "-"}${fmtMoney(Math.abs(net)).replace("-", "")}` : "—";
+                      })()}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Raw filings (demoted) */}
+      {data.sec?.available && (
+        <details className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <summary className="cursor-pointer select-none px-6 py-4 text-sm font-semibold text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100">
+            Raw insider filings
+            <span className="ml-2 text-xs font-normal text-zinc-400 dark:text-zinc-500">
+              individual transactions from the last {data.sec.form4Parsed} Form 4s
+            </span>
+          </summary>
+          <div className="flex items-center justify-end border-t border-zinc-100 px-6 py-3 dark:border-zinc-800">
             <div className="flex gap-1">
               {(
                 [
@@ -470,8 +722,8 @@ export function ManagementTab({ ticker }: { ticker: string }) {
           </div>
           {visibleTx.length === 0 ? (
             <p className="px-6 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-              No open-market buys or sells in the parsed filings — only grants and tax
-              withholding. Switch to &ldquo;All&rdquo; to see them.
+              No open-market buys or sells in the parsed filings — switch to &ldquo;All&rdquo;
+              to see grants and withholding.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -529,7 +781,7 @@ export function ManagementTab({ ticker }: { ticker: string }) {
               </table>
             </div>
           )}
-        </div>
+        </details>
       )}
 
       {!data.sec?.available && data.sec?.unavailableReason && (
