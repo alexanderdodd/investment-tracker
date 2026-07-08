@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { sectorToSlug } from "@/lib/sectors";
@@ -243,6 +243,37 @@ function MetricCell({
   );
 }
 
+// Remember the stock-table view across industry pages; Big Five is the
+// default since the app's screening workflow is Rule #1-centric.
+type StockView = "metrics" | "bigfive";
+const STOCK_VIEW_KEY = "industry-stock-view";
+
+function subscribeStockView(callback: () => void) {
+  window.addEventListener("industry-stock-view-change", callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener("industry-stock-view-change", callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+function getStockViewSnapshot(): StockView {
+  return localStorage.getItem(STOCK_VIEW_KEY) === "metrics" ? "metrics" : "bigfive";
+}
+
+function useRememberedStockView(): [StockView, (v: StockView) => void] {
+  const view = useSyncExternalStore(
+    subscribeStockView,
+    getStockViewSnapshot,
+    () => "bigfive" as StockView
+  );
+  const setView = useCallback((next: StockView) => {
+    localStorage.setItem(STOCK_VIEW_KEY, next);
+    window.dispatchEvent(new Event("industry-stock-view-change"));
+  }, []);
+  return [view, setView];
+}
+
 export default function IndustryDetailPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -256,7 +287,7 @@ export default function IndustryDetailPage() {
   const [screenRunning, setScreenRunning] = useState(false);
   const [simBuyTarget, setSimBuyTarget] = useState<{ ticker: string; companyName: string } | null>(null);
   const [screenRun, setScreenRun] = useState<ScreenRunResult | null>(null);
-  const [stockView, setStockView] = useState<"metrics" | "bigfive">("metrics");
+  const [stockView, setStockView] = useRememberedStockView();
 
   const runScreen = useCallback(async () => {
     setScreenRunning(true);
