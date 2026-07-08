@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { sectorToSlug } from "@/lib/sectors";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
+import { RuleOneTable } from "@/components/rule-one-table";
 import {
   type StockMetrics,
   type MetricRating,
@@ -254,6 +255,7 @@ export default function IndustryDetailPage() {
   const [screenRunning, setScreenRunning] = useState(false);
   const [simBuyTarget, setSimBuyTarget] = useState<{ ticker: string; companyName: string } | null>(null);
   const [screenRun, setScreenRun] = useState<ScreenRunResult | null>(null);
+  const [stockView, setStockView] = useState<"metrics" | "bigfive">("metrics");
 
   const runScreen = useCallback(async () => {
     setScreenRunning(true);
@@ -601,16 +603,53 @@ export default function IndustryDetailPage() {
 
         {/* Top Stocks in Industry */}
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Top Stocks in {industry.name}
-            </h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {stocks.length > 10 ? `Showing 10 of ${stocks.length}` : `${stocks.length} stocks`} in this industry
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                Top Stocks in {industry.name}
+              </h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {stocks.length > 10 ? `Showing 10 of ${stocks.length}` : `${stocks.length} stocks`} in this industry
+              </p>
+            </div>
+            <div className="flex gap-1">
+              {(
+                [
+                  { value: "metrics", label: "Value metrics" },
+                  { value: "bigfive", label: "Big Five" },
+                ] as { value: "metrics" | "bigfive"; label: string }[]
+              ).map((v) => (
+                <button
+                  key={v.value}
+                  onClick={() => setStockView(v.value)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    stockView === v.value
+                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                      : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {stocks.length === 0 ? (
+          {stockView === "bigfive" && stocks.length > 0 && (
+            <>
+              <RuleOneTable
+                items={stocks.slice(0, 10).map((s) => ({
+                  ticker: s.ticker,
+                  companyName: s.companyName,
+                }))}
+              />
+              <p className="border-t border-zinc-100 px-6 py-2.5 text-[11px] text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
+                10-year Big Five from SEC filings; sticker/MOS use the default Rule #1 inputs.
+                Rows fill in as data loads — stocks never opened before can take ~30s each.
+              </p>
+            </>
+          )}
+
+          {stockView === "metrics" && (stocks.length === 0 ? (
             <div className="px-6 py-12 text-center">
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 No stocks classified in this industry yet.
@@ -667,7 +706,7 @@ export default function IndustryDetailPage() {
                 </tbody>
               </table>
             </div>
-          )}
+          ))}
         </div>
       </div>
 
