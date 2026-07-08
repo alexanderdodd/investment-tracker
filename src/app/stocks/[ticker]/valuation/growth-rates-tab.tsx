@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import type { MetricRating } from "@/lib/stock-metrics";
+import { rateBigFive } from "@/lib/rule-one";
 
 interface GrowthYearRow {
   fiscalYear: number;
@@ -68,14 +69,6 @@ const RATING_COLORS: Record<MetricRating, string> = {
   caution: "text-amber-600 dark:text-amber-400",
   bad: "text-red-600 dark:text-red-400",
 };
-
-// Rule #1 rule of thumb: all Big Five should be ≥ 10%/year
-function rateBigFive(v: number | null): MetricRating {
-  if (v === null) return "neutral";
-  if (v >= 0.1) return "good";
-  if (v >= 0.05) return "caution";
-  return "bad";
-}
 
 function fmtPct(v: number | null): string {
   if (v === null) return "—";

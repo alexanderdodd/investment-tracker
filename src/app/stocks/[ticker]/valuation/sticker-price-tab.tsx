@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { MetricTooltip } from "@/components/metric-tooltip";
+import {
+  PROJECTION_YEARS,
+  MINIMUM_RETURN,
+  DISCOUNT_FACTOR,
+  defaultGrowthRate,
+  computeSticker,
+} from "@/lib/rule-one";
 
 interface YearlyPe {
   fiscalYear: number;
@@ -25,11 +32,6 @@ interface StickerInputs {
   historicalHighPe: number | null;
   peYearsUsed: YearlyPe[];
 }
-
-const PROJECTION_YEARS = 10;
-const MINIMUM_RETURN = 0.15; // Rule #1 minimum acceptable rate of return
-const DISCOUNT_FACTOR = Math.pow(1 + MINIMUM_RETURN, PROJECTION_YEARS); // ≈ 4.05
-const MARGIN_OF_SAFETY = 0.5;
 
 function fmtMoney(v: number | null): string {
   if (v === null || !isFinite(v)) return "—";
@@ -83,32 +85,18 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
 
   // Rule #1: use the LOWER of your own estimate (historical equity growth)
   // and the analyst estimate
-  const defaultGrowth = useMemo(() => {
-    if (!data) return null;
-    const candidates = [data.equityGrowth?.value, data.analystGrowth].filter(
-      (v): v is number => v !== null && v !== undefined
-    );
-    if (candidates.length === 0) return null;
-    return Math.min(...candidates);
-  }, [data]);
+  const defaultGrowth = useMemo(
+    () => (data ? defaultGrowthRate(data.equityGrowth?.value, data.analystGrowth) : null),
+    [data]
+  );
 
   const overridden = growthInput.trim() !== "";
   const growth = overridden ? parseFloat(growthInput) / 100 : defaultGrowth;
 
-  const calc = useMemo(() => {
-    if (!data?.eps || data.eps <= 0 || growth === null || !isFinite(growth)) return null;
-    const futureEps = data.eps * Math.pow(1 + growth, PROJECTION_YEARS);
-    const defaultPe = growth * 2 * 100;
-    const futurePe =
-      data.historicalHighPe !== null
-        ? Math.min(defaultPe, data.historicalHighPe)
-        : defaultPe;
-    if (futurePe <= 0) return null;
-    const futurePrice = futureEps * futurePe;
-    const sticker = futurePrice / DISCOUNT_FACTOR;
-    const mos = sticker * MARGIN_OF_SAFETY;
-    return { futureEps, defaultPe, futurePe, futurePrice, sticker, mos };
-  }, [data, growth]);
+  const calc = useMemo(
+    () => (data ? computeSticker(data.eps, growth, data.historicalHighPe) : null),
+    [data, growth]
+  );
 
   if (loading) {
     return (
