@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { MetricRating } from "@/lib/stock-metrics";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
+import { displayTag } from "@/lib/meaning-tags";
 
 interface ScreenRow {
   ticker: string;
@@ -33,6 +35,9 @@ interface ScreenRow {
   sticker: number | null;
   mos: number | null;
   verdict: string | null;
+  oneLiner: string | null;
+  tags: string[] | null;
+  matchedTags: string[];
 }
 
 interface ScreenStats {
@@ -74,6 +79,7 @@ const MCAP_OPTIONS = [
 
 const SORT_OPTIONS = [
   { value: "score", label: "Big Five score" },
+  { value: "relevance", label: "Relevance (my interests)" },
   { value: "roic", label: "ROIC" },
   { value: "sales", label: "Sales growth" },
   { value: "eps", label: "EPS growth" },
@@ -95,13 +101,36 @@ function fmtMoney(v: number | null, currency?: string | null): string {
 }
 
 export default function ScreenerPage() {
-  const [minScore, setMinScore] = useState(4);
+  // useSearchParams requires a Suspense boundary in client pages
+  return (
+    <Suspense fallback={null}>
+      <ScreenerPageInner />
+    </Suspense>
+  );
+}
+
+function ScreenerPageInner() {
+  const searchParams = useSearchParams();
+  const [minScore, setMinScore] = useState(() =>
+    parseInt(searchParams.get("minScore") ?? "4", 10)
+  );
   const [sector, setSector] = useState("");
   const [minMcap, setMinMcap] = useState(1e9);
-  const [sort, setSort] = useState("score");
+  const [maxMcap, setMaxMcap] = useState<number | null>(null);
+  const [sort, setSort] = useState(searchParams.get("sort") ?? "score");
+  const [tags, setTags] = useState<string[]>([]);
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [nlInput, setNlInput] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [parseNotice, setParseNotice] = useState<string | null>(null);
   const [result, setResult] = useState<{
     query: string;
-    data: { rows: ScreenRow[]; stats: ScreenStats; sectors: string[] };
+    data: {
+      rows: ScreenRow[];
+      stats: ScreenStats;
+      sectors: string[];
+      relevanceAvailable?: boolean;
+    };
   } | null>(null);
 
   const query = useMemo(() => {
@@ -112,8 +141,44 @@ export default function ScreenerPage() {
       limit: "200",
     });
     if (sector) params.set("sector", sector);
+    if (maxMcap) params.set("maxMcap", String(maxMcap));
+    if (tags.length > 0) params.set("tags", tags.join(","));
+    if (keywords.length > 0) params.set("keywords", keywords.join(","));
     return params.toString();
-  }, [minScore, sector, minMcap, sort]);
+  }, [minScore, sector, minMcap, maxMcap, sort, tags, keywords]);
+
+  // NL query → one LLM parse → chips; chip edits re-query with zero LLM calls
+  const parseNl = async () => {
+    const q = nlInput.trim();
+    if (!q || parsing) return;
+    setParsing(true);
+    setParseNotice(null);
+    try {
+      const res = await fetch("/api/screener/parse-query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q }),
+      });
+      if (res.status === 401) {
+        setParseNotice("Sign in to use natural-language filters.");
+        return;
+      }
+      const data = await res.json();
+      setTags(data.tags ?? []);
+      setKeywords(data.keywords ?? []);
+      if (data.minScore != null) setMinScore(data.minScore);
+      if (data.minMcap != null) setMinMcap(data.minMcap);
+      setMaxMcap(data.maxMcap ?? null);
+      if (data.sector != null) setSector(data.sector);
+      if (data.fallback) {
+        setParseNotice("Couldn't fully parse that — searching by keywords instead.");
+      }
+    } catch {
+      setParseNotice("Parse failed — try plain filters below.");
+    } finally {
+      setParsing(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +237,89 @@ export default function ScreenerPage() {
               </span>
             )}
           </div>
+        )}
+
+        {/* Natural-language filter */}
+        <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              parseNl();
+            }}
+            className="flex gap-2"
+          >
+            <input
+              type="text"
+              value={nlInput}
+              onChange={(e) => setNlInput(e.target.value)}
+              placeholder='Describe what you want — e.g. "profitable coffee or pet companies under $10B"'
+              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            />
+            <button
+              type="submit"
+              disabled={parsing || nlInput.trim() === ""}
+              className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {parsing ? "Parsing…" : "Filter"}
+            </button>
+          </form>
+          {parseNotice && (
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{parseNotice}</p>
+          )}
+          {(tags.length > 0 || keywords.length > 0 || maxMcap) && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-zinc-400 dark:text-zinc-500">Filtering by:</span>
+              {tags.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
+                  className="group inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-500/20 dark:text-blue-400"
+                  title="Remove filter"
+                >
+                  {displayTag(t)}
+                  <span className="text-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-300">×</span>
+                </button>
+              ))}
+              {keywords.map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setKeywords((prev) => prev.filter((x) => x !== k))}
+                  className="group inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  title="Remove keyword"
+                >
+                  “{k}”<span className="text-zinc-400">×</span>
+                </button>
+              ))}
+              {maxMcap && (
+                <button
+                  onClick={() => setMaxMcap(null)}
+                  className="group inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                >
+                  ≤ {fmtMcap(maxMcap)}<span className="text-zinc-400">×</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setTags([]);
+                  setKeywords([]);
+                  setMaxMcap(null);
+                  setParseNotice(null);
+                }}
+                className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              >
+                clear all
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Relevance-sort fallback notice */}
+        {sort === "relevance" && data?.relevanceAvailable === false && (
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-700 dark:text-amber-400">
+            Relevance ranking needs your investing profile — set your talents, passions and
+            spending on the <Link href="/" className="underline">home page</Link> first. Showing
+            score order meanwhile.
+          </p>
         )}
 
         {/* Controls */}
@@ -297,10 +445,21 @@ export default function ScreenerPage() {
                                 </span>
                               )}
                             </p>
-                            <p className="max-w-[220px] truncate text-xs text-zinc-500 dark:text-zinc-400">
-                              {r.companyName}
-                              {r.sector ? ` · ${r.sector}` : ""}
+                            <p className="max-w-[260px] truncate text-xs text-zinc-500 dark:text-zinc-400">
+                              {r.oneLiner ?? `${r.companyName ?? ""}${r.sector ? ` · ${r.sector}` : ""}`}
                             </p>
+                            {r.matchedTags.length > 0 && (
+                              <p className="mt-0.5 flex max-w-[260px] flex-wrap gap-1">
+                                {r.matchedTags.slice(0, 4).map((t) => (
+                                  <span
+                                    key={t}
+                                    className="rounded-full bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
+                                  >
+                                    {displayTag(t)}
+                                  </span>
+                                ))}
+                              </p>
+                            )}
                           </Link>
                         </td>
                         <td className="px-3 py-2.5 text-right text-xs text-zinc-500 dark:text-zinc-400">

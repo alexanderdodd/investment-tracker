@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { and, desc, asc, eq, gte, sql } from "drizzle-orm";
+import { and, or, desc, asc, eq, gte, lte, sql, ilike } from "drizzle-orm";
+import { auth } from "@/auth";
 import { getDb } from "@/db/index";
-import { bigFiveScreen } from "@/db/schema";
+import { bigFiveScreen, companyMeaning } from "@/db/schema";
+import { getProfile, relevanceExpr, textArray } from "@/lib/meaning-match";
 
 const SORTS = {
   score: bigFiveScreen.score,
@@ -14,14 +16,54 @@ const SORTS = {
   discount: sql`(${bigFiveScreen.sticker} - ${bigFiveScreen.price}) / nullif(${bigFiveScreen.sticker}, 0)`,
 } as const;
 
+// Everything except company_meaning.description (large; never shipped)
+const ROW_COLUMNS = {
+  ticker: bigFiveScreen.ticker,
+  companyName: bigFiveScreen.companyName,
+  sector: bigFiveScreen.sector,
+  currency: bigFiveScreen.currency,
+  score: bigFiveScreen.score,
+  roic10y: bigFiveScreen.roic10y,
+  roic5y: bigFiveScreen.roic5y,
+  roic1y: bigFiveScreen.roic1y,
+  sales10y: bigFiveScreen.sales10y,
+  sales5y: bigFiveScreen.sales5y,
+  sales1y: bigFiveScreen.sales1y,
+  eps10y: bigFiveScreen.eps10y,
+  eps5y: bigFiveScreen.eps5y,
+  eps1y: bigFiveScreen.eps1y,
+  equity10y: bigFiveScreen.equity10y,
+  equity5y: bigFiveScreen.equity5y,
+  equity1y: bigFiveScreen.equity1y,
+  fcf10y: bigFiveScreen.fcf10y,
+  fcf5y: bigFiveScreen.fcf5y,
+  fcf1y: bigFiveScreen.fcf1y,
+  minSpanYears: bigFiveScreen.minSpanYears,
+  marketCap: bigFiveScreen.marketCap,
+  price: bigFiveScreen.price,
+  sticker: bigFiveScreen.sticker,
+  mos: bigFiveScreen.mos,
+  verdict: bigFiveScreen.verdict,
+  oneLiner: companyMeaning.oneLiner,
+  tags: companyMeaning.tags,
+};
+
 // GET: query the Big Five sweep results
-// ?minScore=3&sector=Technology&minMcap=1000000000&sort=score&dir=desc&limit=100&offset=0
+// ?minScore=3&sector=…&minMcap=…&maxMcap=…&tags=domain:coffee,domain:pets
+// &keywords=espresso,barista&sort=score|relevance|…&dir=&limit=&offset=
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const minScore = parseInt(url.searchParams.get("minScore") ?? "3", 10);
   const sector = url.searchParams.get("sector");
   const minMcap = parseFloat(url.searchParams.get("minMcap") ?? "0");
-  const sortKey = (url.searchParams.get("sort") ?? "score") as keyof typeof SORTS;
+  const maxMcap = parseFloat(url.searchParams.get("maxMcap") ?? "0");
+  const tags = (url.searchParams.get("tags") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+  const keywords = (url.searchParams.get("keywords") ?? "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter((k) => k.length >= 2)
+    .slice(0, 10);
+  const sortKey = (url.searchParams.get("sort") ?? "score") as keyof typeof SORTS | "relevance";
   const dir = url.searchParams.get("dir") === "asc" ? asc : desc;
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "100", 10), 500);
   const offset = parseInt(url.searchParams.get("offset") ?? "0", 10);
@@ -31,15 +73,50 @@ export async function GET(request: Request) {
   const conditions = [eq(bigFiveScreen.available, true), gte(bigFiveScreen.score, minScore)];
   if (sector) conditions.push(eq(bigFiveScreen.sector, sector));
   if (minMcap > 0) conditions.push(gte(bigFiveScreen.marketCap, minMcap));
+  if (maxMcap > 0) conditions.push(lte(bigFiveScreen.marketCap, maxMcap));
+  if (tags.length > 0) {
+    // GIN-accelerated array overlap: any of the requested tags
+    conditions.push(sql`${companyMeaning.tags} && ${textArray(tags)}`);
+  }
+  for (const kw of keywords) {
+    const pattern = `%${kw}%`;
+    conditions.push(
+      or(
+        ilike(bigFiveScreen.companyName, pattern),
+        ilike(companyMeaning.description, pattern),
+        ilike(companyMeaning.oneLiner, pattern)
+      )!
+    );
+  }
 
-  const sortCol = SORTS[sortKey] ?? SORTS.score;
+  // Relevance sort needs the signed-in user's interest tags
+  let interestTags: string[] = [];
+  let relevanceAvailable = false;
+  if (sortKey === "relevance") {
+    const session = await auth();
+    if (session?.user?.id) {
+      const profile = await getProfile(session.user.id);
+      interestTags = profile?.interestTags ?? [];
+      relevanceAvailable = interestTags.length > 0;
+    }
+  }
+
+  const orderBy =
+    sortKey === "relevance" && relevanceAvailable
+      ? [desc(relevanceExpr(interestTags)), desc(bigFiveScreen.score), desc(bigFiveScreen.marketCap)]
+      : [dir(SORTS[(sortKey === "relevance" ? "score" : sortKey) as keyof typeof SORTS] ?? SORTS.score), desc(bigFiveScreen.marketCap)];
 
   const [rows, stats, sectors] = await Promise.all([
     db
-      .select()
+      .select(
+        sortKey === "relevance" && relevanceAvailable
+          ? { ...ROW_COLUMNS, relevance: relevanceExpr(interestTags) }
+          : ROW_COLUMNS
+      )
       .from(bigFiveScreen)
+      .leftJoin(companyMeaning, eq(companyMeaning.ticker, bigFiveScreen.ticker))
       .where(and(...conditions))
-      .orderBy(dir(sortCol), desc(bigFiveScreen.marketCap))
+      .orderBy(...orderBy)
       .limit(limit)
       .offset(offset),
     db
@@ -49,7 +126,6 @@ export async function GET(request: Request) {
         pass3: sql<number>`count(*) filter (where ${bigFiveScreen.available} and ${bigFiveScreen.score} >= 3)`,
         pass4: sql<number>`count(*) filter (where ${bigFiveScreen.available} and ${bigFiveScreen.score} >= 4)`,
         pass5: sql<number>`count(*) filter (where ${bigFiveScreen.available} and ${bigFiveScreen.score} = 5)`,
-        matching: sql<number>`count(*) filter (where ${and(...conditions)})`,
         latest: sql<string>`max(${bigFiveScreen.generatedAt})`,
       })
       .from(bigFiveScreen),
@@ -59,9 +135,21 @@ export async function GET(request: Request) {
       .where(and(eq(bigFiveScreen.available, true), gte(bigFiveScreen.score, 3))),
   ]);
 
+  // Count of rows matching the filters (rows may be limit-truncated)
+  const [matching] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(bigFiveScreen)
+    .leftJoin(companyMeaning, eq(companyMeaning.ticker, bigFiveScreen.ticker))
+    .where(and(...conditions));
+
+  const interestSet = new Set(interestTags);
   return NextResponse.json({
-    rows,
-    stats: stats[0],
+    rows: rows.map((r) => ({
+      ...r,
+      matchedTags: relevanceAvailable ? (r.tags ?? []).filter((t) => interestSet.has(t)) : [],
+    })),
+    stats: { ...stats[0], matching: matching.n },
     sectors: sectors.map((s) => s.sector).filter(Boolean).sort(),
+    relevanceAvailable: sortKey === "relevance" ? relevanceAvailable : undefined,
   });
 }
