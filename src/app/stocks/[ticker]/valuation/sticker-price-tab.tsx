@@ -23,6 +23,7 @@ interface StickerInputs {
   available: boolean;
   unavailableReason: string | null;
   currentPrice: number | null;
+  quoteCurrency: string | null;
   eps: number | null;
   epsSource: "yahoo-ttm" | "sec-fiscal-year" | null;
   epsFiscalYear: number | null;
@@ -33,13 +34,17 @@ interface StickerInputs {
   peYearsUsed: YearlyPe[];
 }
 
-function fmtMoney(v: number | null): string {
+function formatCurrency(v: number | null, currency?: string | null): string {
   if (v === null || !isFinite(v)) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(v);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency ?? "USD",
+      maximumFractionDigits: 2,
+    }).format(v);
+  } catch {
+    return `${currency} ${v.toFixed(2)}`;
+  }
 }
 
 function fmtPct(v: number | null): string {
@@ -82,6 +87,10 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
   const loading = result?.ticker !== ticker;
   const data = loading ? null : result!.data;
   const error = loading ? null : result!.error;
+
+  // All money on this tab is in the quote currency (EUR for native European
+  // listings, USD for US ones) — formatted with the right symbol
+  const money = (v: number | null) => formatCurrency(v, data?.quoteCurrency);
 
   // Rule #1: use the LOWER of your own estimate (historical equity growth)
   // and the analyst estimate
@@ -155,7 +164,7 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
       step: "1",
       label: "Current EPS",
       tooltip: "Trailing-twelve-month diluted earnings per share — the starting point of the projection.",
-      value: fmtMoney(data.eps),
+      value: money(data.eps),
       note:
         data.epsSource === "yahoo-ttm"
           ? "TTM"
@@ -208,7 +217,7 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
       step: "3",
       label: `EPS in ${PROJECTION_YEARS} years`,
       tooltip: `Current EPS compounded at the growth rate for ${PROJECTION_YEARS} years.`,
-      value: fmtMoney(calc?.futureEps ?? null),
+      value: money(calc?.futureEps ?? null),
     },
     {
       step: "4a",
@@ -235,20 +244,20 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
       step: "5",
       label: `Price in ${PROJECTION_YEARS} years`,
       tooltip: "Future EPS × future P/E.",
-      value: fmtMoney(calc?.futurePrice ?? null),
+      value: money(calc?.futurePrice ?? null),
     },
     {
       step: "6",
       label: "Sticker price",
       tooltip: `The future price discounted back ${PROJECTION_YEARS} years at ${MINIMUM_RETURN * 100}%/yr (÷ ${DISCOUNT_FACTOR.toFixed(2)}) — Rule #1's fair value.`,
-      value: fmtMoney(calc?.sticker ?? null),
+      value: money(calc?.sticker ?? null),
       emphasize: true,
     },
     {
       step: "7",
       label: "Margin of Safety price",
       tooltip: "Half the sticker price. Rule #1 only buys at or below this level.",
-      value: fmtMoney(calc?.mos ?? null),
+      value: money(calc?.mos ?? null),
       emphasize: true,
     },
   ];
@@ -262,19 +271,19 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
             <div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">Current price</p>
               <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                {fmtMoney(price)}
+                {money(price)}
               </p>
             </div>
             <div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">Sticker price</p>
               <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                {fmtMoney(calc?.sticker ?? null)}
+                {money(calc?.sticker ?? null)}
               </p>
             </div>
             <div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">MOS buy price</p>
               <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                {fmtMoney(calc?.mos ?? null)}
+                {money(calc?.mos ?? null)}
               </p>
             </div>
           </div>
@@ -373,8 +382,8 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
                 {[...data.peYearsUsed].reverse().map((y) => (
                   <tr key={y.fiscalYear} className="border-t border-zinc-50 text-xs dark:border-zinc-800/50">
                     <td className="py-1.5 text-zinc-500 dark:text-zinc-400">{y.fiscalYear}</td>
-                    <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">{fmtMoney(y.highPrice)}</td>
-                    <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">{fmtMoney(y.eps)}</td>
+                    <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">{money(y.highPrice)}</td>
+                    <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">{money(y.eps)}</td>
                     <td className="py-1.5 text-right font-medium text-zinc-900 dark:text-zinc-100">{y.highPe.toFixed(1)}</td>
                   </tr>
                 ))}

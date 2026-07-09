@@ -7,7 +7,13 @@
 
 import { eq, asc } from "drizzle-orm";
 import { getDb } from "../db/index";
-import { bigFiveScreen, stockClassifications, gicsSectors, watchlistItems } from "../db/schema";
+import {
+  bigFiveScreen,
+  stockClassifications,
+  gicsSectors,
+  watchlistItems,
+  stockGrowthHistories,
+} from "../db/schema";
 import { getOrBuildGrowthHistory } from "./sec-edgar/growth-history-cache";
 import { buildStickerInputs } from "./sticker-inputs";
 import { defaultGrowthRate, computeSticker, priceVerdict } from "./rule-one";
@@ -26,10 +32,27 @@ export async function loadUniverse(): Promise<{ ticker: string; name: string }[]
   // Multiple share classes share a CIK (GOOGL/GOOG) — one sweep per company
   const seenCik = new Set<number>();
   const universe: { ticker: string; name: string }[] = [];
+  const seen = new Set<string>();
   for (const entry of Object.values(data)) {
     if (seenCik.has(entry.cik_str)) continue;
     seenCik.add(entry.cik_str);
-    universe.push({ ticker: entry.ticker.toUpperCase(), name: entry.title });
+    const ticker = entry.ticker.toUpperCase();
+    seen.add(ticker);
+    universe.push({ ticker, name: entry.title });
+  }
+
+  // European (ESEF) tickers aren't in the SEC list — include any ticker the
+  // growth cache already knows (e.g. ASML.AS viewed on its stock page), so
+  // they participate in the screener like US names
+  const db = getDb();
+  const cached = await db
+    .select({ ticker: stockGrowthHistories.ticker })
+    .from(stockGrowthHistories);
+  for (const { ticker } of cached) {
+    if (!seen.has(ticker)) {
+      seen.add(ticker);
+      universe.push({ ticker, name: ticker });
+    }
   }
   return universe;
 }
@@ -243,9 +266,10 @@ export async function enrichStickers(tickers: string[], deadline?: number): Prom
     })
     .from(bigFiveScreen);
   const inBatch = new Set(tickers);
-  const targets = rows.filter(
-    (r) => inBatch.has(r.ticker) && r.score >= 3 && (r.currency ?? "USD") === "USD"
-  );
+  // buildStickerInputs self-gates on filing-vs-quote currency match, so
+  // native European (EUR/EUR) qualifiers get stickers too; mismatched ADRs
+  // come back null and stay blank
+  const targets = rows.filter((r) => inBatch.has(r.ticker) && r.score >= 3);
   for (const { ticker } of targets) {
     if (deadline && Date.now() > deadline) break;
     try {

@@ -79,9 +79,10 @@ function fmtMcap(v: number | null): string {
   return `$${(v / 1e6).toFixed(0)}M`;
 }
 
-function fmtMoney(v: number | null): string {
+function fmtMoney(v: number | null, currency?: string | null): string {
   if (v === null) return "—";
-  return `$${v.toFixed(2)}`;
+  const prefix = !currency || currency === "USD" ? "$" : `${currency} `;
+  return `${prefix}${v.toFixed(2)}`;
 }
 
 export default function ScreenerPage() {
@@ -319,13 +320,13 @@ export default function ScreenerPage() {
                           );
                         })}
                         <td className={`px-3 py-2.5 text-right text-sm font-semibold ${priceColor}`}>
-                          {fmtMoney(r.price)}
+                          {fmtMoney(r.price, r.sticker !== null ? r.currency : "USD")}
                         </td>
                         <td className="px-3 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">
-                          {fmtMoney(r.sticker)}
+                          {fmtMoney(r.sticker, r.currency)}
                         </td>
                         <td className="px-4 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">
-                          {fmtMoney(r.mos)}
+                          {fmtMoney(r.mos, r.currency)}
                         </td>
                       </tr>
                     );

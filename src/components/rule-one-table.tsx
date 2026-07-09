@@ -50,6 +50,7 @@ interface GrowthPayload {
 interface StickerInputs {
   available: boolean;
   currentPrice: number | null;
+  quoteCurrency: string | null;
   eps: number | null;
   analystGrowth: number | null;
   equityGrowth: { value: number; spanYears: number } | null;
@@ -82,9 +83,10 @@ const BIG_FIVE_COLUMNS: {
   { key: "fcfGrowth", short: "FCF", label: "FCF growth (10y)", description: "Free cash flow CAGR over 10 years. < 0% = cash-burning endpoint years.", negKey: "fcf" },
 ];
 
-function fmtMoney(v: number | null): string {
+function fmtMoney(v: number | null, currency?: string | null): string {
   if (v === null || !isFinite(v)) return "—";
-  return `$${v.toFixed(2)}`;
+  const prefix = !currency || currency === "USD" ? "$" : `${currency} `;
+  return `${prefix}${v.toFixed(2)}`;
 }
 
 function BigFiveCell({ stat, hasNegative }: { stat: PeriodStat | undefined; hasNegative: boolean }) {
@@ -221,7 +223,7 @@ export function RuleOneTable({
                   {sticker === undefined ? (
                     <span className="text-zinc-300 dark:text-zinc-600">…</span>
                   ) : (
-                    fmtMoney(sticker?.currentPrice ?? null)
+                    fmtMoney(sticker?.currentPrice ?? null, sticker?.quoteCurrency)
                   )}
                 </td>
                 {BIG_FIVE_COLUMNS.map((c) => (
@@ -239,14 +241,14 @@ export function RuleOneTable({
                   {sticker === undefined ? (
                     <span className="text-zinc-300 dark:text-zinc-600">…</span>
                   ) : (
-                    fmtMoney(calc?.sticker ?? null)
+                    fmtMoney(calc?.sticker ?? null, sticker?.quoteCurrency)
                   )}
                 </td>
                 <td className="px-3 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {sticker === undefined ? (
                     <span className="text-zinc-300 dark:text-zinc-600">…</span>
                   ) : (
-                    fmtMoney(calc?.mos ?? null)
+                    fmtMoney(calc?.mos ?? null, sticker?.quoteCurrency)
                   )}
                 </td>
                 {onRemove && (

@@ -33,6 +33,9 @@ export interface StickerPriceInputs {
   eps: number | null;
   epsSource: "yahoo-ttm" | "sec-fiscal-year" | null;
   epsFiscalYear: number | null;
+  /** Currency the share price quotes in (matches filing currency for
+   *  native listings; differs for ADRs, which suppresses P/E-based math) */
+  quoteCurrency: string | null;
   /** Analyst consensus growth estimate (Yahoo earningsTrend) */
   analystGrowth: number | null;
   /** Which horizon the analyst estimate covers — Yahoo dropped the 5y series
@@ -67,12 +70,14 @@ async function fetchYahooSummary(ticker: string): Promise<{
   analystGrowth: number | null;
   analystGrowthPeriod: "5y" | "1y" | null;
   currentPrice: number | null;
+  quoteCurrency: string | null;
 }> {
   const empty = {
     trailingEps: null,
     analystGrowth: null,
     analystGrowthPeriod: null,
     currentPrice: null,
+    quoteCurrency: null,
   } as const;
   try {
     const { crumb, cookie } = await getYahooCrumb();
@@ -84,6 +89,7 @@ async function fetchYahooSummary(ticker: string): Promise<{
 
     const trailingEps = result?.defaultKeyStatistics?.trailingEps?.raw ?? null;
     const currentPrice = result?.price?.regularMarketPrice?.raw ?? null;
+    const quoteCurrency = result?.price?.currency ?? null;
 
     // Prefer the "+5y" long-term consensus when Yahoo still provides it;
     // they dropped it for most tickers, so fall back to next fiscal year
@@ -95,7 +101,7 @@ async function fetchYahooSummary(ticker: string): Promise<{
     const analystGrowthPeriod: "5y" | "1y" | null =
       fiveYear != null ? "5y" : nextYear != null ? "1y" : null;
 
-    return { trailingEps, analystGrowth, analystGrowthPeriod, currentPrice };
+    return { trailingEps, analystGrowth, analystGrowthPeriod, currentPrice, quoteCurrency };
   } catch {
     return empty;
   }
@@ -136,17 +142,21 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
     fetchMonthlyCloses(upperTicker),
   ]);
 
-  // Foreign filers report in their home currency (kept unconverted, per app
-  // convention) while the share price is USD — SEC-derived dollar figures
-  // can't be mixed with the price, so the sticker leans on Yahoo's USD data.
-  const filingCurrencyIsUsd = (payload?.currency ?? "USD") === "USD";
+  // Filing values stay in their filing currency (app convention). Whether
+  // per-share filing figures can be mixed with the share price depends on
+  // the QUOTE currency: it matches for native listings (US 10-K filers,
+  // European ESEF filers on their home exchange) but not for ADRs, whose
+  // USD quote can't be divided by JPY/EUR per-share filings.
+  const filingCurrency = payload?.currency ?? "USD";
+  const quoteCurrency = summary.quoteCurrency ?? "USD";
+  const filingMatchesQuote = filingCurrency === quoteCurrency;
 
-  // EPS: prefer Yahoo TTM (USD, matches the price); fall back to the latest
-  // SEC fiscal year only when the filing currency is USD
+  // EPS: prefer Yahoo TTM (always in the quote currency); fall back to the
+  // latest filed fiscal year only when the currencies match
   let eps = summary.trailingEps;
   let epsSource: StickerPriceInputs["epsSource"] = eps !== null ? "yahoo-ttm" : null;
   let epsFiscalYear: number | null = null;
-  if (eps === null && payload?.available && filingCurrencyIsUsd) {
+  if (eps === null && payload?.available && filingMatchesQuote) {
     const latestEpsRow = [...payload.years].reverse().find((y) => y.epsDiluted !== null);
     if (latestEpsRow) {
       eps = latestEpsRow.epsDiluted;
@@ -181,9 +191,9 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
     for (const [fy, { close }] of Array.from(lastByFy.entries()).sort((a, b) => a[0] - b[0])) {
       yearEndPrices.push({ fiscalYear: fy, price: close });
     }
-    // Historical P/E divides USD prices by per-FY EPS — only valid when the
-    // filing currency is USD (and the listed share maps 1:1 to filed shares)
-    if (filingCurrencyIsUsd) {
+    // Historical P/E divides quote-currency prices by per-FY filed EPS —
+    // only valid when the two currencies match (native listings)
+    if (filingMatchesQuote) {
       for (const row of payload.years) {
         const high = highByFy.get(row.fiscalYear);
         if (high !== undefined && row.epsDiluted !== null && row.epsDiluted > 0) {
@@ -212,6 +222,7 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
     available,
     unavailableReason,
     currentPrice: summary.currentPrice,
+    quoteCurrency: summary.quoteCurrency,
     eps,
     epsSource,
     epsFiscalYear,

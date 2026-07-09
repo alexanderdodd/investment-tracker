@@ -93,6 +93,54 @@ export function roicAverage(points: Point[], windowYears: number): PeriodStat {
   return { value: sum / window.length, spanYears: window.length };
 }
 
+const COMMON_SPLIT_RATIOS = [1.5, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20];
+
+/**
+ * Detect splits directly from the filed share-count series: a split shows as
+ * the diluted share count jumping N× in one year while EPS drops ~1/N
+ * (reciprocal move — mergers dilute shares without the EPS reciprocity).
+ *
+ * Primary source for split adjustment: it is self-consistent with the
+ * filings and catches local-share splits that ADR-based feeds miss entirely
+ * (e.g. Toyota's 2021 5:1 split, invisible on the unsplit ADR). Returns a
+ * cumulative factor per fiscal year, 1 for the latest.
+ */
+export function detectSplitFactors(
+  years: number[],
+  shares: Map<number, number>,
+  eps: Map<number, number>
+): Map<number, number> {
+  const factors = new Map<number, number>();
+  let cum = 1;
+  // Walk newest → oldest; a split between y and y+1 multiplies every year ≤ y
+  for (let i = years.length - 1; i >= 0; i--) {
+    const y = years[i];
+    factors.set(y, cum);
+    const prev = years[i - 1];
+    if (prev === undefined) break;
+    const sNew = shares.get(y);
+    const sOld = shares.get(prev);
+    const eNew = eps.get(y);
+    const eOld = eps.get(prev);
+    if (!sNew || !sOld || sOld <= 0) continue;
+    const ratio = sNew / sOld;
+    if (ratio < 1.4 && ratio > 0.7) continue; // buyback/dilution noise
+    // Require reciprocal EPS movement to rule out issuance-driven jumps
+    if (eNew != null && eOld != null && eOld !== 0) {
+      const reciprocity = Math.abs(Math.log(Math.abs((eNew / eOld) * ratio)));
+      if (reciprocity > Math.log(1.8)) continue;
+    }
+    const target = ratio >= 1.4 ? ratio : 1 / ratio;
+    const nearest = COMMON_SPLIT_RATIOS.reduce((best, r) =>
+      Math.abs(Math.log(target / r)) < Math.abs(Math.log(target / best)) ? r : best
+    );
+    if (Math.abs(Math.log(target / nearest)) > Math.log(1.25)) continue; // not clean enough
+    cum *= ratio >= 1.4 ? nearest : 1 / nearest;
+    // cum now applies to `prev` and everything older; set on next iteration
+  }
+  return factors;
+}
+
 /** Full Big Five summary over a (possibly truncated) series of year rows. */
 export function buildGrowthSummary(years: GrowthYearRow[]): GrowthSummary {
   const pick = (key: keyof GrowthYearRow): Point[] =>
