@@ -7,7 +7,7 @@
 
 import { eq, asc } from "drizzle-orm";
 import { getDb } from "../db/index";
-import { bigFiveScreen, stockClassifications, gicsSectors } from "../db/schema";
+import { bigFiveScreen, stockClassifications, gicsSectors, watchlistItems } from "../db/schema";
 import { getOrBuildGrowthHistory } from "./sec-edgar/growth-history-cache";
 import { buildStickerInputs } from "./sticker-inputs";
 import { defaultGrowthRate, computeSticker, priceVerdict } from "./rule-one";
@@ -50,9 +50,16 @@ export async function loadSectorMap(): Promise<Map<string, string>> {
 }
 
 /**
- * The next tickers to sweep: never-swept universe members first, then the
- * stalest existing rows. This makes any caller — script loop or cron batch —
- * self-scheduling: repeated invocations roll through the whole universe.
+ * The next tickers to sweep, in priority order:
+ *   1. never-swept universe members (complete the map first)
+ *   2. stale rows that matter — Big Five qualifiers (score ≥3) and
+ *      watchlisted tickers (what the user actually looks at)
+ *   3. remaining stale rows, oldest first
+ *
+ * This makes any caller — script loop or cron batch — self-scheduling.
+ * Priority ordering matters most on Vercel Hobby, where the cron fires only
+ * once a day (~120 tickers/day): the interesting rows stay fresh while the
+ * long tail rotates slowly (or via local bulk sweeps).
  */
 export async function selectStalest(
   universe: { ticker: string; name: string }[],
@@ -60,20 +67,36 @@ export async function selectStalest(
   freshDays: number
 ): Promise<{ ticker: string; name: string }[]> {
   const db = getDb();
-  const existing = await db
-    .select({ ticker: bigFiveScreen.ticker, generatedAt: bigFiveScreen.generatedAt })
-    .from(bigFiveScreen)
-    .orderBy(asc(bigFiveScreen.generatedAt));
-  const byTicker = new Map(existing.map((r) => [r.ticker, r.generatedAt.getTime()]));
+  const [existing, watchlist] = await Promise.all([
+    db
+      .select({
+        ticker: bigFiveScreen.ticker,
+        generatedAt: bigFiveScreen.generatedAt,
+        score: bigFiveScreen.score,
+        available: bigFiveScreen.available,
+      })
+      .from(bigFiveScreen)
+      .orderBy(asc(bigFiveScreen.generatedAt)),
+    db.selectDistinct({ ticker: watchlistItems.ticker }).from(watchlistItems),
+  ]);
+  const watched = new Set(watchlist.map((w) => w.ticker.toUpperCase()));
+  const byTicker = new Set(existing.map((r) => r.ticker));
   const nameOf = new Map(universe.map((u) => [u.ticker, u.name]));
 
   const neverSwept = universe.filter((u) => !byTicker.has(u.ticker));
-  const freshCutoff = Date.now() - freshDays * 24 * 60 * 60 * 1000;
-  const stale = existing
-    .filter((r) => r.generatedAt.getTime() <= freshCutoff && nameOf.has(r.ticker))
-    .map((r) => ({ ticker: r.ticker, name: nameOf.get(r.ticker)! }));
 
-  return [...neverSwept, ...stale].slice(0, count);
+  const freshCutoff = Date.now() - freshDays * 24 * 60 * 60 * 1000;
+  const stale = existing.filter(
+    (r) => r.generatedAt.getTime() <= freshCutoff && nameOf.has(r.ticker)
+  );
+  const isPriority = (r: (typeof stale)[number]) =>
+    watched.has(r.ticker) || (r.available && r.score >= 3);
+  const stalePriority = stale.filter(isPriority);
+  const staleRest = stale.filter((r) => !isPriority(r));
+
+  return [...neverSwept, ...stalePriority, ...staleRest]
+    .slice(0, count)
+    .map((r) => ({ ticker: r.ticker, name: nameOf.get(r.ticker)! }));
 }
 
 export interface SweepStats {
