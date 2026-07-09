@@ -6,6 +6,8 @@ import {
   integer,
   jsonb,
   real,
+  boolean,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { GrowthHistoryPayload } from "@/lib/sec-edgar/growth-history";
@@ -428,6 +430,30 @@ export const stockGrowthHistories = pgTable("stock_growth_history", {
 
 // Cached insider/management data (SEC Form 4 parse — expensive: ~120 archive
 // fetches per build) plus the LLM-generated management brief.
+// All-stocks Big Five sweep (deterministic, no LLM): one row per SEC filer
+// with real columns so the /screener UI can sort and filter in SQL.
+export const bigFiveScreen = pgTable("big_five_screen", {
+  ticker: text("ticker").primaryKey(),
+  companyName: text("company_name"),
+  sector: text("sector"),
+  currency: text("currency"),
+  available: boolean("available").notNull().default(false),
+  score: integer("score").notNull().default(0),
+  roic10y: real("roic_10y"),
+  sales10y: real("sales_10y"),
+  eps10y: real("eps_10y"),
+  equity10y: real("equity_10y"),
+  fcf10y: real("fcf_10y"),
+  /** Shortest actual span among the available growth figures (honesty label) */
+  minSpanYears: integer("min_span_years"),
+  marketCap: doublePrecision("market_cap"),
+  price: real("price"),
+  sticker: real("sticker"),
+  mos: real("mos"),
+  verdict: text("verdict"),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // Latest Rule #1 screen result per industry (Big Five → sticker → moat/mgmt)
 export const ruleOneScreens = pgTable("rule_one_screen", {
   industrySlug: text("industry_slug").primaryKey(),

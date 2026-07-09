@@ -22,7 +22,8 @@
     "validate-industries": "npx tsx scripts/validate-industry-feature.ts",
     "run-industry-screen": "npx tsx scripts/run-industry-screen.ts",
     "validate-screen": "npx tsx scripts/validate-industry-screen.ts",
-    "discover-stocks": "npx tsx scripts/discover-stocks.ts"
+    "discover-stocks": "npx tsx scripts/discover-stocks.ts",
+    "sweep-big-five": "npx tsx scripts/sweep-big-five.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",

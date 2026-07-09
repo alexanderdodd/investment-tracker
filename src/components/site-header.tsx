@@ -46,6 +46,25 @@ export function SiteHeader() {
           <span className="hidden text-sm font-medium sm:inline">Watchlist</span>
         </Link>
 
+        <Link
+          href="/screener"
+          title="Big Five Screener"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg p-1.5 text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          <svg
+            className="h-5 w-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 6h16M7 12h10M10 18h4" />
+          </svg>
+          <span className="hidden text-sm font-medium sm:inline">Screener</span>
+        </Link>
+
         <div className="ml-auto w-full max-w-xs sm:max-w-sm">
           <StockSearchBox compact />
         </div>
