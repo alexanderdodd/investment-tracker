@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { MetricRating } from "@/lib/stock-metrics";
-import { rateBigFive } from "@/lib/rule-one";
 import { MetricTooltip } from "@/components/metric-tooltip";
+import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
 
 interface ScreenRow {
   ticker: string;
@@ -13,10 +13,20 @@ interface ScreenRow {
   currency: string | null;
   score: number;
   roic10y: number | null;
+  roic5y: number | null;
+  roic1y: number | null;
   sales10y: number | null;
+  sales5y: number | null;
+  sales1y: number | null;
   eps10y: number | null;
+  eps5y: number | null;
+  eps1y: number | null;
   equity10y: number | null;
+  equity5y: number | null;
+  equity1y: number | null;
   fcf10y: number | null;
+  fcf5y: number | null;
+  fcf1y: number | null;
   minSpanYears: number | null;
   marketCap: number | null;
   price: number | null;
@@ -42,12 +52,16 @@ const RATING_COLORS: Record<MetricRating, string> = {
   bad: "text-red-600 dark:text-red-400",
 };
 
-const BIG_FIVE_COLS: { key: keyof ScreenRow; short: string; label: string }[] = [
-  { key: "roic10y", short: "ROIC", label: "ROIC (10y avg)" },
-  { key: "sales10y", short: "Sales", label: "Sales growth (10y CAGR)" },
-  { key: "eps10y", short: "EPS", label: "EPS growth (10y CAGR)" },
-  { key: "equity10y", short: "Equity", label: "Equity growth (10y CAGR)" },
-  { key: "fcf10y", short: "FCF", label: "FCF growth (10y CAGR)" },
+const BIG_FIVE_COLS: {
+  base: "roic" | "sales" | "eps" | "equity" | "fcf";
+  short: string;
+  label: string;
+}[] = [
+  { base: "roic", short: "ROIC", label: "ROIC — 10y/5y averages, latest year" },
+  { base: "sales", short: "Sales", label: "Sales growth — 10y/5y CAGR, 1y YoY" },
+  { base: "eps", short: "EPS", label: "EPS growth — 10y/5y CAGR, 1y YoY" },
+  { base: "equity", short: "Equity", label: "Equity growth — 10y/5y CAGR, 1y YoY" },
+  { base: "fcf", short: "FCF", label: "FCF growth — 10y/5y CAGR, 1y YoY" },
 ];
 
 const MCAP_OPTIONS = [
@@ -66,11 +80,6 @@ const SORT_OPTIONS = [
   { value: "discount", label: "Discount to sticker" },
   { value: "marketCap", label: "Market cap" },
 ];
-
-function fmtPct(v: number | null): string {
-  if (v === null) return "—";
-  return `${(v * 100).toFixed(1)}%`;
-}
 
 function fmtMcap(v: number | null): string {
   if (v === null) return "—";
@@ -247,9 +256,9 @@ export default function ScreenerPage() {
                     <th className="px-3 py-3 text-right font-medium">Mkt cap</th>
                     <th className="px-3 py-3 text-right font-medium">Score</th>
                     {BIG_FIVE_COLS.map((c) => (
-                      <th key={c.key} className="px-3 py-3 text-right font-medium">
-                        <MetricTooltip label={c.label} description="10-year figure from SEC filings; green ≥10%/yr per Rule #1.">
-                          <span>{c.short}</span>
+                      <th key={c.base} className="px-3 py-3 text-right font-medium">
+                        <MetricTooltip label={c.label} description="From SEC/ESEF filings; green ≥10%/yr per Rule #1 — a metric only counts toward the score when all three horizons clear 10%.">
+                          <TriHorizonHeader label={c.short} />
                         </MetricTooltip>
                       </th>
                     ))}
@@ -308,17 +317,15 @@ export default function ScreenerPage() {
                             {r.score}/5
                           </span>
                         </td>
-                        {BIG_FIVE_COLS.map((c) => {
-                          const v = r[c.key] as number | null;
-                          return (
-                            <td
-                              key={c.key}
-                              className={`px-3 py-2.5 text-right text-sm font-medium ${v === null ? "text-zinc-400 dark:text-zinc-500" : RATING_COLORS[rateBigFive(v)]}`}
-                            >
-                              {fmtPct(v)}
-                            </td>
-                          );
-                        })}
+                        {BIG_FIVE_COLS.map((c) => (
+                          <td key={c.base} className="px-3 py-2.5 text-right">
+                            <TriHorizonValues
+                              y10={r[`${c.base}10y`] as number | null}
+                              y5={r[`${c.base}5y`] as number | null}
+                              y1={r[`${c.base}1y`] as number | null}
+                            />
+                          </td>
+                        ))}
                         <td className={`px-3 py-2.5 text-right text-sm font-semibold ${priceColor}`}>
                           {fmtMoney(r.price, r.sticker !== null ? r.currency : "USD")}
                         </td>

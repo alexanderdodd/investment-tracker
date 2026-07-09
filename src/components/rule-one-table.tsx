@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { MetricRating } from "@/lib/stock-metrics";
 import {
-  rateBigFive,
   defaultGrowthRate,
   computeSticker,
   priceVerdict,
   type StickerCalc,
 } from "@/lib/rule-one";
 import { MetricTooltip } from "@/components/metric-tooltip";
+import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
 
 export interface RuleOneItem {
   ticker: string;
@@ -76,11 +76,11 @@ const BIG_FIVE_COLUMNS: {
   description: string;
   negKey: "roic" | "revenue" | "epsDiluted" | "equity" | "fcf";
 }[] = [
-  { key: "roic", short: "ROIC", label: "ROIC (10y avg)", description: "Return on invested capital, averaged over 10 years. Rule #1 wants ≥10%.", negKey: "roic" },
-  { key: "salesGrowth", short: "Sales", label: "Sales growth (10y)", description: "Revenue CAGR over 10 years. Rule #1 wants ≥10%/yr.", negKey: "revenue" },
-  { key: "epsGrowth", short: "EPS", label: "EPS growth (10y)", description: "Diluted EPS CAGR over 10 years. < 0% = loss-making endpoint years.", negKey: "epsDiluted" },
-  { key: "equityGrowth", short: "Equity", label: "Equity growth (10y)", description: "Book value CAGR over 10 years.", negKey: "equity" },
-  { key: "fcfGrowth", short: "FCF", label: "FCF growth (10y)", description: "Free cash flow CAGR over 10 years. < 0% = cash-burning endpoint years.", negKey: "fcf" },
+  { key: "roic", short: "ROIC", label: "ROIC — 10y/5y avg, latest yr", description: "Return on invested capital, averaged over 10 years. Rule #1 wants ≥10%.", negKey: "roic" },
+  { key: "salesGrowth", short: "Sales", label: "Sales growth — 10y/5y CAGR, 1y YoY", description: "Revenue CAGR over 10 years. Rule #1 wants ≥10%/yr.", negKey: "revenue" },
+  { key: "epsGrowth", short: "EPS", label: "EPS growth — 10y/5y CAGR, 1y YoY", description: "Diluted EPS CAGR over 10 years. < 0% = loss-making endpoint years.", negKey: "epsDiluted" },
+  { key: "equityGrowth", short: "Equity", label: "Equity growth — 10y/5y CAGR, 1y YoY", description: "Book value CAGR over 10 years.", negKey: "equity" },
+  { key: "fcfGrowth", short: "FCF", label: "FCF growth — 10y/5y CAGR, 1y YoY", description: "Free cash flow CAGR over 10 years. < 0% = cash-burning endpoint years.", negKey: "fcf" },
 ];
 
 function fmtMoney(v: number | null, currency?: string | null): string {
@@ -89,25 +89,18 @@ function fmtMoney(v: number | null, currency?: string | null): string {
   return `${prefix}${v.toFixed(2)}`;
 }
 
-function BigFiveCell({ stat, hasNegative }: { stat: PeriodStat | undefined; hasNegative: boolean }) {
-  if (!stat) {
+function BigFiveCell({ row, hasNegative }: { row: BigFiveRow | undefined; hasNegative: boolean }) {
+  if (!row) {
     return <td className="px-3 py-3 text-right text-sm text-zinc-300 dark:text-zinc-600">…</td>;
   }
-  if (stat.value === null) {
-    return (
-      <td className={`px-3 py-3 text-right text-sm font-medium ${hasNegative ? RATING_COLORS.bad : "text-zinc-400 dark:text-zinc-500"}`}>
-        {hasNegative ? "< 0%" : "—"}
-      </td>
-    );
-  }
   return (
-    <td className={`px-3 py-3 text-right text-sm font-medium ${RATING_COLORS[rateBigFive(stat.value)]}`}>
-      {(stat.value * 100).toFixed(1)}%
-      {stat.spanYears !== null && stat.spanYears < 10 && (
-        <span className="ml-0.5 text-[10px] font-normal text-zinc-400 dark:text-zinc-500">
-          ({stat.spanYears}y)
-        </span>
-      )}
+    <td className="px-3 py-3 text-right">
+      <TriHorizonValues
+        y10={row.tenYear.value}
+        y5={row.fiveYear.value}
+        y1={row.oneYear.value}
+        hasNegative={hasNegative}
+      />
     </td>
   );
 }
@@ -153,7 +146,7 @@ export function RuleOneTable({
             {BIG_FIVE_COLUMNS.map((c) => (
               <th key={c.key} className="px-3 py-3 text-right font-medium">
                 <MetricTooltip label={c.label} description={c.description}>
-                  <span>{c.short}</span>
+                  <TriHorizonHeader label={c.short} />
                 </MetricTooltip>
               </th>
             ))}
@@ -229,10 +222,14 @@ export function RuleOneTable({
                 {BIG_FIVE_COLUMNS.map((c) => (
                   <BigFiveCell
                     key={c.key}
-                    stat={
+                    row={
                       growth === undefined
                         ? undefined
-                        : summary?.[c.key].tenYear ?? { value: null, spanYears: null }
+                        : summary?.[c.key] ?? {
+                            tenYear: { value: null, spanYears: null },
+                            fiveYear: { value: null, spanYears: null },
+                            oneYear: { value: null, spanYears: null },
+                          }
                     }
                     hasNegative={hasNegative(c.negKey)}
                   />

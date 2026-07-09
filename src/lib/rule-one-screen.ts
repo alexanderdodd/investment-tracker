@@ -26,12 +26,25 @@ const MAX_STOCKS = 25;
 const MAX_ASSESSED = 5;
 const BIG_FIVE_PASS_SCORE = 3;
 
+export interface TriHorizon {
+  y10: number | null;
+  y5: number | null;
+  y1: number | null;
+}
+
 export interface RuleOneBigFive {
-  roic: number | null;
-  sales: number | null;
-  eps: number | null;
-  equity: number | null;
-  fcf: number | null;
+  roic: TriHorizon;
+  sales: TriHorizon;
+  eps: TriHorizon;
+  equity: TriHorizon;
+  fcf: TriHorizon;
+}
+
+const EMPTY_TRI: TriHorizon = { y10: null, y5: null, y1: null };
+
+/** Rule #1's "consistently": all three horizons must clear 10% (nulls fail) */
+function passesAllHorizons(t: TriHorizon): boolean {
+  return [t.y10, t.y5, t.y1].every((v) => v !== null && v >= 0.1);
 }
 
 export interface RuleOneMoat {
@@ -109,7 +122,7 @@ async function assessMoatAndManagement(
   const fmt = (v: number | null) => (v !== null ? `${(v * 100).toFixed(1)}%` : "n/a");
   const prompt = `You are assessing ${companyName ?? ticker} (ticker ${ticker}) for Phil Town's Rule #1 "Moat" and "Management" checks. Use current web information.
 
-Its Big Five numbers (10-year): ROIC ${fmt(bigFive.roic)}, sales growth ${fmt(bigFive.sales)}, EPS growth ${fmt(bigFive.eps)}, equity growth ${fmt(bigFive.equity)}, FCF growth ${fmt(bigFive.fcf)}.
+Its Big Five numbers (10-year): ROIC ${fmt(bigFive.roic.y10)}, sales growth ${fmt(bigFive.sales.y10)}, EPS growth ${fmt(bigFive.eps.y10)}, equity growth ${fmt(bigFive.equity.y10)}, FCF growth ${fmt(bigFive.fcf.y10)}.
 
 1. MOAT — which of Town's five moat types best fits, if any?
    - brand (consumers pay up for the name)
@@ -189,24 +202,29 @@ export async function runRuleOneScreen(
       done,
       total: universe.length,
     });
-    let bigFive: RuleOneBigFive = { roic: null, sales: null, eps: null, equity: null, fcf: null };
+    let bigFive: RuleOneBigFive = {
+      roic: EMPTY_TRI, sales: EMPTY_TRI, eps: EMPTY_TRI, equity: EMPTY_TRI, fcf: EMPTY_TRI,
+    };
     let dataAvailable = false;
     try {
       const { payload } = await getOrBuildGrowthHistory(stock.ticker);
       if (payload.available && payload.summary) {
         dataAvailable = true;
+        const tri = (r: { tenYear: { value: number | null }; fiveYear: { value: number | null }; oneYear: { value: number | null } }): TriHorizon => ({
+          y10: r.tenYear.value, y5: r.fiveYear.value, y1: r.oneYear.value,
+        });
         bigFive = {
-          roic: payload.summary.roic.tenYear.value,
-          sales: payload.summary.salesGrowth.tenYear.value,
-          eps: payload.summary.epsGrowth.tenYear.value,
-          equity: payload.summary.equityGrowth.tenYear.value,
-          fcf: payload.summary.fcfGrowth.tenYear.value,
+          roic: tri(payload.summary.roic),
+          sales: tri(payload.summary.salesGrowth),
+          eps: tri(payload.summary.epsGrowth),
+          equity: tri(payload.summary.equityGrowth),
+          fcf: tri(payload.summary.fcfGrowth),
         };
       }
     } catch {
       // leave unavailable
     }
-    const score = Object.values(bigFive).filter((v) => v !== null && v >= 0.1).length;
+    const score = Object.values(bigFive).filter(passesAllHorizons).length;
     results.push({
       ticker: stock.ticker,
       companyName: stock.companyName,

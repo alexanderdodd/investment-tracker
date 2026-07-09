@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { TriHorizonValues } from "@/components/tri-horizon";
+
+interface TriHorizon {
+  y10: number | null;
+  y5: number | null;
+  y1: number | null;
+}
 
 interface BigFive {
-  roic: number | null;
-  sales: number | null;
-  eps: number | null;
-  equity: number | null;
-  fcf: number | null;
+  roic: TriHorizon;
+  sales: TriHorizon;
+  eps: TriHorizon;
+  equity: TriHorizon;
+  fcf: TriHorizon;
 }
 
 interface ScreenStock {
@@ -45,21 +52,9 @@ const MOAT_LABELS: Record<string, string> = {
   none: "No moat",
 };
 
-function fmtPct(v: number | null): string {
-  if (v === null) return "—";
-  return `${(v * 100).toFixed(1)}%`;
-}
-
 function fmtMoney(v: number | null): string {
   if (v === null) return "—";
   return `$${v.toFixed(2)}`;
-}
-
-function bigFiveCellColor(v: number | null): string {
-  if (v === null) return "text-zinc-400 dark:text-zinc-500";
-  if (v >= 0.1) return "text-emerald-600 dark:text-emerald-400";
-  if (v >= 0.05) return "text-amber-600 dark:text-amber-400";
-  return "text-red-600 dark:text-red-400";
 }
 
 export function RuleOneScreenPanel({ slug }: { slug: string }) {
@@ -348,8 +343,8 @@ export function RuleOneScreenPanel({ slug }: { slug: string }) {
                           )}
                         </td>
                         {([s.bigFive.roic, s.bigFive.sales, s.bigFive.eps, s.bigFive.equity, s.bigFive.fcf] as const).map((v, i) => (
-                          <td key={i} className={`py-1.5 text-right font-medium ${bigFiveCellColor(v)}`}>
-                            {fmtPct(v)}
+                          <td key={i} className="py-1.5 text-right">
+                            <TriHorizonValues y10={v?.y10 ?? null} y5={v?.y5 ?? null} y1={v?.y1 ?? null} />
                           </td>
                         ))}
                         <td className="py-1.5 text-right font-semibold text-zinc-700 dark:text-zinc-300">

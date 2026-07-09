@@ -154,14 +154,33 @@ export async function sweepTickers(
     try {
       const { payload } = await getOrBuildGrowthHistory(ticker);
       const s = payload.available ? payload.summary : null;
+      const metrics = [s?.roic, s?.salesGrowth, s?.epsGrowth, s?.equityGrowth, s?.fcfGrowth];
       const values = {
         roic10y: s?.roic.tenYear.value ?? null,
+        roic5y: s?.roic.fiveYear.value ?? null,
+        roic1y: s?.roic.oneYear.value ?? null,
         sales10y: s?.salesGrowth.tenYear.value ?? null,
+        sales5y: s?.salesGrowth.fiveYear.value ?? null,
+        sales1y: s?.salesGrowth.oneYear.value ?? null,
         eps10y: s?.epsGrowth.tenYear.value ?? null,
+        eps5y: s?.epsGrowth.fiveYear.value ?? null,
+        eps1y: s?.epsGrowth.oneYear.value ?? null,
         equity10y: s?.equityGrowth.tenYear.value ?? null,
+        equity5y: s?.equityGrowth.fiveYear.value ?? null,
+        equity1y: s?.equityGrowth.oneYear.value ?? null,
         fcf10y: s?.fcfGrowth.tenYear.value ?? null,
+        fcf5y: s?.fcfGrowth.fiveYear.value ?? null,
+        fcf1y: s?.fcfGrowth.oneYear.value ?? null,
       };
-      const score = Object.values(values).filter((v) => v !== null && v >= 0.1).length;
+      // Rule #1 is "≥10%/yr on all five, CONSISTENTLY" — a metric only
+      // counts when 10y AND 5y AND 1y all clear 10% (nulls fail)
+      const score = metrics.filter(
+        (m) =>
+          m &&
+          [m.tenYear.value, m.fiveYear.value, m.oneYear.value].every(
+            (v) => v !== null && v >= 0.1
+          )
+      ).length;
       const spans = s
         ? [s.roic.tenYear, s.salesGrowth.tenYear, s.epsGrowth.tenYear, s.equityGrowth.tenYear, s.fcfGrowth.tenYear]
             .map((p) => p.spanYears)
