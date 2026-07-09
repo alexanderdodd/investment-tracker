@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   timestamp,
   pgTable,
@@ -8,6 +9,7 @@ import {
   real,
   boolean,
   doublePrecision,
+  index,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { GrowthHistoryPayload } from "@/lib/sec-edgar/growth-history";
@@ -463,6 +465,42 @@ export const bigFiveScreen = pgTable("big_five_screen", {
   mos: real("mos"),
   verdict: text("verdict"),
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// LLM-extracted "Meaning" layer for Big Five qualifiers: one cheap call per
+// company at screening time, then pure SQL at query time. Side table so the
+// ~2KB descriptions stay out of hot screener queries.
+export const companyMeaning = pgTable(
+  "company_meaning",
+  {
+    ticker: text("ticker")
+      .primaryKey()
+      .references(() => bigFiveScreen.ticker, { onDelete: "cascade" }),
+    /** Namespaced controlled-vocabulary tags ("domain:coffee") */
+    tags: text("tags").array().notNull().default(sql`ARRAY[]::text[]`),
+    /** Free-form escape valve — stored, not matched */
+    extraTags: text("extra_tags").array().notNull().default(sql`ARRAY[]::text[]`),
+    oneLiner: text("one_liner"),
+    description: text("description"),
+    /** Set on every attempt (retry throttle); enrichedAt only on success */
+    attemptedAt: timestamp("attempted_at", { mode: "date" }),
+    enrichedAt: timestamp("enriched_at", { mode: "date" }),
+  },
+  (t) => [index("company_meaning_tags_gin").using("gin", t.tags)]
+);
+
+// One row per user: Rule #1 "Meaning" — talents, passions, spending
+export const investorProfiles = pgTable("investor_profile", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  talents: text("talents"),
+  passions: text("passions"),
+  spending: text("spending"),
+  interestTags: text("interest_tags").array().notNull().default(sql`ARRAY[]::text[]`),
+  keywords: text("keywords").array().notNull().default(sql`ARRAY[]::text[]`),
+  tagsGeneratedAt: timestamp("tags_generated_at", { mode: "date" }),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
 // Latest Rule #1 screen result per industry (Big Five → sticker → moat/mgmt)

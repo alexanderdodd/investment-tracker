@@ -1,5 +1,6 @@
 /**
- * Big Five sweep core — deterministic, no LLM. Shared by the local batch
+ * Big Five sweep core — deterministic except one capped LLM step (Meaning
+ * tag extraction, qualifiers only, ~$0.001 each). Shared by the local batch
  * script (scripts/sweep-big-five.ts, full universe in one run) and the
  * Vercel cron route (hourly time-budgeted batches of the stalest tickers,
  * rolling through the whole universe roughly weekly).
@@ -18,6 +19,7 @@ import { getOrBuildGrowthHistory } from "./sec-edgar/growth-history-cache";
 import { buildStickerInputs } from "./sticker-inputs";
 import { defaultGrowthRate, computeSticker, priceVerdict } from "./rule-one";
 import { getYahooCrumb } from "./stock-metrics";
+import { enrichMeaning } from "./enrich-meaning";
 
 const QUOTE_BATCH = 90;
 const UA =
@@ -232,12 +234,16 @@ export async function sweepTickers(
       enrichedUpTo = sweptTickers.length;
       await enrichQuotes(chunk);
       await enrichStickers(chunk, deadline);
+      await enrichMeaning(chunk, deadline);
     }
   }
 
   const finalChunk = sweptTickers.slice(enrichedUpTo);
   await enrichQuotes(finalChunk);
   await enrichStickers(finalChunk, deadline);
+  // Meaning tags: the sweep's one capped LLM step — new qualifiers only
+  // (a handful per day in steady state), always after the deterministic data
+  await enrichMeaning(finalChunk, deadline);
   return stats;
 }
 
