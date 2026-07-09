@@ -111,6 +111,10 @@ export interface SweepStats {
  * then quotes and sticker/MOS for the batch. `deadline` (ms epoch) stops the
  * scoring loop early so serverless callers stay inside maxDuration.
  */
+// Enrich in chunks during long sweeps so new rows appear on /screener with
+// market cap + sticker immediately, not hours later at the end of the run
+const ENRICH_EVERY = 150;
+
 export async function sweepTickers(
   tickers: { ticker: string; name: string }[],
   sectorMap: Map<string, string>,
@@ -120,6 +124,7 @@ export async function sweepTickers(
   const db = getDb();
   const stats: SweepStats = { swept: 0, qualifiers: 0, unavailable: 0, errors: 0 };
   const sweptTickers: string[] = [];
+  let enrichedUpTo = 0;
 
   for (const { ticker, name } of tickers) {
     if (deadline && Date.now() > deadline) break;
@@ -179,15 +184,23 @@ export async function sweepTickers(
       }
     }
     onProgress?.(stats.swept + stats.errors, tickers.length, stats);
+
+    if (sweptTickers.length - enrichedUpTo >= ENRICH_EVERY) {
+      const chunk = sweptTickers.slice(enrichedUpTo);
+      enrichedUpTo = sweptTickers.length;
+      await enrichQuotes(chunk);
+      await enrichStickers(chunk, deadline);
+    }
   }
 
-  await enrichQuotes(sweptTickers);
-  await enrichStickers(sweptTickers, deadline);
+  const finalChunk = sweptTickers.slice(enrichedUpTo);
+  await enrichQuotes(finalChunk);
+  await enrichStickers(finalChunk, deadline);
   return stats;
 }
 
 /** Batch price + market cap from Yahoo (90 symbols per call) */
-async function enrichQuotes(tickers: string[]): Promise<void> {
+export async function enrichQuotes(tickers: string[]): Promise<void> {
   if (tickers.length === 0) return;
   const db = getDb();
   let crumb: string, cookie: string;
@@ -219,7 +232,7 @@ async function enrichQuotes(tickers: string[]): Promise<void> {
 }
 
 /** Sticker + MOS for USD-filing qualifiers in the batch */
-async function enrichStickers(tickers: string[], deadline?: number): Promise<void> {
+export async function enrichStickers(tickers: string[], deadline?: number): Promise<void> {
   if (tickers.length === 0) return;
   const db = getDb();
   const rows = await db
