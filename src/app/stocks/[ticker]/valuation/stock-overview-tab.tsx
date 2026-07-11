@@ -118,6 +118,10 @@ export function StockOverviewTab({ ticker, sector }: { ticker: string; sector?: 
   const isPositive = (periodChange ?? 0) >= 0;
   const lineColor = isPositive ? "#22c55e" : "#ef4444";
 
+  const pricePrefix = !data?.currency || data.currency === "USD" ? "$" : `${data.currency} `;
+  const fmtAxisPrice = (v: number) =>
+    `${pricePrefix}${v >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(2)}`;
+
   if (!data && loading) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -179,8 +183,9 @@ export function StockOverviewTab({ ticker, sector }: { ticker: string; sector?: 
                   tick={{ fontSize: 10, fill: "#a1a1aa" }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`}
-                  domain={["dataMin - 1", "dataMax + 1"]}
+                  tickFormatter={fmtAxisPrice}
+                  domain={[(min: number) => min * 0.98, (max: number) => max * 1.02]}
+                  width={72}
                 />
                 <Tooltip
                   contentStyle={{
@@ -190,12 +195,17 @@ export function StockOverviewTab({ ticker, sector }: { ticker: string; sector?: 
                     fontSize: "12px",
                     color: "#e4e4e7",
                   }}
-                  formatter={(value: unknown) => [`${Number(value) > 0 ? "+" : ""}${Number(value).toFixed(2)}%`, "Change"]}
+                  formatter={(value: unknown, _name: unknown, entry: { payload?: { change?: number } }) => {
+                    const chg = entry?.payload?.change;
+                    const suffix =
+                      chg !== undefined ? ` (${chg > 0 ? "+" : ""}${chg.toFixed(2)}%)` : "";
+                    return [`${pricePrefix}${Number(value).toFixed(2)}${suffix}`, "Price"];
+                  }}
                   labelFormatter={(label: unknown) => String(label)}
                 />
                 <Line
                   type="monotone"
-                  dataKey="change"
+                  dataKey="close"
                   stroke={lineColor}
                   strokeWidth={2}
                   dot={false}
