@@ -27,7 +27,7 @@ export async function GET(
     )
     .then((rows) => rows[0] ?? null);
 
-  return NextResponse.json({ watching: !!item });
+  return NextResponse.json({ watching: !!item, status: item?.status ?? null });
 }
 
 const VALID_STATUSES = ["watching", "to-research", "to-buy", "own", "pass"];

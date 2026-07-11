@@ -12,6 +12,7 @@ import { TimeTravelTab } from "./time-travel-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
 import { sectorToSlug } from "@/lib/sectors";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
+import { StatusPicker, type WatchlistStatus } from "@/components/watchlist-status";
 
 type Tab = "overview" | "growth" | "sticker" | "timetravel" | "management" | "valuation";
 
@@ -61,6 +62,7 @@ export default function StockPage() {
   const [insights, setInsights] = useState<StockValuationInsights | null>(null);
   const [hasValuation, setHasValuation] = useState(false);
   const [watching, setWatching] = useState(false);
+  const [watchStatus, setWatchStatus] = useState<string>("watching");
   const [watchLoading, setWatchLoading] = useState(false);
   const [showSimBuy, setShowSimBuy] = useState(false);
   const [profile, setProfile] = useState<{
@@ -123,7 +125,10 @@ export default function StockPage() {
   useEffect(() => {
     fetch(`/api/watchlist/${ticker}`)
       .then((r) => r.json())
-      .then((data) => setWatching(data.watching))
+      .then((data) => {
+        setWatching(data.watching);
+        if (data.status) setWatchStatus(data.status);
+      })
       .catch(() => {});
   }, [ticker]);
 
@@ -141,6 +146,7 @@ export default function StockPage() {
       if (watching) {
         await fetch(`/api/watchlist/${ticker}`, { method: "DELETE" });
         setWatching(false);
+        setWatchStatus("watching");
       } else {
         await fetch("/api/watchlist", {
           method: "POST",
@@ -155,6 +161,17 @@ export default function StockPage() {
       }
     } catch { /* ignore */ }
     setWatchLoading(false);
+  }
+
+  async function changeWatchStatus(status: WatchlistStatus) {
+    const prev = watchStatus;
+    setWatchStatus(status);
+    const res = await fetch(`/api/watchlist/${ticker}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }).catch(() => null);
+    if (!res?.ok) setWatchStatus(prev);
   }
 
   const dayChange = livePrice?.previousClose
@@ -203,8 +220,12 @@ export default function StockPage() {
               title={watching ? "Remove from watchlist" : "Add to watchlist"}
             >
               {watching ? "\u2605" : "\u2606"}
-              {watching ? "Watching" : "Watch"}
+              {!watching && "Watch"}
             </button>
+            {/* Watchlist triage status */}
+            {watching && (
+              <StatusPicker value={watchStatus} onChange={changeWatchStatus} />
+            )}
             {/* Simulate Buy button */}
             <button
               onClick={() => setShowSimBuy(true)}
