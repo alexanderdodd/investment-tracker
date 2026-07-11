@@ -15,6 +15,7 @@ import type { AdapterAccountType } from "next-auth/adapters";
 import type { GrowthHistoryPayload } from "@/lib/sec-edgar/growth-history";
 import type { ManagementPayload } from "@/lib/sec-edgar/management";
 import type { ManagementBrief } from "@/lib/generate-management-brief";
+import type { MoatAnalysis } from "@/lib/generate-moat-analysis";
 import type { RuleOneScreenResult } from "@/lib/rule-one-screen";
 
 export const users = pgTable("user", {
@@ -509,6 +510,13 @@ export const investorProfiles = pgTable("investor_profile", {
 export const ruleOneScreens = pgTable("rule_one_screen", {
   industrySlug: text("industry_slug").primaryKey(),
   payload: jsonb("payload").$type<RuleOneScreenResult>().notNull(),
+  generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// LLM-researched moat analysis — the "Moat" M of Rule #1's Four Ms
+export const stockMoats = pgTable("stock_moat", {
+  ticker: text("ticker").primaryKey(),
+  analysis: jsonb("analysis").$type<MoatAnalysis>().notNull(),
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
 

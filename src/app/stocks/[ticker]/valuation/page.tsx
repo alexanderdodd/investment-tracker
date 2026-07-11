@@ -8,19 +8,20 @@ import { StockOverviewTab } from "./stock-overview-tab";
 import { GrowthRatesTab } from "./growth-rates-tab";
 import { StickerPriceTab } from "./sticker-price-tab";
 import { ManagementTab } from "./management-tab";
+import { MoatTab } from "./moat-tab";
 import { TimeTravelTab } from "./time-travel-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
 import { sectorToSlug } from "@/lib/sectors";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 import { StatusPicker, type WatchlistStatus } from "@/components/watchlist-status";
 
-type Tab = "overview" | "growth" | "sticker" | "timetravel" | "management" | "valuation";
+type Tab = "overview" | "growth" | "sticker" | "moat" | "timetravel" | "management" | "valuation";
 
 // Remember the selected tab across stock pages: opening a new stock lands on
 // whatever tab was last used. Backed by localStorage via useSyncExternalStore
 // so it survives navigation without hydration mismatches.
 const TAB_STORAGE_KEY = "stock-page-tab";
-const TABS: readonly Tab[] = ["overview", "growth", "sticker", "timetravel", "management", "valuation"];
+const TABS: readonly Tab[] = ["overview", "growth", "sticker", "moat", "timetravel", "management", "valuation"];
 
 function subscribeTab(callback: () => void) {
   window.addEventListener("stock-tab-change", callback);
@@ -332,6 +333,16 @@ export default function StockPage() {
             Sticker Price
           </button>
           <button
+            onClick={() => setTab("moat")}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === "moat"
+                ? "border-b-2 border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+            }`}
+          >
+            Moat
+          </button>
+          <button
             onClick={() => setTab("timetravel")}
             className={`px-4 py-2.5 text-sm font-medium transition-colors ${
               tab === "timetravel"
@@ -374,6 +385,7 @@ export default function StockPage() {
         )}
         {tab === "growth" && <GrowthRatesTab ticker={ticker} />}
         {tab === "sticker" && <StickerPriceTab ticker={ticker} />}
+        {tab === "moat" && <MoatTab ticker={ticker} />}
         {tab === "timetravel" && <TimeTravelTab ticker={ticker} />}
         {tab === "management" && <ManagementTab ticker={ticker} />}
         {tab === "valuation" && (
