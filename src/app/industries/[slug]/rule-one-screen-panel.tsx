@@ -296,9 +296,9 @@ export function RuleOneScreenPanel({ slug }: { slug: string }) {
                     title={`Big Five ${s.bigFiveScore}/5 · price ${fmtMoney(s.currentPrice)} vs sticker ${fmtMoney(s.sticker)}`}
                   >
                     {s.ticker}
-                    {s.discountToSticker !== null && (
+                    {s.currentPrice !== null && (
                       <span className="ml-1 text-zinc-400 dark:text-zinc-500">
-                        {(s.discountToSticker * 100).toFixed(0)}%
+                        {fmtMoney(s.currentPrice)}
                       </span>
                     )}
                   </Link>
