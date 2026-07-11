@@ -113,10 +113,15 @@ function BigFiveCell({ row, hasNegative }: { row: BigFiveRow | undefined; hasNeg
 export function RuleOneTable({
   items,
   onRemove,
+  renderExtra,
+  extraHeader,
 }: {
   items: RuleOneItem[];
   /** When provided, renders a Remove action column (watchlist) */
   onRemove?: (ticker: string) => void;
+  /** When provided, renders an extra column after Stock (e.g. watchlist status) */
+  renderExtra?: (item: RuleOneItem) => React.ReactNode;
+  extraHeader?: string;
 }) {
   const [rows, setRows] = useState<Record<string, RowData>>({});
 
@@ -142,6 +147,7 @@ export function RuleOneTable({
         <thead>
           <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
             <th className="px-4 py-3 font-medium">Stock</th>
+            {renderExtra && <th className="px-3 py-3 font-medium">{extraHeader ?? ""}</th>}
             <th className="px-3 py-3 text-right font-medium">Price</th>
             {BIG_FIVE_COLUMNS.map((c) => (
               <th key={c.key} className="px-3 py-3 text-right font-medium">
@@ -212,6 +218,7 @@ export function RuleOneTable({
                     )}
                   </Link>
                 </td>
+                {renderExtra && <td className="px-3 py-3">{renderExtra(item)}</td>}
                 <td className={`px-3 py-3 text-right text-sm font-semibold ${priceColor}`}>
                   {sticker === undefined ? (
                     <span className="text-zinc-300 dark:text-zinc-600">…</span>

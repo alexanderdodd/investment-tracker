@@ -45,6 +45,7 @@ export async function GET() {
       ticker: item.ticker,
       companyName: item.companyName,
       sector: item.sector,
+      status: item.status,
       addedAt: item.addedAt.toISOString(),
     })),
   });

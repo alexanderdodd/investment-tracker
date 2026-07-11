@@ -364,6 +364,8 @@ export const watchlistItems = pgTable("watchlist_item", {
   ticker: text("ticker").notNull(),
   companyName: text("company_name"),
   sector: text("sector"),
+  /** Triage status: watching | to-research | to-buy | own | pass */
+  status: text("status").notNull().default("watching"),
   addedAt: timestamp("added_at", { mode: "date" }).notNull().defaultNow(),
 });
 
