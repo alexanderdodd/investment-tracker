@@ -6,7 +6,9 @@ import type { MetricRating } from "@/lib/stock-metrics";
 import {
   defaultGrowthRate,
   computeSticker,
-  priceVerdict,
+  mosPrice,
+  priceVerdictAt,
+  MARGIN_OF_SAFETY,
   type StickerCalc,
 } from "@/lib/rule-one";
 import { MetricTooltip } from "@/components/metric-tooltip";
@@ -115,6 +117,7 @@ export function RuleOneTable({
   onRemove,
   renderExtra,
   extraHeader,
+  mosFraction = MARGIN_OF_SAFETY,
 }: {
   items: RuleOneItem[];
   /** When provided, renders a Remove action column (watchlist) */
@@ -122,6 +125,8 @@ export function RuleOneTable({
   /** When provided, renders an extra column after Stock (e.g. watchlist status) */
   renderExtra?: (item: RuleOneItem) => React.ReactNode;
   extraHeader?: string;
+  /** Margin-of-safety fraction for the MOS column + price coloring (0.5 default) */
+  mosFraction?: number;
 }) {
   const [rows, setRows] = useState<Record<string, RowData>>({});
 
@@ -187,7 +192,12 @@ export function RuleOneTable({
               const g = defaultGrowthRate(sticker.equityGrowth?.value, sticker.analystGrowth);
               calc = computeSticker(sticker.eps, g, sticker.historicalHighPe);
             }
-            const verdict = priceVerdict(sticker?.currentPrice ?? null, calc);
+            const mos = mosPrice(calc?.sticker ?? null, mosFraction);
+            const verdict = priceVerdictAt(
+              sticker?.currentPrice ?? null,
+              calc?.sticker ?? null,
+              mosFraction
+            );
             const priceColor =
               verdict === "mos"
                 ? RATING_COLORS.good
@@ -252,7 +262,7 @@ export function RuleOneTable({
                   {sticker === undefined ? (
                     <span className="text-zinc-300 dark:text-zinc-600">…</span>
                   ) : (
-                    fmtMoney(calc?.mos ?? null, sticker?.quoteCurrency)
+                    fmtMoney(mos, sticker?.quoteCurrency)
                   )}
                 </td>
                 {onRemove && (

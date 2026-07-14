@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { RuleOneTable } from "@/components/rule-one-table";
+import { MosControl, useRememberedMos } from "@/components/mos-control";
 import {
   StatusPicker,
   WATCHLIST_STATUSES,
@@ -20,6 +21,7 @@ export default function WatchlistPage() {
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [mosFraction, setMosFraction] = useRememberedMos();
 
   useEffect(() => {
     fetch("/api/watchlist")
@@ -102,6 +104,10 @@ export default function WatchlistPage() {
           </div>
         )}
 
+        {items.length > 0 && (
+          <MosControl value={mosFraction} onChange={setMosFraction} />
+        )}
+
         {loading ? (
           <div className="h-64 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
         ) : items.length === 0 ? (
@@ -121,6 +127,7 @@ export default function WatchlistPage() {
             <RuleOneTable
               items={visible}
               onRemove={removeFromWatchlist}
+              mosFraction={mosFraction}
               extraHeader="Status"
               renderExtra={(item) => (
                 <StatusPicker
@@ -134,9 +141,10 @@ export default function WatchlistPage() {
 
         <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
           Big Five are 10-year figures (ROIC = average, growth = CAGR) from SEC filings; sticker
-          and MOS use the default Rule #1 inputs — open a stock&apos;s Sticker Price tab to
-          adjust the growth assumption. Price turns green at or below MOS, amber below sticker,
-          red above. First load of an untracked stock can take ~30s while SEC data is fetched.
+          uses the default Rule #1 growth inputs — open a stock&apos;s Sticker Price tab to adjust
+          the growth assumption. The MOS slider sets your buy target: price turns green at or
+          below MOS, amber below sticker, red above. First load of an untracked stock can take
+          ~30s while SEC data is fetched.
         </p>
       </div>
     </div>

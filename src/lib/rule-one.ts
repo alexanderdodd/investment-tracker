@@ -69,3 +69,23 @@ export function priceVerdict(
   if (price <= calc.sticker) return "sticker";
   return "above";
 }
+
+/** Buy-below (MOS) price at a chosen margin-of-safety fraction — e.g. 0.5 =
+ *  buy at 50% of sticker. Matches the default MARGIN_OF_SAFETY at 0.5. */
+export function mosPrice(sticker: number | null, mosFraction: number): number | null {
+  if (sticker === null || !isFinite(sticker)) return null;
+  return sticker * (1 - mosFraction);
+}
+
+/** Verdict comparing a price against a sticker at a configurable MOS fraction.
+ *  Lets the screener / watchlist recolor rows without recomputing stickers. */
+export function priceVerdictAt(
+  price: number | null,
+  sticker: number | null,
+  mosFraction: number
+): "mos" | "sticker" | "above" | null {
+  if (price === null || sticker === null || !isFinite(sticker) || sticker <= 0) return null;
+  if (price <= sticker * (1 - mosFraction)) return "mos";
+  if (price <= sticker) return "sticker";
+  return "above";
+}

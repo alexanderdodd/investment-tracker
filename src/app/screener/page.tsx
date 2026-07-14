@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import type { MetricRating } from "@/lib/stock-metrics";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
+import { MosControl, useRememberedMos } from "@/components/mos-control";
+import { mosPrice, priceVerdictAt } from "@/lib/rule-one";
 import { displayTag } from "@/lib/meaning-tags";
 
 interface ScreenRow {
@@ -118,6 +120,7 @@ function ScreenerPageInner() {
   const [minMcap, setMinMcap] = useState(1e9);
   const [maxMcap, setMaxMcap] = useState<number | null>(null);
   const [sort, setSort] = useState(searchParams.get("sort") ?? "score");
+  const [mosFraction, setMosFraction] = useRememberedMos();
   const [tags, setTags] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [nlInput, setNlInput] = useState("");
@@ -197,6 +200,18 @@ function ScreenerPageInner() {
   const loading = result?.query !== query;
   const data = result?.data ?? null;
   const stats = data?.stats;
+
+  // MOS is applied client-side: recolor rows live as the slider moves,
+  // without re-querying. Only rows with a sticker can be "on sale".
+  const rows = useMemo(() => data?.rows ?? [], [data]);
+  const pricedCount = useMemo(
+    () => rows.filter((r) => r.sticker !== null && r.price !== null).length,
+    [rows]
+  );
+  const onSaleCount = useMemo(
+    () => rows.filter((r) => priceVerdictAt(r.price, r.sticker, mosFraction) === "mos").length,
+    [rows, mosFraction]
+  );
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
@@ -381,6 +396,16 @@ function ScreenerPageInner() {
           )}
         </div>
 
+        {/* Margin of safety */}
+        {stats && stats.total > 0 && (
+          <MosControl
+            value={mosFraction}
+            onChange={setMosFraction}
+            onSaleCount={onSaleCount}
+            pricedCount={pricedCount}
+          />
+        )}
+
         {/* Results */}
         {loading && !data ? (
           <div className="h-96 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
@@ -416,13 +441,15 @@ function ScreenerPageInner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(data?.rows ?? []).map((r) => {
+                  {rows.map((r) => {
+                    const verdict = priceVerdictAt(r.price, r.sticker, mosFraction);
+                    const mos = mosPrice(r.sticker, mosFraction);
                     const priceColor =
-                      r.verdict === "mos"
+                      verdict === "mos"
                         ? RATING_COLORS.good
-                        : r.verdict === "sticker"
+                        : verdict === "sticker"
                           ? RATING_COLORS.caution
-                          : r.verdict === "above"
+                          : verdict === "above"
                             ? RATING_COLORS.bad
                             : "text-zinc-900 dark:text-zinc-100";
                     return (
@@ -492,7 +519,7 @@ function ScreenerPageInner() {
                           {fmtMoney(r.sticker, r.currency)}
                         </td>
                         <td className="px-4 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">
-                          {fmtMoney(r.mos, r.currency)}
+                          {fmtMoney(mos, r.currency)}
                         </td>
                       </tr>
                     );
@@ -506,8 +533,9 @@ function ScreenerPageInner() {
         <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
           Score = how many of the Big Five (10-year ROIC average and sales / EPS / equity / FCF
           CAGR) clear 10%/yr. (Ny) marks shorter filing histories; non-USD filers show growth
-          rates but no sticker (their EPS can&apos;t be priced against USD quotes). Price turns
-          green at or below MOS, amber below sticker, red above. Refresh the data with{" "}
+          rates but no sticker (their EPS can&apos;t be priced against USD quotes). The MOS slider
+          sets your buy target: price turns green at or below MOS, amber below sticker, red above.
+          Refresh the data with{" "}
           <code className="rounded bg-zinc-100 px-1 py-0.5 dark:bg-zinc-800">npm run sweep-big-five</code>.
         </p>
       </div>
