@@ -306,55 +306,53 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
     <div className="space-y-6">
       {/* Date selector */}
       <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Viewing the numbers as an investor saw them on
-            </p>
-            <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-              {isToday ? "Today" : fmtDate(point.date)}
-              <span className="ml-3 text-sm font-normal text-zinc-400 dark:text-zinc-500">
-                {isToday
-                  ? fmtDate(point.date)
-                  : `${quarterLabel(point.date)} · ${yearsSince!.toFixed(1)} years ago`}
-              </span>
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPointIdx(Math.max((effectiveIdx ?? 0) - 1, 0))}
-              disabled={effectiveIdx === 0}
-              className="rounded-full border border-zinc-200 px-2.5 py-1 text-sm text-zinc-500 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-              title="Back one quarter"
-            >
-              ◀
-            </button>
-            <div className="flex flex-col items-center">
-              <input
-                type="range"
-                min={0}
-                max={timeline.length - 1}
-                step={1}
-                value={effectiveIdx!}
-                onChange={(e) => setPointIdx(parseInt(e.target.value, 10))}
-                className="w-48 accent-blue-600 sm:w-72"
-              />
-              <div className="mt-1 flex w-48 justify-between text-[10px] text-zinc-400 dark:text-zinc-500 sm:w-72">
-                <span>{quarterLabel(timeline[0].date)}</span>
-                <span>Today</span>
-              </div>
+        <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          Viewing the numbers as an investor saw them on
+        </p>
+        <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+          {isToday ? "Today" : fmtDate(point.date)}
+          <span className="ml-3 text-sm font-normal text-zinc-400 dark:text-zinc-500">
+            {isToday
+              ? fmtDate(point.date)
+              : `${quarterLabel(point.date)} · ${yearsSince!.toFixed(1)} years ago`}
+          </span>
+        </p>
+
+        {/* Full-width slider row — fixed layout so it never shifts while dragging */}
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={() => setPointIdx(Math.max((effectiveIdx ?? 0) - 1, 0))}
+            disabled={effectiveIdx === 0}
+            className="shrink-0 rounded-full border border-zinc-200 px-2.5 py-1 text-sm text-zinc-500 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            title="Back one quarter"
+          >
+            ◀
+          </button>
+          <div className="flex-1">
+            <input
+              type="range"
+              min={0}
+              max={timeline.length - 1}
+              step={1}
+              value={effectiveIdx!}
+              onChange={(e) => setPointIdx(parseInt(e.target.value, 10))}
+              className="w-full accent-blue-600"
+            />
+            <div className="mt-1 flex justify-between text-[10px] text-zinc-400 dark:text-zinc-500">
+              <span>{quarterLabel(timeline[0].date)}</span>
+              <span>Today</span>
             </div>
-            <button
-              onClick={() => setPointIdx(Math.min((effectiveIdx ?? 0) + 1, timeline.length - 1))}
-              disabled={effectiveIdx === timeline.length - 1}
-              className="rounded-full border border-zinc-200 px-2.5 py-1 text-sm text-zinc-500 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-              title="Forward one quarter"
-            >
-              ▶
-            </button>
           </div>
+          <button
+            onClick={() => setPointIdx(Math.min((effectiveIdx ?? 0) + 1, timeline.length - 1))}
+            disabled={effectiveIdx === timeline.length - 1}
+            className="shrink-0 rounded-full border border-zinc-200 px-2.5 py-1 text-sm text-zinc-500 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            title="Forward one quarter"
+          >
+            ▶
+          </button>
         </div>
-        <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">
+        <p className="mt-3 text-[11px] text-zinc-400 dark:text-zinc-500">
           {isToday
             ? "Drag the slider back in time — each step is one quarter. Annual filings appear ~3 months after each fiscal year closes, just like they did for a real investor."
             : `Only filings public by ${fmtDate(point.date)} are used below (latest: the FY${latestKnownFY} annual report) — no hindsight leaks into the numbers.`}
