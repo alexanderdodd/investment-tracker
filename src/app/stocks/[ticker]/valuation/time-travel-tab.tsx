@@ -34,6 +34,11 @@ interface StickerInputs {
   yearEndPrices?: { fiscalYear: number; price: number }[];
 }
 
+interface ChartPoint {
+  ts: number;
+  close: number;
+}
+
 const RATING_COLORS: Record<MetricRating, string> = {
   good: "text-emerald-600 dark:text-emerald-400",
   neutral: "text-zinc-900 dark:text-zinc-100",
@@ -49,6 +54,11 @@ const SUMMARY_ROWS: { key: keyof GrowthSummary; label: string; negKey: keyof Gro
   { key: "fcfGrowth", label: "FCF Growth", negKey: "fcf" },
 ];
 
+// 10-Ks are due 60-90 days after fiscal year end; assume the numbers become
+// public knowledge ~90 days after the fiscal year closes
+const FILING_LAG_DAYS = 90;
+const MAX_LOOKBACK_YEARS = 20;
+
 function fmtPct(v: number | null): string {
   if (v === null || !isFinite(v)) return "—";
   return `${(v * 100).toFixed(1)}%`;
@@ -63,11 +73,38 @@ function fmtMoney(v: number | null): string {
   }).format(v);
 }
 
+function fmtDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+function quarterLabel(d: Date): string {
+  return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
+}
+
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/** Last day of a fiscal year given its label year and end-month name */
+function fiscalYearEnd(fiscalYear: number, endMonthName: string | null): Date {
+  const monthIdx = endMonthName
+    ? new Date(`${endMonthName} 1, 2000`).getMonth()
+    : 11; // default December
+  return new Date(fiscalYear, isNaN(monthIdx) ? 12 : monthIdx + 1, 0);
+}
+
+/** When a fiscal year's 10-K numbers were (approximately) publicly available */
+function availableFrom(fiscalYear: number, endMonthName: string | null): Date {
+  const end = fiscalYearEnd(fiscalYear, endMonthName);
+  return new Date(end.getTime() + FILING_LAG_DAYS * 24 * 3600 * 1000);
+}
+
+interface TimePoint {
+  date: Date;
+  isToday: boolean;
 }
 
 function StatCell({ stat, target, negative }: { stat: PeriodStat; target: number; negative: boolean }) {
@@ -94,24 +131,31 @@ interface FetchResult {
   ticker: string;
   growth: GrowthPayload | null;
   sticker: StickerInputs | null;
+  chart: ChartPoint[] | null;
   error: string | null;
 }
 
 export function TimeTravelTab({ ticker }: { ticker: string }) {
   const [result, setResult] = useState<FetchResult | null>(null);
-  const [cutoff, setCutoff] = useState<number | null>(null);
+  // Index into the timeline; null = default (today)
+  const [pointIdx, setPointIdx] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       fetch(`/api/stocks/${ticker}/growth-rates`).then((r) => (r.ok ? r.json() : null)),
       fetch(`/api/stocks/${ticker}/sticker-price`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/stocks/${ticker}/price?chart=true&range=max`).then((r) =>
+        r.ok ? r.json() : null
+      ),
     ])
-      .then(([growth, sticker]) => {
-        if (!cancelled) setResult({ ticker, growth, sticker, error: null });
+      .then(([growth, sticker, price]) => {
+        if (!cancelled)
+          setResult({ ticker, growth, sticker, chart: price?.chart ?? null, error: null });
       })
       .catch((e) => {
-        if (!cancelled) setResult({ ticker, growth: null, sticker: null, error: (e as Error).message });
+        if (!cancelled)
+          setResult({ ticker, growth: null, sticker: null, chart: null, error: (e as Error).message });
       });
     return () => {
       cancelled = true;
@@ -121,35 +165,60 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
   const loading = result?.ticker !== ticker;
   const growth = loading ? null : result!.growth;
   const sticker = loading ? null : result!.sticker;
+  const chart = loading ? null : result!.chart;
   const error = loading ? null : result!.error;
 
   const years = useMemo(() => growth?.years ?? [], [growth]);
-  const latestFY = years.length > 0 ? years[years.length - 1].fiscalYear : null;
-  // Need at least 3 years of history behind a cutoff for meaningful rates,
-  // and the cutoff must be strictly in the past
-  const minCutoff = years.length > 2 ? years[2].fiscalYear : null;
-  const maxCutoff = latestFY !== null ? latestFY - 1 : null;
+  const fyEndMonth = growth?.fiscalYearEndMonth ?? null;
 
-  const effectiveCutoff =
-    cutoff !== null && minCutoff !== null && maxCutoff !== null
-      ? Math.min(Math.max(cutoff, minCutoff), maxCutoff)
-      : latestFY !== null && minCutoff !== null && maxCutoff !== null
-        ? Math.min(Math.max(latestFY - 5, minCutoff), maxCutoff)
-        : null;
+  // Timeline: quarter-end dates from the earliest usable cutoff (3 fiscal
+  // years of filings, max 20 years back) up to today. Last point = today.
+  const timeline = useMemo((): TimePoint[] => {
+    if (years.length < 3) return [];
+    const now = new Date();
+    const earliestData = availableFrom(years[2].fiscalYear, fyEndMonth);
+    const earliestCap = new Date(now.getFullYear() - MAX_LOOKBACK_YEARS, now.getMonth(), 1);
+    const earliest = earliestData > earliestCap ? earliestData : earliestCap;
 
+    const points: TimePoint[] = [];
+    // Walk quarter ends backwards from the most recent completed quarter
+    const d = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 0);
+    while (d >= earliest) {
+      points.unshift({ date: new Date(d), isToday: false });
+      d.setMonth(d.getMonth() - 2); // move into the previous quarter…
+      d.setDate(0); // …then snap to that quarter's last day
+    }
+    points.push({ date: now, isToday: true });
+    return points;
+  }, [years, fyEndMonth]);
+
+  const effectiveIdx =
+    timeline.length === 0
+      ? null
+      : pointIdx === null
+        ? timeline.length - 1
+        : Math.min(Math.max(pointIdx, 0), timeline.length - 1);
+  const point = effectiveIdx === null ? null : timeline[effectiveIdx];
+  const cutoffDate = point?.date ?? null;
+
+  // Fiscal years whose 10-K was (approximately) filed by the cutoff date
   const truncYears = useMemo(
-    () => (effectiveCutoff === null ? [] : years.filter((y) => y.fiscalYear <= effectiveCutoff)),
-    [years, effectiveCutoff]
+    () =>
+      cutoffDate === null
+        ? []
+        : years.filter((y) => availableFrom(y.fiscalYear, fyEndMonth) <= cutoffDate),
+    [years, cutoffDate, fyEndMonth]
   );
+  const latestKnownFY = truncYears.length > 0 ? truncYears[truncYears.length - 1].fiscalYear : null;
 
   const summaryThen = useMemo(
     () => (truncYears.length >= 2 ? buildGrowthSummary(truncYears) : null),
     [truncYears]
   );
 
-  // Sticker as of the cutoff: EPS from that fiscal year, growth from the
-  // equity CAGR up to then (no historical analyst estimates exist), high P/E
-  // from the years up to then
+  // Sticker as of the cutoff: EPS from the latest fiscal year known then,
+  // growth from the equity CAGR up to then (no historical analyst estimates
+  // exist), high P/E from the years known then
   const stickerThen = useMemo((): {
     eps: number | null;
     growthUsed: number | null;
@@ -168,7 +237,7 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
     const growthUsed = pick.value;
     const highPe = median(
       (sticker?.peYearsUsed ?? [])
-        .filter((y) => y.fiscalYear <= (effectiveCutoff ?? 0))
+        .filter((y) => y.fiscalYear <= (latestKnownFY ?? 0))
         .map((y) => y.highPe)
     );
     return {
@@ -178,21 +247,38 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
       highPe,
       calc: computeSticker(eps, growthUsed, highPe),
     };
-  }, [summaryThen, truncYears, sticker, effectiveCutoff, growth?.currency]);
-
-  const priceThen = useMemo(() => {
-    if (effectiveCutoff === null) return null;
-    return sticker?.yearEndPrices?.find((p) => p.fiscalYear === effectiveCutoff)?.price ?? null;
-  }, [sticker, effectiveCutoff]);
+  }, [summaryThen, truncYears, sticker, latestKnownFY, growth?.currency]);
 
   const priceNow = sticker?.currentPrice ?? null;
-  const yearsSince = latestFY !== null && effectiveCutoff !== null ? latestFY - effectiveCutoff : null;
+
+  // Share price on the cutoff date, from monthly close history (Yahoo chart
+  // closes are split-adjusted, so they compare cleanly with today's basis)
+  const priceThen = useMemo(() => {
+    if (cutoffDate === null) return null;
+    if (point?.isToday) return priceNow;
+    const cutoffTs = cutoffDate.getTime() / 1000;
+    let best: number | null = null;
+    for (const p of chart ?? []) {
+      if (p.ts <= cutoffTs) best = p.close;
+      else break;
+    }
+    return best;
+  }, [chart, cutoffDate, point?.isToday, priceNow]);
+
+  const yearsSince = useMemo(() => {
+    if (cutoffDate === null || point?.isToday || timeline.length === 0) return null;
+    const today = timeline[timeline.length - 1].date;
+    return (today.getTime() - cutoffDate.getTime()) / (365.25 * 24 * 3600 * 1000);
+  }, [cutoffDate, point?.isToday, timeline]);
+
   const realizedCagr =
-    priceThen !== null && priceNow !== null && yearsSince !== null && yearsSince >= 1 && priceThen > 0
+    priceThen !== null && priceNow !== null && yearsSince !== null && yearsSince >= 0.75 && priceThen > 0
       ? Math.pow(priceNow / priceThen, 1 / yearsSince) - 1
       : null;
 
   const verdictThen = priceVerdict(priceThen, stickerThen?.calc ?? null);
+  const isToday = point?.isToday ?? false;
+  const asOfLabel = point === null ? "" : isToday ? "today" : fmtDate(point.date);
 
   if (loading) {
     return (
@@ -203,7 +289,7 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
     );
   }
 
-  if (error || !growth?.available || years.length < 4 || effectiveCutoff === null) {
+  if (error || !growth?.available || years.length < 4 || point === null) {
     return (
       <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-16 text-center dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-zinc-500 dark:text-zinc-400">
@@ -218,37 +304,60 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Year selector */}
+      {/* Date selector */}
       <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Viewing the numbers as they looked at the end of
+              Viewing the numbers as an investor saw them on
             </p>
             <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-              FY{effectiveCutoff}
-              <span className="ml-2 text-sm font-normal text-zinc-400 dark:text-zinc-500">
-                {latestFY! - effectiveCutoff} year{latestFY! - effectiveCutoff === 1 ? "" : "s"} ago
+              {isToday ? "Today" : fmtDate(point.date)}
+              <span className="ml-3 text-sm font-normal text-zinc-400 dark:text-zinc-500">
+                {isToday
+                  ? fmtDate(point.date)
+                  : `${quarterLabel(point.date)} · ${yearsSince!.toFixed(1)} years ago`}
               </span>
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">FY{minCutoff}</span>
-            <input
-              type="range"
-              min={minCutoff!}
-              max={maxCutoff!}
-              step={1}
-              value={effectiveCutoff}
-              onChange={(e) => setCutoff(parseInt(e.target.value, 10))}
-              className="w-48 accent-blue-600 sm:w-64"
-            />
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">FY{maxCutoff}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPointIdx(Math.max((effectiveIdx ?? 0) - 1, 0))}
+              disabled={effectiveIdx === 0}
+              className="rounded-full border border-zinc-200 px-2.5 py-1 text-sm text-zinc-500 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              title="Back one quarter"
+            >
+              ◀
+            </button>
+            <div className="flex flex-col items-center">
+              <input
+                type="range"
+                min={0}
+                max={timeline.length - 1}
+                step={1}
+                value={effectiveIdx!}
+                onChange={(e) => setPointIdx(parseInt(e.target.value, 10))}
+                className="w-48 accent-blue-600 sm:w-72"
+              />
+              <div className="mt-1 flex w-48 justify-between text-[10px] text-zinc-400 dark:text-zinc-500 sm:w-72">
+                <span>{quarterLabel(timeline[0].date)}</span>
+                <span>Today</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setPointIdx(Math.min((effectiveIdx ?? 0) + 1, timeline.length - 1))}
+              disabled={effectiveIdx === timeline.length - 1}
+              className="rounded-full border border-zinc-200 px-2.5 py-1 text-sm text-zinc-500 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              title="Forward one quarter"
+            >
+              ▶
+            </button>
           </div>
         </div>
         <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">
-          Only information from filings up to FY{effectiveCutoff} is used below — no hindsight
-          leaks into the numbers.
+          {isToday
+            ? "Drag the slider back in time — each step is one quarter. Annual filings appear ~3 months after each fiscal year closes, just like they did for a real investor."
+            : `Only filings public by ${fmtDate(point.date)} are used below (latest: the FY${latestKnownFY} annual report) — no hindsight leaks into the numbers.`}
         </p>
       </div>
 
@@ -257,10 +366,11 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              The Big Five as of FY{effectiveCutoff}
+              The Big Five as of {asOfLabel}
             </h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Computed from the {truncYears.length} fiscal years available back then
+              Computed from the {truncYears.length} fiscal years on file by then (latest:
+              FY{latestKnownFY})
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -307,7 +417,7 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
         <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Sticker price as of FY{effectiveCutoff}
+              Sticker price as of {asOfLabel}
             </h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               Growth from equity CAGR up to then — historical analyst estimates aren&apos;t
@@ -316,7 +426,7 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-6 py-5 sm:grid-cols-3 lg:grid-cols-6">
             <div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">EPS (FY{effectiveCutoff})</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">EPS (FY{latestKnownFY})</p>
               <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                 {fmtMoney(stickerThen.eps)}
               </p>
@@ -355,7 +465,9 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
               </p>
             </div>
             <div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Price then (FY end)</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {isToday ? "Price now" : `Price on ${fmtDate(point.date)}`}
+              </p>
               <p
                 className={`text-base font-semibold ${
                   verdictThen === "mos"
@@ -378,12 +490,12 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
       {stickerThen?.calc && priceThen !== null && (
         <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            What Rule #1 would have said — and what happened
+            {isToday ? "What Rule #1 says today" : "What Rule #1 would have said — and what happened"}
           </h2>
           <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-            At the end of FY{effectiveCutoff}, the stock traded at {fmtMoney(priceThen)} against a
-            sticker price of {fmtMoney(stickerThen.calc.sticker)} and a MOS buy price of{" "}
-            {fmtMoney(stickerThen.calc.mos)} —{" "}
+            {isToday ? "Today" : `On ${fmtDate(point.date)}`}, the stock traded at{" "}
+            {fmtMoney(priceThen)} against a sticker price of {fmtMoney(stickerThen.calc.sticker)}{" "}
+            and a MOS buy price of {fmtMoney(stickerThen.calc.mos)} —{" "}
             {verdictThen === "mos" ? (
               <span className={`font-semibold ${RATING_COLORS.good}`}>on sale, a Rule #1 buy</span>
             ) : verdictThen === "sticker" ? (
@@ -409,19 +521,21 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
               >
                 {fmtPct(realizedCagr)}/yr
               </span>{" "}
-              over {yearsSince} year{yearsSince === 1 ? "" : "s"} — vs the{" "}
-              {MINIMUM_RETURN * 100}%/yr Rule #1 hurdle. (Price only; dividends excluded.)
+              over {yearsSince!.toFixed(1)} years — vs the {MINIMUM_RETURN * 100}%/yr Rule #1
+              hurdle. (Price only; dividends excluded.)
             </p>
           )}
         </div>
       )}
 
       <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-        All values are split-adjusted to today&apos;s share basis, so past EPS, prices, and
-        stickers are directly comparable. SEC XBRL history reaches back to roughly 2009 —
-        earlier cutoffs use whatever span existed at the time, shown as &ldquo;(Ny)&rdquo;
-        labels. If the year slider doesn&apos;t reach back far enough, the stock&apos;s cached
-        history may predate the longer window — it refreshes automatically within a week.
+        Each slider step is one calendar quarter, back up to {MAX_LOOKBACK_YEARS} years where
+        filing history allows. Fundamentals are annual: a fiscal year&apos;s numbers appear
+        ~{FILING_LAG_DAYS} days after that year closes, when its 10-K would have been filed.
+        Prices are month-end closes, split-adjusted to today&apos;s share basis, so past EPS,
+        prices, and stickers are directly comparable. SEC XBRL history reaches back to roughly
+        2009 — earlier dates use whatever span existed at the time, shown as &ldquo;(Ny)&rdquo;
+        labels.
       </p>
     </div>
   );

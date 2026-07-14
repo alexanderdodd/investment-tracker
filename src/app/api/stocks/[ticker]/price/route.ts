@@ -17,7 +17,7 @@ export async function GET(
   // Map range to Yahoo interval
   const intervalMap: Record<string, string> = {
     "1d": "5m", "5d": "15m", "1mo": "1d", "3mo": "1d",
-    "1y": "1d", "5y": "1wk",
+    "1y": "1d", "5y": "1wk", "10y": "1mo", "max": "1mo",
   };
   const interval = intervalMap[range] ?? "1d";
 
