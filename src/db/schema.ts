@@ -433,6 +433,18 @@ export const stockGrowthHistories = pgTable("stock_growth_history", {
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// European (UK/EU/EEA) listings discovered via the Yahoo region screener.
+// These aren't in the SEC company_tickers list, so the Big Five sweep seeds
+// its universe from here in addition to SEC filers + the growth cache.
+export const europeanListings = pgTable("european_listing", {
+  ticker: text("ticker").primaryKey(),
+  companyName: text("company_name"),
+  exchange: text("exchange"),
+  region: text("region"),
+  marketCap: doublePrecision("market_cap"),
+  discoveredAt: timestamp("discovered_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // Cached insider/management data (SEC Form 4 parse — expensive: ~120 archive
 // fetches per build) plus the LLM-generated management brief.
 // All-stocks Big Five sweep (deterministic, no LLM): one row per SEC filer

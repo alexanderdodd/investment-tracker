@@ -14,12 +14,14 @@ import {
   gicsSectors,
   watchlistItems,
   stockGrowthHistories,
+  europeanListings,
 } from "../db/schema";
 import { getOrBuildGrowthHistory } from "./sec-edgar/growth-history-cache";
 import { buildStickerInputs } from "./sticker-inputs";
 import { defaultGrowthRate, computeSticker, priceVerdict } from "./rule-one";
 import { getYahooCrumb } from "./stock-metrics";
 import { enrichMeaning } from "./enrich-meaning";
+import { normalizeCurrency } from "./currency";
 
 const QUOTE_BATCH = 90;
 const UA =
@@ -43,13 +45,24 @@ export async function loadUniverse(): Promise<{ ticker: string; name: string }[]
     universe.push({ ticker, name: entry.title });
   }
 
-  // European (ESEF) tickers aren't in the SEC list — include any ticker the
-  // growth cache already knows (e.g. ASML.AS viewed on its stock page), so
-  // they participate in the screener like US names
+  // European (ESEF) tickers aren't in the SEC list. Seed them from two places:
+  //  1. `european_listings` — proactively discovered via the region screener
+  //     (npm run discover-european), giving the screener real EU coverage.
+  //  2. the growth cache — any European ticker already viewed on its page.
   const db = getDb();
-  const cached = await db
-    .select({ ticker: stockGrowthHistories.ticker })
-    .from(stockGrowthHistories);
+  const [euListed, cached] = await Promise.all([
+    db
+      .select({ ticker: europeanListings.ticker, name: europeanListings.companyName })
+      .from(europeanListings),
+    db.select({ ticker: stockGrowthHistories.ticker }).from(stockGrowthHistories),
+  ]);
+  for (const { ticker, name } of euListed) {
+    const t = ticker.toUpperCase();
+    if (!seen.has(t)) {
+      seen.add(t);
+      universe.push({ ticker: t, name: name ?? t });
+    }
+  }
   for (const { ticker } of cached) {
     if (!seen.has(ticker)) {
       seen.add(ticker);
@@ -265,10 +278,16 @@ export async function enrichQuotes(tickers: string[]): Promise<void> {
       if (!res.ok) continue;
       const json = await res.json();
       for (const q of json?.quoteResponse?.result ?? []) {
+        // Normalise minor-unit quotes (UK pence etc.) to the major unit. The
+        // money columns (price/sticker/mos) are all in the QUOTE currency, so
+        // store that as the row's currency — not the filing currency, which
+        // differs for e.g. AstraZeneca (files USD, trades in GBP).
+        const { currency, divisor } = normalizeCurrency(q.currency);
         await db
           .update(bigFiveScreen)
           .set({
-            price: typeof q.regularMarketPrice === "number" ? q.regularMarketPrice : null,
+            currency: currency ?? undefined,
+            price: typeof q.regularMarketPrice === "number" ? q.regularMarketPrice / divisor : null,
             marketCap: typeof q.marketCap === "number" ? q.marketCap : null,
           })
           .where(eq(bigFiveScreen.ticker, String(q.symbol).toUpperCase()));
@@ -304,6 +323,7 @@ export async function enrichStickers(tickers: string[], deadline?: number): Prom
       await db
         .update(bigFiveScreen)
         .set({
+          currency: inputs.quoteCurrency ?? undefined,
           price: inputs.currentPrice ?? undefined,
           sticker: calc?.sticker ?? null,
           mos: calc?.mos ?? null,
