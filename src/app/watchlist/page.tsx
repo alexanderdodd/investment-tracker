@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { RuleOneTable } from "@/components/rule-one-table";
-import { MosControl, useRememberedMos } from "@/components/mos-control";
+import { MosControl, useRememberedMos, useRememberedOnlyOnSale } from "@/components/mos-control";
 import {
   StatusPicker,
   WATCHLIST_STATUSES,
@@ -22,6 +22,7 @@ export default function WatchlistPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [mosFraction, setMosFraction] = useRememberedMos();
+  const [onlyOnSale, setOnlyOnSale] = useRememberedOnlyOnSale();
 
   useEffect(() => {
     fetch("/api/watchlist")
@@ -105,7 +106,12 @@ export default function WatchlistPage() {
         )}
 
         {items.length > 0 && (
-          <MosControl value={mosFraction} onChange={setMosFraction} />
+          <MosControl
+            value={mosFraction}
+            onChange={setMosFraction}
+            onlyOnSale={onlyOnSale}
+            onOnlyOnSaleChange={setOnlyOnSale}
+          />
         )}
 
         {loading ? (
@@ -128,6 +134,7 @@ export default function WatchlistPage() {
               items={visible}
               onRemove={removeFromWatchlist}
               mosFraction={mosFraction}
+              onlyOnSale={onlyOnSale}
               extraHeader="Status"
               renderExtra={(item) => (
                 <StatusPicker

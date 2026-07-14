@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import type { MetricRating } from "@/lib/stock-metrics";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
-import { MosControl, useRememberedMos } from "@/components/mos-control";
+import { MosControl, useRememberedMos, useRememberedOnlyOnSale } from "@/components/mos-control";
 import { mosPrice, priceVerdictAt } from "@/lib/rule-one";
 import { displayTag } from "@/lib/meaning-tags";
 
@@ -121,6 +121,7 @@ function ScreenerPageInner() {
   const [maxMcap, setMaxMcap] = useState<number | null>(null);
   const [sort, setSort] = useState(searchParams.get("sort") ?? "score");
   const [mosFraction, setMosFraction] = useRememberedMos();
+  const [onlyOnSale, setOnlyOnSale] = useRememberedOnlyOnSale();
   const [tags, setTags] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [nlInput, setNlInput] = useState("");
@@ -211,6 +212,14 @@ function ScreenerPageInner() {
   const onSaleCount = useMemo(
     () => rows.filter((r) => priceVerdictAt(r.price, r.sticker, mosFraction) === "mos").length,
     [rows, mosFraction]
+  );
+  // When "Only on sale" is on, drop everything that isn't green at this MOS.
+  const displayRows = useMemo(
+    () =>
+      onlyOnSale
+        ? rows.filter((r) => priceVerdictAt(r.price, r.sticker, mosFraction) === "mos")
+        : rows,
+    [rows, onlyOnSale, mosFraction]
   );
 
   return (
@@ -403,6 +412,8 @@ function ScreenerPageInner() {
             onChange={setMosFraction}
             onSaleCount={onSaleCount}
             pricedCount={pricedCount}
+            onlyOnSale={onlyOnSale}
+            onOnlyOnSaleChange={setOnlyOnSale}
           />
         )}
 
@@ -441,7 +452,18 @@ function ScreenerPageInner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => {
+                  {displayRows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={11}
+                        className="px-4 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
+                      >
+                        Nothing on sale at {Math.round(mosFraction * 100)}% margin of safety.
+                        Lower the MOS or turn off &ldquo;Only on sale&rdquo;.
+                      </td>
+                    </tr>
+                  )}
+                  {displayRows.map((r) => {
                     const verdict = priceVerdictAt(r.price, r.sticker, mosFraction);
                     const mos = mosPrice(r.sticker, mosFraction);
                     const priceColor =

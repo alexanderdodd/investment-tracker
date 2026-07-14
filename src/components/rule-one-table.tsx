@@ -118,6 +118,7 @@ export function RuleOneTable({
   renderExtra,
   extraHeader,
   mosFraction = MARGIN_OF_SAFETY,
+  onlyOnSale = false,
 }: {
   items: RuleOneItem[];
   /** When provided, renders a Remove action column (watchlist) */
@@ -127,6 +128,8 @@ export function RuleOneTable({
   extraHeader?: string;
   /** Margin-of-safety fraction for the MOS column + price coloring (0.5 default) */
   mosFraction?: number;
+  /** When true, hide rows that aren't on sale (price ≤ MOS) once loaded */
+  onlyOnSale?: boolean;
 }) {
   const [rows, setRows] = useState<Record<string, RowData>>({});
 
@@ -198,6 +201,12 @@ export function RuleOneTable({
               calc?.sticker ?? null,
               mosFraction
             );
+
+            // "Only on sale": once a row's price/sticker have loaded, drop it
+            // unless it's green. Rows still loading (sticker === undefined) stay
+            // visible so the table fills in before it filters down.
+            if (onlyOnSale && sticker !== undefined && verdict !== "mos") return null;
+
             const priceColor =
               verdict === "mos"
                 ? RATING_COLORS.good

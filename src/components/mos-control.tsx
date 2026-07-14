@@ -8,6 +8,11 @@ const MOS_KEY = "rule-one-mos-fraction";
 const MOS_EVENT = "mos-fraction-change";
 export const DEFAULT_MOS = 0.5;
 
+// Whether the MOS control also *filters* the table (hide anything not on sale),
+// remembered and shared the same way.
+const ONLY_ON_SALE_KEY = "rule-one-only-on-sale";
+const ONLY_ON_SALE_EVENT = "only-on-sale-change";
+
 function subscribe(cb: () => void) {
   window.addEventListener(MOS_EVENT, cb);
   window.addEventListener("storage", cb);
@@ -33,6 +38,30 @@ export function useRememberedMos(): [number, (v: number) => void] {
   return [mos, setMos];
 }
 
+function subscribeOnlyOnSale(cb: () => void) {
+  window.addEventListener(ONLY_ON_SALE_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(ONLY_ON_SALE_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+function snapshotOnlyOnSale(): boolean {
+  return localStorage.getItem(ONLY_ON_SALE_KEY) === "1";
+}
+
+/** Whether to filter the table down to only on-sale stocks (price ≤ MOS buy
+ *  price). Remembered in localStorage, shared across screener + watchlist. */
+export function useRememberedOnlyOnSale(): [boolean, (v: boolean) => void] {
+  const only = useSyncExternalStore(subscribeOnlyOnSale, snapshotOnlyOnSale, () => false);
+  const setOnly = useCallback((v: boolean) => {
+    localStorage.setItem(ONLY_ON_SALE_KEY, v ? "1" : "0");
+    window.dispatchEvent(new Event(ONLY_ON_SALE_EVENT));
+  }, []);
+  return [only, setOnly];
+}
+
 const PRESETS = [0.25, 0.5, 0.6];
 
 /**
@@ -45,6 +74,8 @@ export function MosControl({
   onChange,
   onSaleCount,
   pricedCount,
+  onlyOnSale,
+  onOnlyOnSaleChange,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -52,6 +83,9 @@ export function MosControl({
   onSaleCount?: number;
   /** Rows that have a sticker at all (denominator for the count) */
   pricedCount?: number;
+  /** When provided, renders an "Only on sale" toggle that filters the table */
+  onlyOnSale?: boolean;
+  onOnlyOnSaleChange?: (v: boolean) => void;
 }) {
   const pct = Math.round(value * 100);
   const payPct = Math.round((1 - value) * 100);
@@ -102,6 +136,27 @@ export function MosControl({
           {onSaleCount} on sale
           {pricedCount !== undefined ? ` of ${pricedCount} priced` : ""}
         </span>
+      )}
+
+      {onOnlyOnSaleChange && (
+        <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!onlyOnSale}
+            onClick={() => onOnlyOnSaleChange(!onlyOnSale)}
+            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+              onlyOnSale ? "bg-emerald-600" : "bg-zinc-300 dark:bg-zinc-700"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                onlyOnSale ? "translate-x-4" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+          Only on sale
+        </label>
       )}
     </div>
   );
