@@ -129,6 +129,13 @@ function ScreenerPageInner() {
   const [sort, setSort] = useState(searchParams.get("sort") ?? "score");
   const [mosFraction, setMosFraction] = useRememberedMos();
   const [onlyOnSale, setOnlyOnSale] = useRememberedOnlyOnSale();
+  // Watchlist: which tickers the signed-in user is watching, plus in-flight
+  // toggles so a star can't be double-clicked. `authed` gates the whole
+  // watch UI — the screener is usable signed-out (it's public SEC data).
+  const [authed, setAuthed] = useState(false);
+  const [watched, setWatched] = useState<Set<string>>(new Set());
+  const [watchBusy, setWatchBusy] = useState<Set<string>>(new Set());
+  const [watchedOnly, setWatchedOnly] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [nlInput, setNlInput] = useState("");
@@ -204,6 +211,59 @@ function ScreenerPageInner() {
     };
   }, [query]);
 
+  // Load the user's watched tickers once (401 => signed out, leave empty)
+  useEffect(() => {
+    fetch("/api/watchlist")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!json) return;
+        setAuthed(true);
+        setWatched(new Set<string>((json.items ?? []).map((i: { ticker: string }) => i.ticker)));
+      })
+      .catch(() => {});
+  }, []);
+
+  // Optimistic watch/unwatch; revert on failure.
+  async function toggleWatch(row: ScreenRow) {
+    if (watchBusy.has(row.ticker)) return;
+    const isWatched = watched.has(row.ticker);
+    setWatchBusy((s) => new Set(s).add(row.ticker));
+    setWatched((s) => {
+      const n = new Set(s);
+      if (isWatched) n.delete(row.ticker);
+      else n.add(row.ticker);
+      return n;
+    });
+    try {
+      if (isWatched) {
+        await fetch(`/api/watchlist/${row.ticker}`, { method: "DELETE" });
+      } else {
+        await fetch("/api/watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ticker: row.ticker,
+            companyName: row.companyName,
+            sector: row.sector,
+          }),
+        });
+      }
+    } catch {
+      setWatched((s) => {
+        const n = new Set(s);
+        if (isWatched) n.add(row.ticker);
+        else n.delete(row.ticker);
+        return n;
+      });
+    } finally {
+      setWatchBusy((s) => {
+        const n = new Set(s);
+        n.delete(row.ticker);
+        return n;
+      });
+    }
+  }
+
   // Show the latest completed result (dimmed) while a newer query loads
   const loading = result?.query !== query;
   const data = result?.data ?? null;
@@ -220,14 +280,15 @@ function ScreenerPageInner() {
     () => rows.filter((r) => priceVerdictAt(r.price, r.sticker, mosFraction) === "mos").length,
     [rows, mosFraction]
   );
-  // When "Only on sale" is on, drop everything that isn't green at this MOS.
-  const displayRows = useMemo(
-    () =>
-      onlyOnSale
-        ? rows.filter((r) => priceVerdictAt(r.price, r.sticker, mosFraction) === "mos")
-        : rows,
-    [rows, onlyOnSale, mosFraction]
-  );
+  // Client-side filters: "Only on sale" drops anything not green at this MOS;
+  // "Watched" narrows to tickers on the user's watchlist.
+  const displayRows = useMemo(() => {
+    let rs = rows;
+    if (onlyOnSale)
+      rs = rs.filter((r) => priceVerdictAt(r.price, r.sticker, mosFraction) === "mos");
+    if (watchedOnly) rs = rs.filter((r) => watched.has(r.ticker));
+    return rs;
+  }, [rows, onlyOnSale, mosFraction, watchedOnly, watched]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
@@ -405,6 +466,20 @@ function ScreenerPageInner() {
               </option>
             ))}
           </select>
+          {authed && (
+            <button
+              onClick={() => setWatchedOnly((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                watchedOnly
+                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                  : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              }`}
+              title="Show only stocks on your watchlist"
+            >
+              <span className={watchedOnly ? "text-amber-400" : ""}>★</span>
+              Watched ({watched.size})
+            </button>
+          )}
           {stats && (
             <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-500">
               {stats.matching.toLocaleString()} match
@@ -443,6 +518,7 @@ function ScreenerPageInner() {
               <table className="w-full min-w-[1050px]">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                    {authed && <th className="w-9 py-3 pl-4 pr-1" aria-label="Watch" />}
                     <th className="px-4 py-3 font-medium">Stock</th>
                     <th className="px-3 py-3 text-right font-medium">Mkt cap</th>
                     <th className="px-3 py-3 text-right font-medium">Score</th>
@@ -462,11 +538,14 @@ function ScreenerPageInner() {
                   {displayRows.length === 0 && (
                     <tr>
                       <td
-                        colSpan={11}
+                        colSpan={11 + (authed ? 1 : 0)}
                         className="px-4 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
                       >
-                        Nothing on sale at {Math.round(mosFraction * 100)}% margin of safety.
-                        Lower the MOS or turn off &ldquo;Only on sale&rdquo;.
+                        {watchedOnly
+                          ? "None of your watched stocks match the current filters."
+                          : onlyOnSale
+                            ? `Nothing on sale at ${Math.round(mosFraction * 100)}% margin of safety — lower the MOS or turn off “Only on sale”.`
+                            : "No stocks match the current filters."}
                       </td>
                     </tr>
                   )}
@@ -486,6 +565,23 @@ function ScreenerPageInner() {
                         key={r.ticker}
                         className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
                       >
+                        {authed && (
+                          <td className="py-2.5 pl-4 pr-1 text-center align-top">
+                            <button
+                              onClick={() => toggleWatch(r)}
+                              disabled={watchBusy.has(r.ticker)}
+                              title={watched.has(r.ticker) ? "Remove from watchlist" : "Add to watchlist"}
+                              aria-label={watched.has(r.ticker) ? "Watching" : "Not watching"}
+                              className={`text-lg leading-none transition-colors disabled:opacity-40 ${
+                                watched.has(r.ticker)
+                                  ? "text-amber-400 hover:text-amber-500"
+                                  : "text-zinc-300 hover:text-amber-400 dark:text-zinc-600 dark:hover:text-amber-400"
+                              }`}
+                            >
+                              {watched.has(r.ticker) ? "★" : "☆"}
+                            </button>
+                          </td>
+                        )}
                         <td className="px-4 py-2.5">
                           <Link href={`/stocks/${r.ticker}/valuation`} className="group">
                             <p className="text-sm font-medium text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400 transition-colors">
