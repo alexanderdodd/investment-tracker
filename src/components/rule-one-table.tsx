@@ -6,7 +6,7 @@ import type { MetricRating } from "@/lib/stock-metrics";
 import {
   defaultGrowthRate,
   computeSticker,
-  mosPrice,
+  currentMos,
   priceVerdictAt,
   MARGIN_OF_SAFETY,
   type StickerCalc,
@@ -89,6 +89,13 @@ function fmtMoney(v: number | null, currency?: string | null): string {
   if (v === null || !isFinite(v)) return "—";
   const prefix = !currency || currency === "USD" ? "$" : `${currency} `;
   return `${prefix}${v.toFixed(2)}`;
+}
+
+/** Current margin of safety as a signed percentage (e.g. "+42%", "-13%"). */
+function fmtPct(v: number | null): string {
+  if (v === null || !isFinite(v)) return "—";
+  const pct = Math.round(v * 100);
+  return `${pct > 0 ? "+" : ""}${pct}%`;
 }
 
 function BigFiveCell({ row, hasNegative }: { row: BigFiveRow | undefined; hasNegative: boolean }) {
@@ -174,10 +181,10 @@ export function RuleOneTable({
             </th>
             <th className="px-3 py-3 text-right font-medium">
               <MetricTooltip
-                label="Margin of Safety price"
-                description="Half the sticker price — the Rule #1 buy target. Price cell turns green at or below this."
+                label="Margin of safety (current)"
+                description="How far today's price sits below the sticker: (sticker − price) / sticker. Green once it clears your chosen MOS."
               >
-                <span>MOS</span>
+                <span>MOS %</span>
               </MetricTooltip>
             </th>
             {onRemove && <th className="px-3 py-3" />}
@@ -195,7 +202,7 @@ export function RuleOneTable({
               const g = defaultGrowthRate(sticker.equityGrowth?.value, sticker.analystGrowth);
               calc = computeSticker(sticker.eps, g, sticker.historicalHighPe);
             }
-            const mos = mosPrice(calc?.sticker ?? null, mosFraction);
+            const mos = currentMos(sticker?.currentPrice ?? null, calc?.sticker ?? null);
             const verdict = priceVerdictAt(
               sticker?.currentPrice ?? null,
               calc?.sticker ?? null,
@@ -267,11 +274,11 @@ export function RuleOneTable({
                     fmtMoney(calc?.sticker ?? null, sticker?.quoteCurrency)
                   )}
                 </td>
-                <td className="px-3 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                <td className={`px-3 py-3 text-right text-sm font-medium ${priceColor}`}>
                   {sticker === undefined ? (
                     <span className="text-zinc-300 dark:text-zinc-600">…</span>
                   ) : (
-                    fmtMoney(mos, sticker?.quoteCurrency)
+                    fmtPct(mos)
                   )}
                 </td>
                 {onRemove && (

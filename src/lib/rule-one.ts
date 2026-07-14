@@ -77,6 +77,15 @@ export function mosPrice(sticker: number | null, mosFraction: number): number | 
   return sticker * (1 - mosFraction);
 }
 
+/** Current margin of safety a price enjoys against sticker, as a fraction:
+ *  (sticker − price) / sticker. Positive = trading below sticker (a discount),
+ *  negative = above sticker. Compare against the chosen MOS fraction to decide
+ *  if a stock is "on sale". */
+export function currentMos(price: number | null, sticker: number | null): number | null {
+  if (price === null || sticker === null || !isFinite(sticker) || sticker <= 0) return null;
+  return (sticker - price) / sticker;
+}
+
 /** Verdict comparing a price against a sticker at a configurable MOS fraction.
  *  Lets the screener / watchlist recolor rows without recomputing stickers. */
 export function priceVerdictAt(

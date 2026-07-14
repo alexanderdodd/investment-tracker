@@ -7,7 +7,7 @@ import type { MetricRating } from "@/lib/stock-metrics";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
 import { MosControl, useRememberedMos, useRememberedOnlyOnSale } from "@/components/mos-control";
-import { mosPrice, priceVerdictAt } from "@/lib/rule-one";
+import { currentMos, priceVerdictAt } from "@/lib/rule-one";
 import { displayTag } from "@/lib/meaning-tags";
 
 interface ScreenRow {
@@ -100,6 +100,13 @@ function fmtMoney(v: number | null, currency?: string | null): string {
   if (v === null) return "—";
   const prefix = !currency || currency === "USD" ? "$" : `${currency} `;
   return `${prefix}${v.toFixed(2)}`;
+}
+
+/** Current margin of safety as a signed percentage (e.g. "+42%", "-13%"). */
+function fmtPct(v: number | null): string {
+  if (v === null || !isFinite(v)) return "—";
+  const pct = Math.round(v * 100);
+  return `${pct > 0 ? "+" : ""}${pct}%`;
 }
 
 export default function ScreenerPage() {
@@ -224,7 +231,7 @@ function ScreenerPageInner() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-6">
+      <div className="mx-auto w-full max-w-[1920px] px-4 py-10 sm:px-6 lg:px-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
             Big Five Screener
@@ -448,7 +455,7 @@ function ScreenerPageInner() {
                     ))}
                     <th className="px-3 py-3 text-right font-medium">Price</th>
                     <th className="px-3 py-3 text-right font-medium">Sticker</th>
-                    <th className="px-4 py-3 text-right font-medium">MOS</th>
+                    <th className="px-4 py-3 text-right font-medium">MOS %</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -465,7 +472,7 @@ function ScreenerPageInner() {
                   )}
                   {displayRows.map((r) => {
                     const verdict = priceVerdictAt(r.price, r.sticker, mosFraction);
-                    const mos = mosPrice(r.sticker, mosFraction);
+                    const mos = currentMos(r.price, r.sticker);
                     const priceColor =
                       verdict === "mos"
                         ? RATING_COLORS.good
@@ -540,8 +547,8 @@ function ScreenerPageInner() {
                         <td className="px-3 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">
                           {fmtMoney(r.sticker, r.currency)}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">
-                          {fmtMoney(mos, r.currency)}
+                        <td className={`px-4 py-2.5 text-right text-sm font-medium ${priceColor}`}>
+                          {fmtPct(mos)}
                         </td>
                       </tr>
                     );
