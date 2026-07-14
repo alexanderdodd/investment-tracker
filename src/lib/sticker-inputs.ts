@@ -158,8 +158,9 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
   const filingCurrency = payload?.currency ?? "USD";
   const filingMatchesQuote = filingCurrency === quoteCurrency;
 
-  // EPS: prefer Yahoo TTM (always in the quote currency); fall back to the
-  // latest filed fiscal year only when the currencies match
+  // EPS: prefer Yahoo TTM (always in the quote currency — so it works even for
+  // cross-currency filers like SAP/Nestlé that file USD but trade EUR/CHF);
+  // fall back to the latest filed fiscal year only when the currencies match.
   let eps = summary.trailingEps;
   let epsSource: StickerPriceInputs["epsSource"] = eps !== null ? "yahoo-ttm" : null;
   let epsFiscalYear: number | null = null;
@@ -181,7 +182,11 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
   }
 
   // Historical high P/E: per fiscal year, high monthly close ÷ that FY's diluted
-  // EPS (both split-adjusted); median across years for robustness
+  // EPS (both split-adjusted); median across years for robustness. Only when
+  // filing and quote currencies match — mixing e.g. a USD-filed EPS with a EUR
+  // price would need per-year FX and, for SEC-20-F European filers, their filed
+  // EPS is often unreliable, so we don't guess. The current-price sticker still
+  // works via the (native-currency) Yahoo TTM EPS above.
   const peYearsUsed: YearlyPe[] = [];
   const yearEndPrices: { fiscalYear: number; price: number }[] = [];
   if (payload?.available && closes.length > 0) {
@@ -194,12 +199,9 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
       const last = lastByFy.get(fy);
       if (!last || date > last.date) lastByFy.set(fy, { date, close });
     }
-    // Year-end prices are pure USD price data — valid for every ticker
     for (const [fy, { close }] of Array.from(lastByFy.entries()).sort((a, b) => a[0] - b[0])) {
       yearEndPrices.push({ fiscalYear: fy, price: close });
     }
-    // Historical P/E divides quote-currency prices by per-FY filed EPS —
-    // only valid when the two currencies match (native listings)
     if (filingMatchesQuote) {
       for (const row of payload.years) {
         const high = highByFy.get(row.fiscalYear);
