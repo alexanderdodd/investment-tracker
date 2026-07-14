@@ -12,6 +12,7 @@ import { MoatTab } from "./moat-tab";
 import { TimeTravelTab } from "./time-travel-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
 import { sectorToSlug } from "@/lib/sectors";
+import { friendlyExchange } from "@/lib/exchanges";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 import { StatusPicker, type WatchlistStatus } from "@/components/watchlist-status";
 
@@ -60,6 +61,7 @@ export default function StockPage() {
   const ticker = (params.ticker as string).toUpperCase();
   const [tab, setTab] = useRememberedTab();
   const [livePrice, setLivePrice] = useState<{ price: number; previousClose: number | null } | null>(null);
+  const [quoteMeta, setQuoteMeta] = useState<{ exchange: string | null; currency: string | null } | null>(null);
   const [insights, setInsights] = useState<StockValuationInsights | null>(null);
   const [hasValuation, setHasValuation] = useState(false);
   const [watching, setWatching] = useState(false);
@@ -86,6 +88,7 @@ export default function StockPage() {
         if (res.ok) {
           const data = await res.json();
           setLivePrice({ price: data.price, previousClose: data.previousClose });
+          setQuoteMeta({ exchange: data.exchange || null, currency: data.currency || null });
         }
       } catch { /* ignore */ }
     }
@@ -236,7 +239,20 @@ export default function StockPage() {
             </button>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-3">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">{ticker}</p>
+            <p className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+              {ticker}
+              {friendlyExchange(quoteMeta?.exchange) && (
+                <span
+                  className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                  title={`Trades on ${friendlyExchange(quoteMeta?.exchange)}${quoteMeta?.currency ? ` · quoted in ${quoteMeta.currency}` : ""}`}
+                >
+                  {friendlyExchange(quoteMeta?.exchange)}
+                  {quoteMeta?.currency && quoteMeta.currency !== "USD" && (
+                    <span className="ml-1 text-zinc-400 dark:text-zinc-500">{quoteMeta.currency}</span>
+                  )}
+                </span>
+              )}
+            </p>
             {(classification || insights?.sector) && (
               <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
                 <Link href={`/sectors/${sectorToSlug(classification?.sectorName ?? insights?.sector ?? "")}`} className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
