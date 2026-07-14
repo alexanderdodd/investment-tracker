@@ -9,6 +9,7 @@ type SearchResult = {
   companyName: string;
   sector: string | null;
   industry: string | null;
+  exchange: string | null;
   source: "local" | "yahoo";
 };
 
@@ -153,6 +154,11 @@ export function StockSearchBox({ compact = false }: { compact?: boolean }) {
                         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                           {r.ticker}
                         </p>
+                        {r.exchange && (
+                          <span className="inline-flex items-center rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                            {r.exchange}
+                          </span>
+                        )}
                         {r.source === "yahoo" && (
                           <span className="inline-flex items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                             Not yet tracked

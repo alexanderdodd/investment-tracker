@@ -6,12 +6,14 @@ import {
   gicsSectors,
   gicsIndustries,
 } from "@/db/schema";
+import { friendlyExchange, isEuropeanExchange, isEuropeanTicker } from "@/lib/exchanges";
 
 export type SearchResult = {
   ticker: string;
   companyName: string;
   sector: string | null;
   industry: string | null;
+  exchange: string | null;
   source: "local" | "yahoo";
 };
 
@@ -71,6 +73,7 @@ export async function GET(request: NextRequest) {
       companyName: row.companyName,
       sector: row.sectorName,
       industry: row.industryName,
+      exchange: null,
       source: "local",
     });
   }
@@ -101,8 +104,12 @@ export async function GET(request: NextRequest) {
           if (results.length >= MAX_RESULTS) break;
           if (q.quoteType !== "EQUITY") continue;
           if (!q.symbol || !q.isYahooFinance) continue;
-          // Exclude foreign-listed tickers (they contain a dot, e.g. "TSCO.L").
-          if (q.symbol.includes(".")) continue;
+          // Dot-suffixed symbols are foreign-listed (e.g. "TSCO.L", "MC.PA").
+          // Admit UK/EU/EEA listings; still skip other foreign venues (Asia,
+          // etc.) to keep results relevant.
+          if (q.symbol.includes(".") && !isEuropeanExchange(q.exchange) && !isEuropeanTicker(q.symbol)) {
+            continue;
+          }
           const sym = q.symbol.toUpperCase();
           if (seen.has(sym)) continue;
           seen.add(sym);
@@ -111,6 +118,7 @@ export async function GET(request: NextRequest) {
             companyName: q.longname ?? q.shortname ?? sym,
             sector: null,
             industry: null,
+            exchange: friendlyExchange(q.exchange),
             source: "yahoo",
           });
         }

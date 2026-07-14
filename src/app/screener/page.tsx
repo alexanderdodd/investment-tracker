@@ -8,6 +8,7 @@ import { MetricTooltip } from "@/components/metric-tooltip";
 import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
 import { MosControl, useRememberedMos, useRememberedOnlyOnSale } from "@/components/mos-control";
 import { currentMos, priceVerdictAt } from "@/lib/rule-one";
+import { formatMoney } from "@/lib/currency";
 import { displayTag } from "@/lib/meaning-tags";
 
 interface ScreenRow {
@@ -97,9 +98,7 @@ function fmtMcap(v: number | null): string {
 }
 
 function fmtMoney(v: number | null, currency?: string | null): string {
-  if (v === null) return "—";
-  const prefix = !currency || currency === "USD" ? "$" : `${currency} `;
-  return `${prefix}${v.toFixed(2)}`;
+  return formatMoney(v, currency ?? "USD");
 }
 
 /** Current margin of safety as a signed percentage (e.g. "+42%", "-13%"). */

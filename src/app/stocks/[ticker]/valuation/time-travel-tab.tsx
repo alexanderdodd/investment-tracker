@@ -15,6 +15,7 @@ import {
   MINIMUM_RETURN,
   type StickerCalc,
 } from "@/lib/rule-one";
+import { formatMoney } from "@/lib/currency";
 import type { MetricRating } from "@/lib/stock-metrics";
 
 interface GrowthPayload {
@@ -29,6 +30,7 @@ interface GrowthPayload {
 interface StickerInputs {
   available: boolean;
   currentPrice: number | null;
+  quoteCurrency: string | null;
   historicalHighPe: number | null;
   peYearsUsed: { fiscalYear: number; eps: number; highPrice: number; highPe: number }[];
   yearEndPrices?: { fiscalYear: number; price: number }[];
@@ -62,15 +64,6 @@ const MAX_LOOKBACK_YEARS = 20;
 function fmtPct(v: number | null): string {
   if (v === null || !isFinite(v)) return "—";
   return `${(v * 100).toFixed(1)}%`;
-}
-
-function fmtMoney(v: number | null): string {
-  if (v === null || !isFinite(v)) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(v);
 }
 
 function fmtDate(d: Date): string {
@@ -229,9 +222,10 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
     calc: StickerCalc | null;
   } | null => {
     if (!summaryThen || truncYears.length === 0) return null;
-    // Foreign filers' EPS is in the filing currency while prices are USD —
-    // the as-of sticker can't be computed without mixing units
-    if ((growth?.currency ?? "USD") !== "USD") return null;
+    // The as-of sticker divides filed per-share EPS by the share price, so the
+    // two must be in the same currency. Native listings match (both EUR/GBP/…);
+    // ADRs and DE/CH 20-F filers don't (USD filing vs local quote) — skip those.
+    if ((growth?.currency ?? "USD") !== (sticker?.quoteCurrency ?? "USD")) return null;
     const epsRow = [...truncYears].reverse().find((y) => y.epsDiluted !== null);
     const eps = epsRow?.epsDiluted ?? null;
     const eq = summaryThen.equityGrowth;
@@ -250,6 +244,10 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
       calc: computeSticker(eps, growthUsed, highPe),
     };
   }, [summaryThen, truncYears, sticker, latestKnownFY, growth?.currency]);
+
+  // Everything on this tab is shown in the stock's own trading currency.
+  const currency = sticker?.quoteCurrency ?? growth?.currency ?? "USD";
+  const fmtMoney = (v: number | null) => formatMoney(v, currency);
 
   const priceNow = sticker?.currentPrice ?? null;
 
@@ -416,10 +414,11 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
         </div>
       )}
 
-      {growth?.currency && growth.currency !== "USD" && (
+      {growth?.currency && sticker && (growth.currency !== (sticker.quoteCurrency ?? "USD")) && (
         <p className="rounded-xl border border-zinc-200 bg-white px-5 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-          This company files in {growth.currency}; the as-of sticker price is skipped because
-          its EPS can&apos;t be compared with USD share prices without currency conversion.
+          This company files in {growth.currency} but its shares quote in{" "}
+          {sticker.quoteCurrency ?? "USD"}; the as-of sticker price is skipped because EPS and
+          price are in different currencies.
         </p>
       )}
 

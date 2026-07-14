@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeCurrency } from "@/lib/currency";
 
 export const revalidate = 60;
 
@@ -39,15 +40,22 @@ export async function GET(
       return NextResponse.json({ error: "No price data" }, { status: 404 });
     }
 
+    // Yahoo quotes some markets (e.g. UK) in a minor unit like pence (GBp).
+    // Normalise everything to the major unit (GBP) so prices, chart closes and
+    // downstream sticker math all share one consistent currency.
+    const { currency, divisor } = normalizeCurrency(meta.currency);
+    const scale = (v: number | null | undefined) =>
+      v === null || v === undefined ? null : v / divisor;
+
     const response: Record<string, unknown> = {
       ticker: upper,
-      price: meta.regularMarketPrice,
-      previousClose: meta.chartPreviousClose ?? meta.previousClose ?? null,
+      price: scale(meta.regularMarketPrice),
+      previousClose: scale(meta.chartPreviousClose ?? meta.previousClose),
       timestamp: new Date((meta.regularMarketTime ?? 0) * 1000).toISOString(),
-      currency: meta.currency ?? "USD",
+      currency,
       exchange: meta.exchangeName ?? "",
-      fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
-      fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? null,
+      fiftyTwoWeekHigh: scale(meta.fiftyTwoWeekHigh),
+      fiftyTwoWeekLow: scale(meta.fiftyTwoWeekLow),
     };
 
     if (wantChart && result?.timestamp && result?.indicators?.quote?.[0]?.close) {
@@ -55,7 +63,7 @@ export async function GET(
       const closes: (number | null)[] = result.indicators.quote[0].close;
       response.chart = timestamps.map((ts: number, i: number) => ({
         ts,
-        close: closes[i],
+        close: scale(closes[i]),
       })).filter((p: { close: number | null }) => p.close !== null);
     }
 

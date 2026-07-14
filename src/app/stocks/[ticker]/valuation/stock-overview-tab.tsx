@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import type { StockMetrics } from "@/lib/stock-metrics";
 import { sectorToSlug } from "@/lib/sectors";
+import { formatMoney } from "@/lib/currency";
 import {
   ResponsiveContainer,
   LineChart,
@@ -118,9 +119,8 @@ export function StockOverviewTab({ ticker, sector }: { ticker: string; sector?: 
   const isPositive = (periodChange ?? 0) >= 0;
   const lineColor = isPositive ? "#22c55e" : "#ef4444";
 
-  const pricePrefix = !data?.currency || data.currency === "USD" ? "$" : `${data.currency} `;
   const fmtAxisPrice = (v: number) =>
-    `${pricePrefix}${v >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(2)}`;
+    formatMoney(v, data?.currency, { maximumFractionDigits: v >= 100 ? 0 : 2 });
 
   if (!data && loading) {
     return (
@@ -199,7 +199,7 @@ export function StockOverviewTab({ ticker, sector }: { ticker: string; sector?: 
                     const chg = entry?.payload?.change;
                     const suffix =
                       chg !== undefined ? ` (${chg > 0 ? "+" : ""}${chg.toFixed(2)}%)` : "";
-                    return [`${pricePrefix}${Number(value).toFixed(2)}${suffix}`, "Price"];
+                    return [`${formatMoney(Number(value), data?.currency)}${suffix}`, "Price"];
                   }}
                   labelFormatter={(label: unknown) => String(label)}
                 />
@@ -224,14 +224,14 @@ export function StockOverviewTab({ ticker, sector }: { ticker: string; sector?: 
       {/* Key stats */}
       {data && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard label="Current Price" value={`$${data.price.toFixed(2)}`} />
+          <StatCard label="Current Price" value={formatMoney(data.price, data.currency)} />
           <StatCard
             label="Day Change"
             value={dayData?.previousClose ? `${((dayData.price - dayData.previousClose) / dayData.previousClose * 100) >= 0 ? "+" : ""}${((dayData.price - dayData.previousClose) / dayData.previousClose * 100).toFixed(2)}%` : "—"}
             color={dayData?.previousClose && dayData.price >= dayData.previousClose ? "green" : "red"}
           />
-          <StatCard label="52W High" value={data.fiftyTwoWeekHigh ? `$${data.fiftyTwoWeekHigh.toFixed(2)}` : "—"} />
-          <StatCard label="52W Low" value={data.fiftyTwoWeekLow ? `$${data.fiftyTwoWeekLow.toFixed(2)}` : "—"} />
+          <StatCard label="52W High" value={formatMoney(data.fiftyTwoWeekHigh, data.currency)} />
+          <StatCard label="52W Low" value={formatMoney(data.fiftyTwoWeekLow, data.currency)} />
         </div>
       )}
 

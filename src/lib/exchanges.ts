@@ -81,3 +81,43 @@ export function friendlyExchange(code: string | null | undefined): string | null
   const key = code.trim().toUpperCase();
   return EXCHANGE_NAMES[key] ?? code.trim();
 }
+
+// Yahoo exchange codes (from search + quote APIs) that sit in the UK/EU/EEA
+// region we want to cover. Used to admit European listings that the app
+// otherwise skips (search) and to seed the screener sweep universe.
+const EUROPEAN_EXCHANGE_CODES = new Set<string>([
+  // UK & Ireland
+  "LSE", "IOB", "ISE",
+  // Germany
+  "GER", "FRA", "BER", "STU", "MUN", "DUS", "HAM", "XETRA",
+  // Euronext
+  "PAR", "AMS", "BRU", "LIS",
+  // Switzerland
+  "EBS", "VTX", "SWX",
+  // Southern Europe
+  "MIL", "MCE", "BME",
+  // Nordics
+  "STO", "CPH", "HEL", "ICE", "OSL",
+  // Central/Eastern Europe
+  "VIE", "ATH", "WSE", "PRA", "BUD",
+]);
+
+// Yahoo ticker suffixes for the same region (e.g. "SHEL.L", "MC.PA", "SAP.DE").
+const EUROPEAN_TICKER_SUFFIXES = new Set<string>([
+  "L", "IL", "PA", "AS", "BR", "LS", "DE", "F", "BE", "SG", "MU", "DU", "HM",
+  "SW", "VX", "MI", "MC", "ST", "CO", "HE", "IC", "OL", "VI", "AT", "WA",
+  "PR", "BD", "IR",
+]);
+
+/** Whether a Yahoo exchange code belongs to the UK/EU/EEA region we cover. */
+export function isEuropeanExchange(code: string | null | undefined): boolean {
+  if (!code) return false;
+  return EUROPEAN_EXCHANGE_CODES.has(code.trim().toUpperCase());
+}
+
+/** Whether a Yahoo ticker's suffix (part after the dot) is a European venue. */
+export function isEuropeanTicker(symbol: string | null | undefined): boolean {
+  if (!symbol || !symbol.includes(".")) return false;
+  const suffix = symbol.split(".").pop()?.trim().toUpperCase();
+  return !!suffix && EUROPEAN_TICKER_SUFFIXES.has(suffix);
+}

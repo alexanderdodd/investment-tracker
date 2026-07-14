@@ -13,6 +13,7 @@ import {
 } from "@/lib/rule-one";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
+import { formatMoney } from "@/lib/currency";
 
 export interface RuleOneItem {
   ticker: string;
@@ -86,9 +87,7 @@ const BIG_FIVE_COLUMNS: {
 ];
 
 function fmtMoney(v: number | null, currency?: string | null): string {
-  if (v === null || !isFinite(v)) return "—";
-  const prefix = !currency || currency === "USD" ? "$" : `${currency} `;
-  return `${prefix}${v.toFixed(2)}`;
+  return formatMoney(v, currency ?? "USD");
 }
 
 /** Current margin of safety as a signed percentage (e.g. "+42%", "-13%"). */

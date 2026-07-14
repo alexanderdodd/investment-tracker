@@ -7,6 +7,7 @@
 
 import { getOrBuildGrowthHistory } from "./sec-edgar/growth-history-cache";
 import { getYahooCrumb } from "./stock-metrics";
+import { normalizeCurrency } from "./currency";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
@@ -137,7 +138,7 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
   }
   const payload = growth?.payload ?? null;
 
-  const [summary, closes] = await Promise.all([
+  const [summary, rawCloses] = await Promise.all([
     fetchYahooSummary(upperTicker),
     fetchMonthlyCloses(upperTicker),
   ]);
@@ -147,8 +148,14 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
   // the QUOTE currency: it matches for native listings (US 10-K filers,
   // European ESEF filers on their home exchange) but not for ADRs, whose
   // USD quote can't be divided by JPY/EUR per-share filings.
+  // Normalise minor-unit quotes (e.g. UK pence GBp → pounds GBP) so the quote
+  // currency and price share the major unit that filed EPS is reported in.
+  const { currency: quoteCurrency, divisor } = normalizeCurrency(summary.quoteCurrency);
+  const currentPrice =
+    summary.currentPrice === null ? null : summary.currentPrice / divisor;
+  const closes = divisor === 1 ? rawCloses : rawCloses.map((c) => ({ date: c.date, close: c.close / divisor }));
+
   const filingCurrency = payload?.currency ?? "USD";
-  const quoteCurrency = summary.quoteCurrency ?? "USD";
   const filingMatchesQuote = filingCurrency === quoteCurrency;
 
   // EPS: prefer Yahoo TTM (always in the quote currency); fall back to the
@@ -221,8 +228,8 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
     companyName: payload?.companyName ?? null,
     available,
     unavailableReason,
-    currentPrice: summary.currentPrice,
-    quoteCurrency: summary.quoteCurrency,
+    currentPrice,
+    quoteCurrency,
     eps,
     epsSource,
     epsFiscalYear,

@@ -13,6 +13,7 @@ import { TimeTravelTab } from "./time-travel-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
 import { sectorToSlug } from "@/lib/sectors";
 import { friendlyExchange } from "@/lib/exchanges";
+import { formatMoney } from "@/lib/currency";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 import { StatusPicker, type WatchlistStatus } from "@/components/watchlist-status";
 
@@ -197,7 +198,7 @@ export default function StockPage() {
             {livePrice && (
               <span className="inline-flex items-center gap-2 text-sm">
                 <span className="font-semibold text-zinc-800 dark:text-zinc-100">
-                  ${livePrice.price.toFixed(2)}
+                  {formatMoney(livePrice.price, quoteMeta?.currency)}
                 </span>
                 {dayChange !== null && (
                   <span className={dayUp ? "text-green-500" : "text-red-500"}>
