@@ -139,24 +139,26 @@ export function MosControl({
       )}
 
       {onOnlyOnSaleChange && (
-        <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={!!onlyOnSale}
-            onClick={() => onOnlyOnSaleChange(!onlyOnSale)}
-            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!!onlyOnSale}
+          onClick={() => onOnlyOnSaleChange(!onlyOnSale)}
+          className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300"
+        >
+          <span
+            className={`inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors ${
               onlyOnSale ? "bg-emerald-600" : "bg-zinc-300 dark:bg-zinc-700"
             }`}
           >
             <span
-              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                onlyOnSale ? "translate-x-4" : "translate-x-0.5"
+              className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                onlyOnSale ? "translate-x-4" : "translate-x-0"
               }`}
             />
-          </button>
-          Only on sale
-        </label>
+          </span>
+          <span className="whitespace-nowrap">Only on sale</span>
+        </button>
       )}
     </div>
   );
