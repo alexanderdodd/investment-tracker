@@ -139,6 +139,8 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
   const [result, setResult] = useState<FetchResult | null>(null);
   // Index into the timeline; null = default (today)
   const [pointIdx, setPointIdx] = useState<number | null>(null);
+  // "If I'd invested $X on the cutoff date, what's it worth now?"
+  const [investAmount, setInvestAmount] = useState(5000);
 
   useEffect(() => {
     let cancelled = false;
@@ -276,8 +278,19 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
       ? Math.pow(priceNow / priceThen, 1 / yearsSince) - 1
       : null;
 
-  const verdictThen = priceVerdict(priceThen, stickerThen?.calc ?? null);
   const isToday = point?.isToday ?? false;
+
+  // Growth of a lump sum invested on the cutoff date, valued at today's price.
+  // Price-only (dividends excluded), split-adjusted on both ends.
+  const invest = useMemo(() => {
+    if (isToday || priceThen === null || priceNow === null || priceThen <= 0) return null;
+    const multiple = priceNow / priceThen;
+    const shares = investAmount / priceThen;
+    const valueNow = investAmount * multiple;
+    return { multiple, shares, valueNow, gain: valueNow - investAmount };
+  }, [isToday, priceThen, priceNow, investAmount]);
+
+  const verdictThen = priceVerdict(priceThen, stickerThen?.calc ?? null);
   const asOfLabel = point === null ? "" : isToday ? "today" : fmtDate(point.date);
 
   if (loading) {
@@ -479,6 +492,104 @@ export function TimeTravelTab({ ticker }: { ticker: string }) {
               >
                 {fmtMoney(priceThen)}
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Investment growth calculator */}
+      {invest && (
+        <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              If you&apos;d invested on {fmtDate(point.date)}
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Buying at that day&apos;s {fmtMoney(priceThen)} close and holding to today&apos;s{" "}
+              {fmtMoney(priceNow)} — price only, dividends excluded.
+            </p>
+          </div>
+          <div className="px-6 py-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <label
+                htmlFor="invest-amount"
+                className="text-xs font-medium text-zinc-500 dark:text-zinc-400"
+              >
+                Amount invested
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-zinc-400 dark:text-zinc-500">
+                  $
+                </span>
+                <input
+                  id="invest-amount"
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={investAmount}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    setInvestAmount(isFinite(v) && v >= 0 ? v : 0);
+                  }}
+                  className="w-36 rounded-lg border border-zinc-300 bg-white py-1.5 pl-6 pr-2 text-sm font-medium text-zinc-900 focus:border-blue-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                {[1000, 5000, 10000, 25000].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setInvestAmount(p)}
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                      investAmount === p
+                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                        : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    ${p >= 1000 ? `${p / 1000}k` : p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+              <div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Shares bought</p>
+                <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                  {invest.shares.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Worth today</p>
+                <p
+                  className={`text-2xl font-bold ${
+                    invest.gain >= 0 ? RATING_COLORS.good : RATING_COLORS.bad
+                  }`}
+                >
+                  {fmtMoney(invest.valueNow)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {invest.gain >= 0 ? "Gain" : "Loss"}
+                </p>
+                <p
+                  className={`text-base font-semibold ${
+                    invest.gain >= 0 ? RATING_COLORS.good : RATING_COLORS.bad
+                  }`}
+                >
+                  {invest.gain >= 0 ? "+" : ""}
+                  {fmtMoney(invest.gain)}
+                  <span className="ml-1 text-xs font-normal text-zinc-400 dark:text-zinc-500">
+                    ({invest.multiple.toFixed(1)}×)
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Annualized</p>
+                <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                  {realizedCagr !== null ? `${fmtPct(realizedCagr)}/yr` : "—"}
+                </p>
+              </div>
             </div>
           </div>
         </div>
