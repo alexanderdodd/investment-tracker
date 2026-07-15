@@ -113,24 +113,40 @@ export async function GET(request: Request) {
     }
   }
 
+  // Collapse multi-exchange listings of the same company (e.g. a Polish name
+  // cross-listed on Xetra/Frankfurt/Vienna, or a US name and its EU shadow) to
+  // one row. Keep the best-ranked listing per company: highest score, then
+  // market cap, then ticker (favours the primary/US line). Grouping is by the
+  // company name, falling back to ticker when the name is missing.
+  const dedupeKey = sql`lower(trim(coalesce(${bigFiveScreen.companyName}, ${bigFiveScreen.ticker})))`;
+  const rnExpr = sql<number>`row_number() over (partition by ${dedupeKey} order by ${bigFiveScreen.score} desc, ${bigFiveScreen.marketCap} desc nulls last, ${bigFiveScreen.ticker} asc)`;
+  const relevanceCol =
+    sortKey === "relevance" && relevanceAvailable ? relevanceExpr(interestTags) : sql<number>`0`;
+
+  const sq = db
+    .select({ ...ROW_COLUMNS, relevance: relevanceCol.as("relevance"), rn: rnExpr.as("rn") })
+    .from(bigFiveScreen)
+    .leftJoin(companyMeaning, eq(companyMeaning.ticker, bigFiveScreen.ticker))
+    .where(and(...conditions))
+    .as("sq");
+
+  const SORTS_SQ = {
+    score: sq.score,
+    roic: sq.roic10y,
+    sales: sq.sales10y,
+    eps: sq.eps10y,
+    equity: sq.equity10y,
+    fcf: sq.fcf10y,
+    marketCap: sq.marketCap,
+    discount: sql`(${sq.sticker} - ${sq.price}) / nullif(${sq.sticker}, 0)`,
+  } as const;
   const orderBy =
     sortKey === "relevance" && relevanceAvailable
-      ? [desc(relevanceExpr(interestTags)), desc(bigFiveScreen.score), desc(bigFiveScreen.marketCap)]
-      : [dir(SORTS[(sortKey === "relevance" ? "score" : sortKey) as keyof typeof SORTS] ?? SORTS.score), desc(bigFiveScreen.marketCap)];
+      ? [desc(sq.relevance), desc(sq.score), desc(sq.marketCap)]
+      : [dir(SORTS_SQ[(sortKey === "relevance" ? "score" : sortKey) as keyof typeof SORTS_SQ] ?? SORTS_SQ.score), desc(sq.marketCap)];
 
   const [rows, stats, sectors] = await Promise.all([
-    db
-      .select(
-        sortKey === "relevance" && relevanceAvailable
-          ? { ...ROW_COLUMNS, relevance: relevanceExpr(interestTags) }
-          : ROW_COLUMNS
-      )
-      .from(bigFiveScreen)
-      .leftJoin(companyMeaning, eq(companyMeaning.ticker, bigFiveScreen.ticker))
-      .where(and(...conditions))
-      .orderBy(...orderBy)
-      .limit(limit)
-      .offset(offset),
+    db.select().from(sq).where(eq(sq.rn, 1)).orderBy(...orderBy).limit(limit).offset(offset),
     db
       .select({
         total: sql<number>`count(*)`,
@@ -147,9 +163,9 @@ export async function GET(request: Request) {
       .where(and(eq(bigFiveScreen.available, true), gte(bigFiveScreen.score, 3))),
   ]);
 
-  // Count of rows matching the filters (rows may be limit-truncated)
+  // Distinct companies matching the filters (deduped, so it matches the rows)
   const [matching] = await db
-    .select({ n: sql<number>`count(*)` })
+    .select({ n: sql<number>`count(distinct ${dedupeKey})` })
     .from(bigFiveScreen)
     .leftJoin(companyMeaning, eq(companyMeaning.ticker, bigFiveScreen.ticker))
     .where(and(...conditions));
