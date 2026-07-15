@@ -169,6 +169,20 @@ async function tryEsef(
   }
 }
 
+// Last resort when neither SEC nor ESEF cover the ticker (Swiss/German and
+// smaller European names): Yahoo's ~4y fundamentals → a short Big Five.
+async function tryYahoo(
+  ticker: string,
+  knownName?: string | null
+): Promise<GrowthHistoryPayload | null> {
+  try {
+    const { buildYahooGrowthHistory } = await import("../yahoo-fundamentals");
+    return await buildYahooGrowthHistory(ticker, knownName);
+  } catch {
+    return null;
+  }
+}
+
 function unavailable(
   ticker: string,
   reason: string,
@@ -194,12 +208,14 @@ export async function buildGrowthHistory(ticker: string): Promise<GrowthHistoryP
   try {
     cik = await resolveTickerToCIK(upper);
   } catch {
-    // Not an SEC filer — European listings may be covered by ESEF instead
+    // Not an SEC filer — try European ESEF, then Yahoo's short fundamentals
     const esef = await tryEsef(upper);
     if (esef) return esef;
+    const yahoo = await tryYahoo(upper);
+    if (yahoo) return yahoo;
     return unavailable(
       upper,
-      "No SEC (EDGAR) or European (ESEF) filings found for this ticker — non-covered listing, ETF, or fund."
+      "No SEC (EDGAR), European (ESEF), or Yahoo fundamentals found for this ticker — non-covered listing, ETF, or fund."
     );
   }
 
@@ -239,10 +255,12 @@ export async function buildGrowthHistory(ticker: string): Promise<GrowthHistoryP
 
   if (allYears.filter((y) => revenue.has(y)).length < 2) {
     // A CIK exists but carries no structured annual data (registration-only
-    // filers) — the company may still file ESEF reports in Europe
+    // filers) — try ESEF, then Yahoo's short fundamentals
     const esef = await tryEsef(upper, companyName);
     if (esef) return esef;
-    return unavailable(upper, "No structured annual filings (SEC 10-K/20-F or European ESEF) found for this ticker.", {
+    const yahoo = await tryYahoo(upper, companyName);
+    if (yahoo) return yahoo;
+    return unavailable(upper, "No structured annual filings (SEC 10-K/20-F, European ESEF, or Yahoo) found for this ticker.", {
       companyName,
       cik,
       fiscalYearEndMonth,
