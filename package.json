@@ -24,6 +24,7 @@
     "validate-screen": "npx tsx scripts/validate-industry-screen.ts",
     "discover-stocks": "npx tsx scripts/discover-stocks.ts",
     "discover-european": "npx tsx scripts/discover-european.ts",
+    "backfill-european": "npx tsx scripts/backfill-european.ts",
     "sweep-big-five": "npx tsx scripts/sweep-big-five.ts",
     "enrich-meaning": "npx tsx scripts/enrich-meaning.ts"
   },
