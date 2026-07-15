@@ -72,12 +72,15 @@ const BIG_FIVE_COLS: {
   { base: "fcf", short: "FCF", label: "FCF growth — 10y/5y CAGR, 1y YoY" },
 ];
 
-const MCAP_OPTIONS = [
-  { value: 0, label: "Any size" },
-  { value: 3e8, label: "≥ $300M" },
-  { value: 1e9, label: "≥ $1B" },
-  { value: 1e10, label: "≥ $10B" },
-  { value: 1e11, label: "≥ $100B" },
+// Market-cap bands (min inclusive, max exclusive) so you can isolate a single
+// tier — "just small caps" — not only a floor. `max: null` = no upper bound.
+const MCAP_BANDS: { key: string; label: string; min: number; max: number | null }[] = [
+  { key: "any", label: "Any size", min: 0, max: null },
+  { key: "micro", label: "Micro (< $300M)", min: 0, max: 3e8 },
+  { key: "small", label: "Small ($300M–$2B)", min: 3e8, max: 2e9 },
+  { key: "mid", label: "Mid ($2B–$10B)", min: 2e9, max: 1e10 },
+  { key: "large", label: "Large ($10B–$200B)", min: 1e10, max: 2e11 },
+  { key: "mega", label: "Mega (≥ $200B)", min: 2e11, max: null },
 ];
 
 const SORT_OPTIONS = [
@@ -124,8 +127,13 @@ function ScreenerPageInner() {
   );
   const [sector, setSector] = useState("");
   const [region, setRegion] = useState("");
-  const [minMcap, setMinMcap] = useState(1e9);
+  const [minMcap, setMinMcap] = useState(0);
   const [maxMcap, setMaxMcap] = useState<number | null>(null);
+  // Whether the current cap range is one of the preset bands (vs a custom cap
+  // set by a natural-language query) — governs the removable "≤ $X" chip.
+  const mcapIsBand = MCAP_BANDS.some(
+    (b) => b.min === minMcap && (b.max ?? null) === (maxMcap ?? null)
+  );
   const [sort, setSort] = useState(searchParams.get("sort") ?? "score");
   const [mosFraction, setMosFraction] = useRememberedMos();
   const [onlyOnSale, setOnlyOnSale] = useRememberedOnlyOnSale();
@@ -359,7 +367,7 @@ function ScreenerPageInner() {
           {parseNotice && (
             <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{parseNotice}</p>
           )}
-          {(tags.length > 0 || keywords.length > 0 || maxMcap) && (
+          {(tags.length > 0 || keywords.length > 0 || (maxMcap && !mcapIsBand)) && (
             <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] text-zinc-400 dark:text-zinc-500">Filtering by:</span>
               {tags.map((t) => (
@@ -383,7 +391,7 @@ function ScreenerPageInner() {
                   “{k}”<span className="text-zinc-400">×</span>
                 </button>
               ))}
-              {maxMcap && (
+              {maxMcap && !mcapIsBand && (
                 <button
                   onClick={() => setMaxMcap(null)}
                   className="group inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
@@ -456,13 +464,20 @@ function ScreenerPageInner() {
             <option value="">— includes unclassified —</option>
           </select>
           <select
-            value={minMcap}
-            onChange={(e) => setMinMcap(parseFloat(e.target.value))}
+            value={
+              MCAP_BANDS.find((b) => b.min === minMcap && (b.max ?? null) === (maxMcap ?? null))?.key ??
+              "any"
+            }
+            onChange={(e) => {
+              const band = MCAP_BANDS.find((b) => b.key === e.target.value) ?? MCAP_BANDS[0];
+              setMinMcap(band.min);
+              setMaxMcap(band.max);
+            }}
             className="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
           >
-            {MCAP_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
+            {MCAP_BANDS.map((b) => (
+              <option key={b.key} value={b.key}>
+                {b.label}
               </option>
             ))}
           </select>
