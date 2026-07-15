@@ -123,6 +123,7 @@ function ScreenerPageInner() {
     parseInt(searchParams.get("minScore") ?? "4", 10)
   );
   const [sector, setSector] = useState("");
+  const [region, setRegion] = useState("");
   const [minMcap, setMinMcap] = useState(1e9);
   const [maxMcap, setMaxMcap] = useState<number | null>(null);
   const [sort, setSort] = useState(searchParams.get("sort") ?? "score");
@@ -158,11 +159,12 @@ function ScreenerPageInner() {
       limit: "200",
     });
     if (sector) params.set("sector", sector);
+    if (region) params.set("region", region);
     if (maxMcap) params.set("maxMcap", String(maxMcap));
     if (tags.length > 0) params.set("tags", tags.join(","));
     if (keywords.length > 0) params.set("keywords", keywords.join(","));
     return params.toString();
-  }, [minScore, sector, minMcap, maxMcap, sort, tags, keywords]);
+  }, [minScore, sector, region, minMcap, maxMcap, sort, tags, keywords]);
 
   // NL query → one LLM parse → chips; chip edits re-query with zero LLM calls
   const parseNl = async () => {
@@ -430,6 +432,16 @@ function ScreenerPageInner() {
               </button>
             ))}
           </div>
+          <select
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            className="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          >
+            <option value="">All regions</option>
+            <option value="us">🇺🇸 US</option>
+            <option value="uk">🇬🇧 UK</option>
+            <option value="eu">🇪🇺 Europe</option>
+          </select>
           <select
             value={sector}
             onChange={(e) => setSector(e.target.value)}

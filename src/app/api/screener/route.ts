@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, or, desc, asc, eq, gte, lte, sql, ilike } from "drizzle-orm";
+import { and, or, desc, asc, eq, gte, lte, sql, ilike, inArray, isNull } from "drizzle-orm";
 import { auth } from "@/auth";
 import { getDb } from "@/db/index";
 import { bigFiveScreen, companyMeaning } from "@/db/schema";
@@ -55,6 +55,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const minScore = parseInt(url.searchParams.get("minScore") ?? "3", 10);
   const sector = url.searchParams.get("sector");
+  const region = url.searchParams.get("region"); // us | uk | eu (by trading currency)
   const minMcap = parseFloat(url.searchParams.get("minMcap") ?? "0");
   const maxMcap = parseFloat(url.searchParams.get("maxMcap") ?? "0");
   const tags = (url.searchParams.get("tags") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
@@ -70,8 +71,19 @@ export async function GET(request: Request) {
 
   const db = getDb();
 
+  // Region by trading currency: US filers quote USD; UK in GBP; continental
+  // Europe (incl. Switzerland + Nordics) in these.
+  const EU_CURRENCIES = ["EUR", "CHF", "SEK", "DKK", "NOK", "ISK", "PLN", "CZK", "HUF", "RON", "BGN"];
+
   const conditions = [eq(bigFiveScreen.available, true), gte(bigFiveScreen.score, minScore)];
   if (sector) conditions.push(eq(bigFiveScreen.sector, sector));
+  if (region === "us") {
+    conditions.push(or(isNull(bigFiveScreen.currency), eq(bigFiveScreen.currency, "USD"))!);
+  } else if (region === "uk") {
+    conditions.push(eq(bigFiveScreen.currency, "GBP"));
+  } else if (region === "eu") {
+    conditions.push(inArray(bigFiveScreen.currency, EU_CURRENCIES));
+  }
   if (minMcap > 0) conditions.push(gte(bigFiveScreen.marketCap, minMcap));
   if (maxMcap > 0) conditions.push(lte(bigFiveScreen.marketCap, maxMcap));
   if (tags.length > 0) {
