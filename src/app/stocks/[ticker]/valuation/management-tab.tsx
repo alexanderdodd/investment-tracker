@@ -23,6 +23,7 @@ interface YahooOfficer {
 interface YahooManagement {
   officers: YahooOfficer[];
   insidersPercentHeld: number | null;
+  financialCurrency: string | null;
   netActivity: {
     period: string | null;
     buyShares: number | null;
@@ -108,6 +109,22 @@ function fmtMoney(v: number | null): string {
   if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
   if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(0)}k`;
   return `${sign}$${abs.toFixed(2)}`;
+}
+
+// Officer pay in the stock's own currency (Yahoo reports it in the home
+// currency — € for ASML, not $). Compact notation via Intl.
+function fmtPay(v: number | null, currency: string): string {
+  if (v === null) return "—";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 2,
+    }).format(v);
+  } catch {
+    return `${currency} ${(v / 1e6).toFixed(2)}M`;
+  }
 }
 
 // Match a Yahoo officer name ("Mr. Jen-Hsun Huang") to an SCT name
@@ -328,7 +345,7 @@ interface FetchResult {
   error: string | null;
 }
 
-export function ManagementTab({ ticker }: { ticker: string }) {
+export function ManagementTab({ ticker, currency }: { ticker: string; currency?: string | null }) {
   const [result, setResult] = useState<FetchResult | null>(null);
   const [txFilter, setTxFilter] = useState<TxFilter>("trades");
   const [briefLoading, setBriefLoading] = useState(false);
@@ -415,6 +432,12 @@ export function ManagementTab({ ticker }: { ticker: string }) {
       </div>
     );
   }
+
+  // Pay is reported in the company's own currency (€ for ASML — even on its
+  // USD ADR). Non-USD reporting also flags a foreign private issuer, which is
+  // exempt from SEC Form 4 / Section 16 insider disclosure.
+  const cur = data.yahoo.financialCurrency ?? currency ?? "USD";
+  const isForeign = cur !== "USD";
 
   const net = data.yahoo.netActivity;
   const netVerdict =
@@ -504,7 +527,7 @@ export function ManagementTab({ ticker }: { ticker: string }) {
                             </td>
                           </>
                         ) : (
-                          <td className="px-4 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">{fmtMoney(o.totalPay)}</td>
+                          <td className="px-4 py-2.5 text-right text-sm text-zinc-700 dark:text-zinc-300">{fmtPay(o.totalPay, cur)}</td>
                         )}
                       </tr>
                     );
@@ -524,6 +547,24 @@ export function ManagementTab({ ticker }: { ticker: string }) {
 
       {/* Insider pulse */}
       <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
+        {isForeign ? (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Held by insiders</p>
+              <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                {data.yahoo.insidersPercentHeld !== null
+                  ? `${(data.yahoo.insidersPercentHeld * 100).toFixed(2)}%`
+                  : "—"}
+              </p>
+            </div>
+            <p className="max-w-md text-[11px] text-zinc-400 dark:text-zinc-500">
+              Foreign private issuers are exempt from SEC Form 4 / Section 16, so individual
+              insider buy/sell transactions aren&apos;t publicly filed the way they are for US
+              companies — check the home-market regulator&apos;s disclosures instead.
+            </p>
+          </div>
+        ) : (
+        <>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-8">
             <div>
@@ -567,6 +608,8 @@ export function ManagementTab({ ticker }: { ticker: string }) {
           Scheduled selling (10b5-1 plans) is routine for executives paid in stock — open-market
           purchases are the strong signal.
         </p>
+        </>
+        )}
       </div>
 
       {/* CEO ownership over time */}
@@ -882,7 +925,9 @@ export function ManagementTab({ ticker }: { ticker: string }) {
         </details>
       )}
 
-      {!data.sec?.available && data.sec?.unavailableReason && (
+      {/* For foreign filers the note in the insider-pulse card already explains
+          the absence of Form 4 data — don't also show the raw "not found". */}
+      {!isForeign && !data.sec?.available && data.sec?.unavailableReason && (
         <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{data.sec.unavailableReason}</p>
         </div>

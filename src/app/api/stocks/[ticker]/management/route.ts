@@ -28,6 +28,8 @@ export interface YahooOfficer {
 export interface YahooManagement {
   officers: YahooOfficer[];
   insidersPercentHeld: number | null;
+  /** Company reporting currency (officer pay is reported in it) */
+  financialCurrency: string | null;
   netActivity: {
     period: string | null;
     buyShares: number | null;
@@ -39,10 +41,10 @@ export interface YahooManagement {
 }
 
 async function fetchYahooManagement(ticker: string): Promise<YahooManagement> {
-  const empty: YahooManagement = { officers: [], insidersPercentHeld: null, netActivity: null };
+  const empty: YahooManagement = { officers: [], insidersPercentHeld: null, financialCurrency: null, netActivity: null };
   try {
     const { crumb, cookie } = await getYahooCrumb();
-    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=assetProfile,netSharePurchaseActivity,majorHoldersBreakdown&crumb=${encodeURIComponent(crumb)}`;
+    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=assetProfile,netSharePurchaseActivity,majorHoldersBreakdown,financialData&crumb=${encodeURIComponent(crumb)}`;
     const res = await fetch(url, { headers: { "User-Agent": UA, Cookie: cookie } });
     if (!res.ok) return empty;
     const json = await res.json();
@@ -62,6 +64,7 @@ async function fetchYahooManagement(ticker: string): Promise<YahooManagement> {
     return {
       officers,
       insidersPercentHeld: r.majorHoldersBreakdown?.insidersPercentHeld?.raw ?? null,
+      financialCurrency: r.financialData?.financialCurrency ?? null,
       netActivity: net
         ? {
             period: net.period ?? null,

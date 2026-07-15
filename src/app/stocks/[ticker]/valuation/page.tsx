@@ -404,7 +404,7 @@ export default function StockPage() {
         {tab === "sticker" && <StickerPriceTab ticker={ticker} />}
         {tab === "moat" && <MoatTab ticker={ticker} />}
         {tab === "timetravel" && <TimeTravelTab ticker={ticker} />}
-        {tab === "management" && <ManagementTab ticker={ticker} />}
+        {tab === "management" && <ManagementTab ticker={ticker} currency={quoteMeta?.currency} />}
         {tab === "valuation" && (
           <StockValuationView ticker={ticker} onReportGenerated={refreshInsights} />
         )}
