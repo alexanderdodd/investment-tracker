@@ -60,10 +60,16 @@ export async function GET(
 
     if (wantChart && result?.timestamp && result?.indicators?.quote?.[0]?.close) {
       const timestamps: number[] = result.timestamp;
-      const closes: (number | null)[] = result.indicators.quote[0].close;
+      const q = result.indicators.quote[0];
+      const closes: (number | null)[] = q.close;
+      const highs: (number | null)[] = q.high ?? [];
+      const lows: (number | null)[] = q.low ?? [];
       response.chart = timestamps.map((ts: number, i: number) => ({
         ts,
         close: scale(closes[i]),
+        // High/low included for indicators (e.g. Stochastic); scaled the same
+        high: scale(highs[i]) ?? scale(closes[i]),
+        low: scale(lows[i]) ?? scale(closes[i]),
       })).filter((p: { close: number | null }) => p.close !== null);
     }
 
