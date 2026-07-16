@@ -323,7 +323,17 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
   const border = isDark ? "#3f3f46" : "#d4d4d8";
   const gridStroke = isDark ? "rgba(161,161,170,0.18)" : "rgba(63,63,70,0.14)";
   const plotFill = isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.015)";
-  const tooltipStyle = { background: paper, border: `1px solid ${border}`, borderRadius: 8, fontSize: 12, color: ink };
+  const tooltipStyle = {
+    background: paper,
+    border: `1px solid ${border}`,
+    borderRadius: 8,
+    fontSize: 12,
+    color: ink,
+    padding: "6px 10px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+  };
+  const tooltipLabelStyle = { color: ink, fontWeight: 600, marginBottom: 2 };
+  const tooltipItemStyle = { color: ink };
 
   // Crossover markers (book-style arrows) + callout anchor points.
   const markers = useMemo(() => {
@@ -436,6 +446,8 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
             />
             <Tooltip
               contentStyle={tooltipStyle}
+              labelStyle={tooltipLabelStyle}
+              itemStyle={tooltipItemStyle}
               formatter={(v: unknown, name: unknown) => [formatMoney(Number(v), cur), name === "sma" ? "Moving average" : "Stock price"]}
             />
             <Line type="monotone" dataKey="close" stroke={COL.price} strokeWidth={2} dot={false} />
@@ -462,6 +474,8 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
             <YAxis tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} width={56} />
             <Tooltip
               contentStyle={tooltipStyle}
+              labelStyle={tooltipLabelStyle}
+              itemStyle={tooltipItemStyle}
               formatter={(v: unknown) => [Number(v).toFixed(2), "Histogram"]}
             />
             <ReferenceLine y={0} stroke={border} strokeWidth={1} />
@@ -486,6 +500,8 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
             <YAxis domain={[0, 100]} ticks={[0, 20, 50, 80, 100]} tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} width={56} />
             <Tooltip
               contentStyle={tooltipStyle}
+              labelStyle={tooltipLabelStyle}
+              itemStyle={tooltipItemStyle}
               formatter={(v: unknown, name: unknown) => [Number(v).toFixed(1), name === "k" ? "Buy line (%K)" : "Sell line (%D)"]}
             />
             <ReferenceLine y={80} stroke={border} strokeDasharray="4 4" />
