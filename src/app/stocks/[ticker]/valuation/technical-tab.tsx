@@ -502,7 +502,7 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
               contentStyle={tooltipStyle}
               labelStyle={tooltipLabelStyle}
               itemStyle={tooltipItemStyle}
-              formatter={(v: unknown, name: unknown) => [Number(v).toFixed(1), name === "k" ? "Buy line (%K)" : "Sell line (%D)"]}
+              formatter={(v: unknown, name: unknown) => [Number(v).toFixed(1), name === "%K" ? "Buy line (%K)" : "Sell line (%D)"]}
             />
             <ReferenceLine y={80} stroke={border} strokeDasharray="4 4" />
             <ReferenceLine y={20} stroke={border} strokeDasharray="4 4" />
