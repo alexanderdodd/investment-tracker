@@ -202,28 +202,61 @@ function triangleShape(dir: Dir, color: string) {
   return Marker;
 }
 
-/** Book-style boxed callout with a leader line pointing at the series. */
-function calloutShape(text: string, dir: Dir, ink: string, paper: string, border: string) {
-  const Callout = ({ cx, cy }: DotShapeProps) => {
-    if (cx == null || cy == null) return <g />;
-    const fs = 10, padX = 7, h = fs + 8, lead = 18;
-    const w = text.length * (fs * 0.6) + padX * 2;
-    const bx = cx - w / 2;
-    const by = dir === "up" ? cy - lead - h : cy + lead;
-    const anchorY = dir === "up" ? by + h : by;
-    return (
-      <g pointerEvents="none">
-        <line x1={cx} y1={cy} x2={cx} y2={anchorY} stroke={ink} strokeWidth={1} />
-        <circle cx={cx} cy={cy} r={2.5} fill={ink} />
-        <rect x={bx} y={by} width={w} height={h} rx={3} fill={paper} stroke={border} strokeWidth={1} />
-        <text x={cx} y={by + h / 2 + 0.5} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={600} fill={ink}>
-          {text}
-        </text>
-      </g>
-    );
-  };
-  Callout.displayName = "ChartCallout";
-  return Callout;
+interface TipItem {
+  text: string;
+  color: string;
+  value: string;
+}
+interface TipPayload {
+  dataKey?: string | number;
+  value?: number | null;
+  color?: string;
+  name?: string;
+}
+
+/** Color-coded tooltip: a swatch per series matching the line/bar color. */
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  paper,
+  border,
+  ink,
+  resolve,
+}: {
+  active?: boolean;
+  payload?: TipPayload[];
+  label?: string;
+  paper: string;
+  border: string;
+  ink: string;
+  resolve: (p: TipPayload) => TipItem | null;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const items = payload.map(resolve).filter((it): it is TipItem => it !== null);
+  if (items.length === 0) return null;
+  return (
+    <div
+      style={{
+        background: paper,
+        border: `1px solid ${border}`,
+        borderRadius: 8,
+        padding: "6px 10px",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+        fontSize: 12,
+      }}
+    >
+      <div style={{ color: ink, fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      {items.map((it, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, lineHeight: "18px" }}>
+          <span style={{ width: 9, height: 9, borderRadius: 2, background: it.color, flex: "0 0 auto" }} />
+          <span style={{ color: ink }}>
+            {it.text}: <span style={{ fontWeight: 600 }}>{it.value}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /** Reactive light/dark detection (app uses prefers-color-scheme, no class toggle). */
@@ -323,23 +356,11 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
   const border = isDark ? "#3f3f46" : "#d4d4d8";
   const gridStroke = isDark ? "rgba(161,161,170,0.18)" : "rgba(63,63,70,0.14)";
   const plotFill = isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.015)";
-  const tooltipStyle = {
-    background: paper,
-    border: `1px solid ${border}`,
-    borderRadius: 8,
-    fontSize: 12,
-    color: ink,
-    padding: "6px 10px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-  };
-  const tooltipLabelStyle = { color: ink, fontWeight: 600, marginBottom: 2 };
-  const tooltipItemStyle = { color: ink };
 
-  // Crossover markers (book-style arrows) + callout anchor points.
+  // Crossover markers (book-style arrows) — the most recent cross per panel.
   const markers = useMemo(() => {
     if (rows.length < 2) return null;
     const last = rows.length - 1;
-    const pick = (f: number) => Math.min(last, Math.max(0, Math.floor(rows.length * f)));
     const priceC = lastCross(rows, "close", "sma");
     const macdC = lastZeroCross(rows, "hist");
     const stochC = lastCross(rows, "k", "d");
@@ -351,10 +372,6 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
       price: { date: rows[pIdx].date, y: rows[pIdx].close, dir: dir(priceC, arrows?.maArrow === "green") },
       macd: { date: rows[mIdx].date, y: 0, dir: dir(macdC, arrows?.macdArrow === "green") },
       stoch: { date: rows[sIdx].date, y: (rows[sIdx].k ?? 50) as number, dir: dir(stochC, arrows?.stochArrow === "green") },
-      priceLabel: rows[pick(0.3)],
-      maLabel: rows[pick(0.62)],
-      kLabel: rows[pick(0.45)],
-      dLabel: rows[pick(0.7)],
     };
   }, [rows, arrows]);
 
@@ -445,19 +462,23 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
               tickFormatter={(v: number) => formatMoney(v, cur, { maximumFractionDigits: v >= 100 ? 0 : 2 })}
             />
             <Tooltip
-              contentStyle={tooltipStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={(v: unknown, name: unknown) => [formatMoney(Number(v), cur), name === "sma" ? "Moving average" : "Stock price"]}
+              content={
+                <ChartTooltip
+                  paper={paper}
+                  border={border}
+                  ink={ink}
+                  resolve={(p) =>
+                    p.value == null
+                      ? null
+                      : p.dataKey === "sma"
+                        ? { text: "Moving average", color: COL.ma, value: formatMoney(Number(p.value), cur) }
+                        : { text: "Stock price", color: COL.price, value: formatMoney(Number(p.value), cur) }
+                  }
+                />
+              }
             />
             <Line type="monotone" dataKey="close" stroke={COL.price} strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="sma" stroke={COL.ma} strokeWidth={1.5} dot={false} connectNulls />
-            {markers && (
-              <ReferenceDot x={markers.priceLabel.date} y={markers.priceLabel.close} r={0} shape={calloutShape("Stock price", "up", ink, paper, border)} />
-            )}
-            {markers && (
-              <ReferenceDot x={markers.maLabel.date} y={(markers.maLabel.sma ?? markers.maLabel.close) as number} r={0} shape={calloutShape("Moving average", "down", ink, paper, border)} />
-            )}
             {markers && (
               <ReferenceDot x={markers.price.date} y={markers.price.y} r={0} shape={triangleShape(markers.price.dir, markers.price.dir === "up" ? COL.up : COL.down)} />
             )}
@@ -473,10 +494,18 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
             <YAxis tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} width={56} />
             <Tooltip
-              contentStyle={tooltipStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={(v: unknown) => [Number(v).toFixed(2), "Histogram"]}
+              content={
+                <ChartTooltip
+                  paper={paper}
+                  border={border}
+                  ink={ink}
+                  resolve={(p) =>
+                    p.value == null
+                      ? null
+                      : { text: "Histogram", color: Number(p.value) >= 0 ? COL.up : COL.down, value: Number(p.value).toFixed(2) }
+                  }
+                />
+              }
             />
             <ReferenceLine y={0} stroke={border} strokeWidth={1} />
             <Bar dataKey="hist" name="Histogram">
@@ -499,21 +528,25 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
             <YAxis domain={[0, 100]} ticks={[0, 20, 50, 80, 100]} tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} width={56} />
             <Tooltip
-              contentStyle={tooltipStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={(v: unknown, name: unknown) => [Number(v).toFixed(1), name === "%K" ? "Buy line (%K)" : "Sell line (%D)"]}
+              content={
+                <ChartTooltip
+                  paper={paper}
+                  border={border}
+                  ink={ink}
+                  resolve={(p) =>
+                    p.value == null
+                      ? null
+                      : p.dataKey === "k"
+                        ? { text: "Buy line (%K)", color: COL.k, value: Number(p.value).toFixed(1) }
+                        : { text: "Sell line (%D)", color: COL.d, value: Number(p.value).toFixed(1) }
+                  }
+                />
+              }
             />
             <ReferenceLine y={80} stroke={border} strokeDasharray="4 4" />
             <ReferenceLine y={20} stroke={border} strokeDasharray="4 4" />
             <Line type="monotone" dataKey="k" name="%K" stroke={COL.k} strokeWidth={2} dot={false} connectNulls />
             <Line type="monotone" dataKey="d" name="%D" stroke={COL.d} strokeWidth={1.5} dot={false} connectNulls />
-            {markers && (
-              <ReferenceDot x={markers.kLabel.date} y={(markers.kLabel.k ?? 50) as number} r={0} shape={calloutShape("Buy line", "up", ink, paper, border)} />
-            )}
-            {markers && (
-              <ReferenceDot x={markers.dLabel.date} y={(markers.dLabel.d ?? 50) as number} r={0} shape={calloutShape("Sell line", "down", ink, paper, border)} />
-            )}
             {markers && (
               <ReferenceDot x={markers.stoch.date} y={markers.stoch.y} r={0} shape={triangleShape(markers.stoch.dir, markers.stoch.dir === "up" ? COL.up : COL.down)} />
             )}
