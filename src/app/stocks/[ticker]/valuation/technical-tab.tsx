@@ -427,6 +427,7 @@ export function TechnicalTab({
   const lastClose = viewCloses[viewCloses.length - 1] ?? null;
   const periodChange = firstClose && lastClose ? ((lastClose - firstClose) / firstClose) * 100 : null;
   const periodUp = (periodChange ?? 0) >= 0;
+  const priceLineColor = periodUp ? "#22c55e" : "#ef4444";
   // Day change / headline price: prefer the live quote (matches the page header);
   // fall back to the last two daily closes of the full series.
   const allCloses = points.map((p) => p.close);
@@ -507,13 +508,62 @@ export function TechnicalTab({
         />
       </div>
 
-      {/* Stock price chart (hero) + 52-week context */}
+      {/* Dedicated stock price chart (hero) + period context */}
+      <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="mb-2 px-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{ticker}</p>
+          <p className="text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">Stock Price</p>
+        </div>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+              <CartesianGrid stroke={gridStroke} fill={plotFill} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
+              <YAxis
+                domain={["auto", "auto"]}
+                tick={{ fontSize: 10, fill: axisTick }}
+                tickLine={false}
+                axisLine={{ stroke: border }}
+                width={56}
+                tickFormatter={(v: number) => formatMoney(v, cur, { maximumFractionDigits: v >= 100 ? 0 : 2 })}
+              />
+              <Tooltip
+                content={
+                  <ChartTooltip
+                    paper={paper}
+                    border={border}
+                    ink={ink}
+                    resolve={(p) =>
+                      p.value == null ? null : { text: "Stock price", color: priceLineColor, value: formatMoney(Number(p.value), cur) }
+                    }
+                  />
+                }
+              />
+              {hiView !== null && <ReferenceLine y={hiView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
+              {loView !== null && <ReferenceLine y={loView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
+              <Line type="monotone" dataKey="close" stroke={priceLineColor} strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <StatCell label="Current" value={formatMoney(headlinePrice, cur)} />
+          <StatCell label={`${range} High`} value={formatMoney(hiView, cur)} />
+          <StatCell label={`${range} Low`} value={formatMoney(loView, cur)} />
+          <StatCell
+            label={`${range} Change`}
+            value={periodChange === null ? "—" : `${periodUp ? "+" : ""}${periodChange.toFixed(1)}%`}
+            color={periodChange === null ? undefined : periodUp ? "green" : "red"}
+          />
+        </div>
+      </div>
+
+      {/* Moving average and price history (price vs 10-day MA + crossover) */}
       <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 px-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{ticker}</p>
           <p className="text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">Moving Average and Price History</p>
         </div>
-        <div className="h-80">
+        <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
               <CartesianGrid stroke={gridStroke} fill={plotFill} />
@@ -542,8 +592,6 @@ export function TechnicalTab({
                   />
                 }
               />
-              {hiView !== null && <ReferenceLine y={hiView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
-              {loView !== null && <ReferenceLine y={loView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
               <Line type="monotone" dataKey="close" stroke={COL.price} strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="sma" stroke={COL.ma} strokeWidth={1.5} dot={false} connectNulls />
               {markers && (
@@ -551,16 +599,6 @@ export function TechnicalTab({
               )}
             </LineChart>
           </ResponsiveContainer>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatCell label="Current" value={formatMoney(headlinePrice, cur)} />
-          <StatCell label={`${range} High`} value={formatMoney(hiView, cur)} />
-          <StatCell label={`${range} Low`} value={formatMoney(loView, cur)} />
-          <StatCell
-            label={`${range} Change`}
-            value={periodChange === null ? "—" : `${periodUp ? "+" : ""}${periodChange.toFixed(1)}%`}
-            color={periodChange === null ? undefined : periodUp ? "green" : "red"}
-          />
         </div>
       </div>
 
@@ -637,7 +675,7 @@ export function TechnicalTab({
 
       <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
         Indicators computed from ~2 years of daily closes (Yahoo Finance), split-adjusted, and shown for the
-        selected window. Hover any panel to compare the same date across all three. The triangle marks the
+        selected window. Hover any panel to compare the same date across every chart. The triangle marks the
         most recent crossover — ▲ green for a bullish cross, ▼ red for bearish. MACD is shown as its histogram
         (MACD − signal); the moving-average arrow checks price against a rising 10-day SMA. Timing only — Phil
         Town uses these to decide <em>when</em> to act on a wonderful company already trading at or below its
