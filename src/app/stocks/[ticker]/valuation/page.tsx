@@ -415,7 +415,13 @@ export default function StockPage() {
         {tab === "sticker" && <StickerPriceTab ticker={ticker} />}
         {tab === "moat" && <MoatTab ticker={ticker} />}
         {tab === "timetravel" && <TimeTravelTab ticker={ticker} />}
-        {tab === "technical" && <TechnicalTab ticker={ticker} currency={quoteMeta?.currency} livePrice={livePrice} />}
+        {tab === "technical" && (
+          <div className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[1600px]">
+              <TechnicalTab ticker={ticker} currency={quoteMeta?.currency} livePrice={livePrice} />
+            </div>
+          </div>
+        )}
         {tab === "management" && <ManagementTab ticker={ticker} currency={quoteMeta?.currency} />}
         {tab === "valuation" && (
           <StockValuationView ticker={ticker} onReportGenerated={refreshInsights} />

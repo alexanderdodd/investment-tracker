@@ -28,8 +28,15 @@ const STOCH_PERIOD = 14;
 const STOCH_K = 5;
 const STOCH_D = 5;
 const SMA_PERIOD = 10;
-// Daily bars shown in the charts (~1 trading year; indicators computed over the full series).
-const VIEW_BARS = 260;
+// Selectable look-back windows. All use daily bars so the daily-tuned Rule #1
+// indicators stay comparable across periods. We always fetch 2 years of daily
+// closes (FETCH_RANGE) and compute indicators over the whole series, then slice
+// the view to the chosen window — so the left edge is always "warm" and the
+// period switch is instant (no refetch).
+const RANGES = ["3M", "6M", "1Y", "2Y"] as const;
+type RangeKey = (typeof RANGES)[number];
+const RANGE_DAYS: Record<RangeKey, number> = { "3M": 63, "6M": 126, "1Y": 252, "2Y": 504 };
+const FETCH_RANGE = "2y";
 
 // Line colors (kept from the app palette; the book uses ink/gray but we keep color).
 const COL = {
@@ -289,10 +296,11 @@ export function TechnicalTab({
   livePrice?: { price: number; previousClose: number | null } | null;
 }) {
   const [result, setResult] = useState<FetchResult | null>(null);
+  const [range, setRange] = useState<RangeKey>("1Y");
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/stocks/${ticker}/price?chart=true&range=1y`)
+    fetch(`/api/stocks/${ticker}/price?chart=true&range=${FETCH_RANGE}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Request failed (${r.status})`))))
       .then((json) => {
         if (cancelled) return;
@@ -337,10 +345,10 @@ export function TechnicalTab({
     return { macdArrow, stochArrow, maArrow, macd, signal, k, d, sma, price };
   }, [series, L, points]);
 
-  // Chart rows (recent window; indicators already computed over the full year)
+  // Chart rows (selected window; indicators already computed over the full series)
   const rows = useMemo<Row[]>(() => {
     if (!series) return [];
-    const start = Math.max(0, points.length - VIEW_BARS);
+    const start = Math.max(0, points.length - RANGE_DAYS[range]);
     return points.slice(start).map((p, idx) => {
       const i = start + idx;
       return {
@@ -354,7 +362,7 @@ export function TechnicalTab({
         d: series.d[i],
       };
     });
-  }, [series, points]);
+  }, [series, points, range]);
 
   // Theme-aware ink/paper for the book-style annotations & chart chrome.
   const isDark = useIsDark();
@@ -411,16 +419,18 @@ export function TechnicalTab({
         ? { title: "All three red", desc: "Distribution — stay out or sell into strength", color: "text-red-600 dark:text-red-400", badge: "border-red-500/40 bg-red-500/10", dot: "bg-red-500" }
         : { title: "Mixed signal", desc: "Wait for the arrows to align before acting", color: "text-amber-600 dark:text-amber-400", badge: "border-amber-500/40 bg-amber-500/10", dot: "bg-amber-500" };
 
-  // Price stats for the dashboard header/strip (from the loaded ~1y of closes).
-  const closes = points.map((p) => p.close);
-  const hi52 = closes.length ? Math.max(...closes) : null;
-  const lo52 = closes.length ? Math.min(...closes) : null;
-  const firstClose = closes[0] ?? null;
-  const lastClose = closes[closes.length - 1] ?? null;
-  const seriesPrev = closes.length > 1 ? closes[closes.length - 2] : null;
+  // Price stats over the selected window (from the viewed rows).
+  const viewCloses = rows.map((r) => r.close);
+  const hiView = viewCloses.length ? Math.max(...viewCloses) : null;
+  const loView = viewCloses.length ? Math.min(...viewCloses) : null;
+  const firstClose = viewCloses[0] ?? null;
+  const lastClose = viewCloses[viewCloses.length - 1] ?? null;
   const periodChange = firstClose && lastClose ? ((lastClose - firstClose) / firstClose) * 100 : null;
   const periodUp = (periodChange ?? 0) >= 0;
-  // Prefer the live quote (matches the page header); fall back to the last daily close.
+  // Day change / headline price: prefer the live quote (matches the page header);
+  // fall back to the last two daily closes of the full series.
+  const allCloses = points.map((p) => p.close);
+  const seriesPrev = allCloses.length > 1 ? allCloses[allCloses.length - 2] : null;
   const headlinePrice = livePrice?.price ?? lastClose;
   const headlinePrev = livePrice?.previousClose ?? seriesPrev;
   const dayChange = headlinePrev && headlinePrice ? ((headlinePrice - headlinePrev) / headlinePrev) * 100 : null;
@@ -428,6 +438,28 @@ export function TechnicalTab({
 
   return (
     <div className="space-y-5">
+      {/* Dashboard controls: timeframe selector */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          Technical dashboard <span className="font-normal text-zinc-400 dark:text-zinc-500">— Rule #1 timing tools</span>
+        </p>
+        <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white p-0.5 dark:border-zinc-800 dark:bg-zinc-900">
+          {RANGES.map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                range === r
+                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                  : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Dashboard summary: verdict + live price */}
       <div className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border px-6 py-4 ${verdict.badge}`}>
         <div className="flex items-center gap-3">
@@ -481,9 +513,9 @@ export function TechnicalTab({
           <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{ticker}</p>
           <p className="text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">Moving Average and Price History</p>
         </div>
-        <div className="h-72">
+        <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={rows} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+            <LineChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
               <CartesianGrid stroke={gridStroke} fill={plotFill} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
               <YAxis
@@ -510,8 +542,8 @@ export function TechnicalTab({
                   />
                 }
               />
-              {hi52 !== null && <ReferenceLine y={hi52} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
-              {lo52 !== null && <ReferenceLine y={lo52} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
+              {hiView !== null && <ReferenceLine y={hiView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
+              {loView !== null && <ReferenceLine y={loView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
               <Line type="monotone" dataKey="close" stroke={COL.price} strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="sma" stroke={COL.ma} strokeWidth={1.5} dot={false} connectNulls />
               {markers && (
@@ -522,10 +554,10 @@ export function TechnicalTab({
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatCell label="Current" value={formatMoney(headlinePrice, cur)} />
-          <StatCell label="52W High" value={formatMoney(hi52, cur)} />
-          <StatCell label="52W Low" value={formatMoney(lo52, cur)} />
+          <StatCell label={`${range} High`} value={formatMoney(hiView, cur)} />
+          <StatCell label={`${range} Low`} value={formatMoney(loView, cur)} />
           <StatCell
-            label="1Y Change"
+            label={`${range} Change`}
             value={periodChange === null ? "—" : `${periodUp ? "+" : ""}${periodChange.toFixed(1)}%`}
             color={periodChange === null ? undefined : periodUp ? "green" : "red"}
           />
@@ -537,7 +569,7 @@ export function TechnicalTab({
       {/* MACD 8-17-9 — histogram (book layout) */}
       <ChartCard title="MACD" subtitle={`(${MACD_FAST}, ${MACD_SLOW}, ${MACD_SIGNAL})`}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+          <ComposedChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
             <CartesianGrid stroke={gridStroke} fill={plotFill} />
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
             <YAxis tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} width={56} />
@@ -571,7 +603,7 @@ export function TechnicalTab({
       {/* Stochastic 14-5-5 */}
       <ChartCard title="Stochastic" subtitle={`(${STOCH_PERIOD}, ${STOCH_K}, ${STOCH_D})`}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+          <LineChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
             <CartesianGrid stroke={gridStroke} fill={plotFill} />
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
             <YAxis domain={[0, 100]} ticks={[0, 20, 50, 80, 100]} tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} width={56} />
@@ -604,11 +636,12 @@ export function TechnicalTab({
       </div>
 
       <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-        Indicators computed from ~1 year of daily closes (Yahoo Finance), split-adjusted. The triangle on
-        each panel marks the most recent crossover — ▲ green for a bullish cross, ▼ red for bearish. MACD is
-        shown as its histogram (MACD − signal); the moving-average arrow checks price against a rising 10-day
-        SMA. Timing only — Phil Town uses these to decide <em>when</em> to act on a wonderful company already
-        trading at or below its Margin of Safety, never as a standalone buy signal.
+        Indicators computed from ~2 years of daily closes (Yahoo Finance), split-adjusted, and shown for the
+        selected window. Hover any panel to compare the same date across all three. The triangle marks the
+        most recent crossover — ▲ green for a bullish cross, ▼ red for bearish. MACD is shown as its histogram
+        (MACD − signal); the moving-average arrow checks price against a rising 10-day SMA. Timing only — Phil
+        Town uses these to decide <em>when</em> to act on a wonderful company already trading at or below its
+        Margin of Safety, never as a standalone buy signal.
       </p>
     </div>
   );
