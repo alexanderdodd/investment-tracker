@@ -28,8 +28,8 @@ const STOCH_PERIOD = 14;
 const STOCH_K = 5;
 const STOCH_D = 5;
 const SMA_PERIOD = 10;
-// Daily bars shown in the charts (indicators are computed over the full year).
-const VIEW_BARS = 160;
+// Daily bars shown in the charts (~1 trading year; indicators computed over the full series).
+const VIEW_BARS = 260;
 
 // Line colors (kept from the app palette; the book uses ink/gray but we keep color).
 const COL = {
@@ -279,7 +279,15 @@ interface FetchResult {
   error: string | null;
 }
 
-export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: string | null }) {
+export function TechnicalTab({
+  ticker,
+  currency,
+  livePrice,
+}: {
+  ticker: string;
+  currency?: string | null;
+  livePrice?: { price: number; previousClose: number | null } | null;
+}) {
   const [result, setResult] = useState<FetchResult | null>(null);
 
   useEffect(() => {
@@ -398,94 +406,134 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
   const greens = [arrows.macdArrow, arrows.stochArrow, arrows.maArrow].filter((a) => a === "green").length;
   const verdict =
     greens === 3
-      ? { label: "All three green — Rule #1 buy timing", color: "text-emerald-600 dark:text-emerald-400", badge: "border-emerald-500/40 bg-emerald-500/10" }
+      ? { title: "All three green", desc: "Rule #1 buy timing — the big money is moving in", color: "text-emerald-600 dark:text-emerald-400", badge: "border-emerald-500/40 bg-emerald-500/10", dot: "bg-emerald-500" }
       : greens === 0
-        ? { label: "All three red — distribution, stay out / sell", color: "text-red-600 dark:text-red-400", badge: "border-red-500/40 bg-red-500/10" }
-        : { label: "Mixed — no clear signal, wait for the arrows to align", color: "text-amber-600 dark:text-amber-400", badge: "border-amber-500/40 bg-amber-500/10" };
+        ? { title: "All three red", desc: "Distribution — stay out or sell into strength", color: "text-red-600 dark:text-red-400", badge: "border-red-500/40 bg-red-500/10", dot: "bg-red-500" }
+        : { title: "Mixed signal", desc: "Wait for the arrows to align before acting", color: "text-amber-600 dark:text-amber-400", badge: "border-amber-500/40 bg-amber-500/10", dot: "bg-amber-500" };
+
+  // Price stats for the dashboard header/strip (from the loaded ~1y of closes).
+  const closes = points.map((p) => p.close);
+  const hi52 = closes.length ? Math.max(...closes) : null;
+  const lo52 = closes.length ? Math.min(...closes) : null;
+  const firstClose = closes[0] ?? null;
+  const lastClose = closes[closes.length - 1] ?? null;
+  const seriesPrev = closes.length > 1 ? closes[closes.length - 2] : null;
+  const periodChange = firstClose && lastClose ? ((lastClose - firstClose) / firstClose) * 100 : null;
+  const periodUp = (periodChange ?? 0) >= 0;
+  // Prefer the live quote (matches the page header); fall back to the last daily close.
+  const headlinePrice = livePrice?.price ?? lastClose;
+  const headlinePrev = livePrice?.previousClose ?? seriesPrev;
+  const dayChange = headlinePrev && headlinePrice ? ((headlinePrice - headlinePrev) / headlinePrev) * 100 : null;
+  const dayUp = (dayChange ?? 0) >= 0;
 
   return (
-    <div className="space-y-6">
-      {/* Verdict + three arrows */}
-      <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-5">
+      {/* Dashboard summary: verdict + live price */}
+      <div className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border px-6 py-4 ${verdict.badge}`}>
+        <div className="flex items-center gap-3">
+          <span className={`h-2.5 w-2.5 rounded-full ${verdict.dot}`} />
           <div>
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              The Three Tools <span className="font-normal text-zinc-400 dark:text-zinc-500">— Rule #1 timing (daily)</span>
-            </h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              MACD {MACD_FAST}-{MACD_SLOW}-{MACD_SIGNAL} · Stochastic {STOCH_PERIOD}-{STOCH_K}-{STOCH_D} · {SMA_PERIOD}-day MA
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Rule #1 timing · {greens}/3 tools bullish
             </p>
-          </div>
-          <div className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${verdict.badge} ${verdict.color}`}>
-            {verdict.label}
+            <p className={`text-base font-bold ${verdict.color}`}>{verdict.title}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{verdict.desc}</p>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <ArrowChip
-            name="MACD"
-            arrow={arrows.macdArrow}
-            detail={arrows.macdArrow === "green" ? "MACD above signal" : "MACD below signal"}
-            values={`${arrows.macd.toFixed(2)} vs ${arrows.signal.toFixed(2)}`}
-          />
-          <ArrowChip
-            name="Stochastic"
-            arrow={arrows.stochArrow}
-            detail={arrows.stochArrow === "green" ? "%K above %D" : "%K below %D"}
-            values={`%K ${arrows.k.toFixed(0)} · %D ${arrows.d.toFixed(0)}`}
-          />
-          <ArrowChip
-            name={`${SMA_PERIOD}-day MA`}
-            arrow={arrows.maArrow}
-            detail={arrows.maArrow === "green" ? "Price above rising MA" : "Price below MA"}
-            values={`${formatMoney(arrows.price, cur)} vs ${formatMoney(arrows.sma, cur)}`}
-          />
+        <div className="text-right">
+          <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{formatMoney(headlinePrice, cur)}</p>
+          {dayChange !== null && (
+            <p className={`text-sm font-medium ${dayUp ? "text-emerald-500" : "text-red-500"}`}>
+              {dayUp ? "+" : ""}{dayChange.toFixed(2)}% <span className="font-normal text-zinc-400 dark:text-zinc-500">today</span>
+            </p>
+          )}
         </div>
-        <p className="mt-4 rounded-xl bg-zinc-50 px-4 py-2.5 text-[11px] leading-relaxed text-zinc-500 dark:bg-zinc-800/50 dark:text-zinc-400">
-          Timing only. Phil Town uses these to decide <em>when</em> to act on a company he&apos;s already
-          confirmed is wonderful and trading at or below its Margin of Safety — never as a standalone
-          buy signal. Green arrows suggest institutions are accumulating; red, distributing.
-        </p>
       </div>
 
-      {/* Moving average and price history */}
-      <ChartCard eyebrow={ticker} title="Moving Average and Price History">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
-            <CartesianGrid stroke={gridStroke} fill={plotFill} />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
-            <YAxis
-              domain={["auto", "auto"]}
-              tick={{ fontSize: 10, fill: axisTick }}
-              tickLine={false}
-              axisLine={{ stroke: border }}
-              width={56}
-              tickFormatter={(v: number) => formatMoney(v, cur, { maximumFractionDigits: v >= 100 ? 0 : 2 })}
-            />
-            <Tooltip
-              content={
-                <ChartTooltip
-                  paper={paper}
-                  border={border}
-                  ink={ink}
-                  resolve={(p) =>
-                    p.value == null
-                      ? null
-                      : p.dataKey === "sma"
-                        ? { text: "Moving average", color: COL.ma, value: formatMoney(Number(p.value), cur) }
-                        : { text: "Stock price", color: COL.price, value: formatMoney(Number(p.value), cur) }
-                  }
-                />
-              }
-            />
-            <Line type="monotone" dataKey="close" stroke={COL.price} strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="sma" stroke={COL.ma} strokeWidth={1.5} dot={false} connectNulls />
-            {markers && (
-              <ReferenceDot x={markers.price.date} y={markers.price.y} r={0} shape={triangleShape(markers.price.dir, markers.price.dir === "up" ? COL.up : COL.down)} />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      {/* Signal tiles */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <ArrowChip
+          name="MACD"
+          sub={`${MACD_FAST}-${MACD_SLOW}-${MACD_SIGNAL}`}
+          arrow={arrows.macdArrow}
+          detail={arrows.macdArrow === "green" ? "MACD above signal" : "MACD below signal"}
+          values={`${arrows.macd.toFixed(2)} vs ${arrows.signal.toFixed(2)}`}
+        />
+        <ArrowChip
+          name="Stochastic"
+          sub={`${STOCH_PERIOD}-${STOCH_K}-${STOCH_D}`}
+          arrow={arrows.stochArrow}
+          detail={arrows.stochArrow === "green" ? "%K above %D" : "%K below %D"}
+          values={`%K ${arrows.k.toFixed(0)} · %D ${arrows.d.toFixed(0)}`}
+        />
+        <ArrowChip
+          name={`${SMA_PERIOD}-day MA`}
+          sub="Trend"
+          arrow={arrows.maArrow}
+          detail={arrows.maArrow === "green" ? "Price above rising MA" : "Price below MA"}
+          values={`${formatMoney(arrows.price, cur)} vs ${formatMoney(arrows.sma, cur)}`}
+        />
+      </div>
 
+      {/* Stock price chart (hero) + 52-week context */}
+      <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="mb-2 px-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{ticker}</p>
+          <p className="text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">Moving Average and Price History</p>
+        </div>
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={rows} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+              <CartesianGrid stroke={gridStroke} fill={plotFill} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
+              <YAxis
+                domain={["auto", "auto"]}
+                tick={{ fontSize: 10, fill: axisTick }}
+                tickLine={false}
+                axisLine={{ stroke: border }}
+                width={56}
+                tickFormatter={(v: number) => formatMoney(v, cur, { maximumFractionDigits: v >= 100 ? 0 : 2 })}
+              />
+              <Tooltip
+                content={
+                  <ChartTooltip
+                    paper={paper}
+                    border={border}
+                    ink={ink}
+                    resolve={(p) =>
+                      p.value == null
+                        ? null
+                        : p.dataKey === "sma"
+                          ? { text: "Moving average", color: COL.ma, value: formatMoney(Number(p.value), cur) }
+                          : { text: "Stock price", color: COL.price, value: formatMoney(Number(p.value), cur) }
+                    }
+                  />
+                }
+              />
+              {hi52 !== null && <ReferenceLine y={hi52} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
+              {lo52 !== null && <ReferenceLine y={lo52} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
+              <Line type="monotone" dataKey="close" stroke={COL.price} strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="sma" stroke={COL.ma} strokeWidth={1.5} dot={false} connectNulls />
+              {markers && (
+                <ReferenceDot x={markers.price.date} y={markers.price.y} r={0} shape={triangleShape(markers.price.dir, markers.price.dir === "up" ? COL.up : COL.down)} />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <StatCell label="Current" value={formatMoney(headlinePrice, cur)} />
+          <StatCell label="52W High" value={formatMoney(hi52, cur)} />
+          <StatCell label="52W Low" value={formatMoney(lo52, cur)} />
+          <StatCell
+            label="1Y Change"
+            value={periodChange === null ? "—" : `${periodUp ? "+" : ""}${periodChange.toFixed(1)}%`}
+            color={periodChange === null ? undefined : periodUp ? "green" : "red"}
+          />
+        </div>
+      </div>
+
+      {/* Indicator panels */}
+      <div className="grid gap-5 lg:grid-cols-2">
       {/* MACD 8-17-9 — histogram (book layout) */}
       <ChartCard title="MACD" subtitle={`(${MACD_FAST}, ${MACD_SLOW}, ${MACD_SIGNAL})`}>
         <ResponsiveContainer width="100%" height="100%">
@@ -553,18 +601,33 @@ export function TechnicalTab({ ticker, currency }: { ticker: string; currency?: 
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
+      </div>
 
       <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
         Indicators computed from ~1 year of daily closes (Yahoo Finance), split-adjusted. The triangle on
         each panel marks the most recent crossover — ▲ green for a bullish cross, ▼ red for bearish. MACD is
         shown as its histogram (MACD − signal); the moving-average arrow checks price against a rising 10-day
-        SMA. These are the settings Phil Town specifies in <em>Rule #1</em>.
+        SMA. Timing only — Phil Town uses these to decide <em>when</em> to act on a wonderful company already
+        trading at or below its Margin of Safety, never as a standalone buy signal.
       </p>
     </div>
   );
 }
 
-function ArrowChip({ name, arrow, detail, values }: { name: string; arrow: Arrow; detail: string; values: string }) {
+function StatCell({ label, value, color }: { label: string; value: string; color?: "green" | "red" }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-800/40">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{label}</p>
+      <p className={`mt-0.5 text-sm font-semibold ${
+        color === "green" ? "text-emerald-500" : color === "red" ? "text-red-500" : "text-zinc-900 dark:text-zinc-100"
+      }`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ArrowChip({ name, sub, arrow, detail, values }: { name: string; sub?: string; arrow: Arrow; detail: string; values: string }) {
   const green = arrow === "green";
   return (
     <div
@@ -576,7 +639,10 @@ function ArrowChip({ name, arrow, detail, values }: { name: string; arrow: Arrow
         {green ? "▲" : "▼"}
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{name}</p>
+        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {name}
+          {sub && <span className="ml-1.5 text-[11px] font-normal text-zinc-400 dark:text-zinc-500">{sub}</span>}
+        </p>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{detail}</p>
         <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{values}</p>
       </div>
