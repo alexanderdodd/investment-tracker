@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -193,6 +193,37 @@ function lastZeroCross(rows: Row[], key: keyof Row): Cross | null {
   return last;
 }
 
+/** The three Rule #1 signals + values as of a single bar (for the top metrics). */
+interface Reading {
+  macdArrow: Arrow;
+  stochArrow: Arrow;
+  maArrow: Arrow;
+  macd: number;
+  signal: number;
+  k: number;
+  d: number;
+  sma: number;
+  price: number;
+  change: number | null;
+  date: string;
+}
+
+/** Compute the buy/sell reading at a given bar index (null if indicators warming). */
+function readingAt(rows: Row[], i: number): Reading | null {
+  const r = rows[i];
+  if (!r) return null;
+  const { close, sma, macd, signal, k, d } = r;
+  if (macd == null || signal == null || k == null || d == null || sma == null) return null;
+  const prev = rows[i - 1];
+  const smaPrev = prev?.sma ?? null;
+  const closePrev = prev?.close ?? null;
+  const macdArrow: Arrow = macd > signal ? "green" : "red";
+  const stochArrow: Arrow = k > d ? "green" : "red";
+  const maArrow: Arrow = close > sma && (smaPrev == null || sma >= smaPrev) ? "green" : "red";
+  const change = closePrev ? ((close - closePrev) / closePrev) * 100 : null;
+  return { macdArrow, stochArrow, maArrow, macd, signal, k, d, sma, price: close, change, date: r.date };
+}
+
 type DotShapeProps = { cx?: number; cy?: number };
 
 /** Filled triangle marker (▲/▼) for a ReferenceDot — flags the crossover. */
@@ -297,6 +328,18 @@ export function TechnicalTab({
 }) {
   const [result, setResult] = useState<FetchResult | null>(null);
   const [range, setRange] = useState<RangeKey>("1Y");
+  // Bar index currently hovered on any chart — drives the top metrics.
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  // Recharts fires this per hovered bar (shared across the synced charts).
+  // activeTooltipIndex can be a number or a numeric string depending on version.
+  const onChartMove = useCallback((state: unknown) => {
+    const raw = (state as { activeTooltipIndex?: number | string | null } | null)?.activeTooltipIndex;
+    const n = typeof raw === "string" ? Number(raw) : raw;
+    const next = typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : null;
+    setHoverIndex((prev) => (prev === next ? prev : next));
+  }, []);
+  const onChartLeave = useCallback(() => setHoverIndex(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -400,7 +443,9 @@ export function TechnicalTab({
     );
   }
 
-  if (result?.error || points.length === 0 || !arrows) {
+  const latestReading = readingAt(rows, rows.length - 1);
+
+  if (result?.error || points.length === 0 || !arrows || !latestReading) {
     return (
       <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-16 text-center dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-zinc-500 dark:text-zinc-400">Technical analysis isn&apos;t available for {ticker}.</p>
@@ -411,7 +456,12 @@ export function TechnicalTab({
     );
   }
 
-  const greens = [arrows.macdArrow, arrows.stochArrow, arrows.maArrow].filter((a) => a === "green").length;
+  // Top metrics reflect the hovered bar (if any), else the latest reading.
+  const hoverReading = hoverIndex != null ? readingAt(rows, hoverIndex) : null;
+  const active = hoverReading ?? latestReading;
+  const isHover = hoverReading != null;
+
+  const greens = [active.macdArrow, active.stochArrow, active.maArrow].filter((a) => a === "green").length;
   const verdict =
     greens === 3
       ? { title: "All three green", desc: "Rule #1 buy timing — the big money is moving in", color: "text-emerald-600 dark:text-emerald-400", badge: "border-emerald-500/40 bg-emerald-500/10", dot: "bg-emerald-500" }
@@ -435,7 +485,11 @@ export function TechnicalTab({
   const headlinePrice = livePrice?.price ?? lastClose;
   const headlinePrev = livePrice?.previousClose ?? seriesPrev;
   const dayChange = headlinePrev && headlinePrice ? ((headlinePrice - headlinePrev) / headlinePrev) * 100 : null;
-  const dayUp = (dayChange ?? 0) >= 0;
+  // Banner price/change: hovered bar when scrubbing, else the live/latest quote.
+  const bannerPrice = isHover ? active.price : headlinePrice;
+  const bannerChange = isHover ? active.change : dayChange;
+  const bannerUp = (bannerChange ?? 0) >= 0;
+  const bannerWhen = isHover ? active.date : "today";
 
   return (
     <div className="space-y-5">
@@ -448,7 +502,7 @@ export function TechnicalTab({
           {RANGES.map((r) => (
             <button
               key={r}
-              onClick={() => setRange(r)}
+              onClick={() => { setRange(r); setHoverIndex(null); }}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 range === r
                   ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
@@ -467,17 +521,17 @@ export function TechnicalTab({
           <span className={`h-2.5 w-2.5 rounded-full ${verdict.dot}`} />
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-              Rule #1 timing · {greens}/3 tools bullish
+              Rule #1 timing · {greens}/3 tools bullish{isHover && <span className="text-zinc-400 dark:text-zinc-500"> · as of {active.date}</span>}
             </p>
             <p className={`text-base font-bold ${verdict.color}`}>{verdict.title}</p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">{verdict.desc}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{formatMoney(headlinePrice, cur)}</p>
-          {dayChange !== null && (
-            <p className={`text-sm font-medium ${dayUp ? "text-emerald-500" : "text-red-500"}`}>
-              {dayUp ? "+" : ""}{dayChange.toFixed(2)}% <span className="font-normal text-zinc-400 dark:text-zinc-500">today</span>
+          <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{formatMoney(bannerPrice, cur)}</p>
+          {bannerChange !== null && (
+            <p className={`text-sm font-medium ${bannerUp ? "text-emerald-500" : "text-red-500"}`}>
+              {bannerUp ? "+" : ""}{bannerChange.toFixed(2)}% <span className="font-normal text-zinc-400 dark:text-zinc-500">{bannerWhen}</span>
             </p>
           )}
         </div>
@@ -488,23 +542,23 @@ export function TechnicalTab({
         <ArrowChip
           name="MACD"
           sub={`${MACD_FAST}-${MACD_SLOW}-${MACD_SIGNAL}`}
-          arrow={arrows.macdArrow}
-          detail={arrows.macdArrow === "green" ? "MACD above signal" : "MACD below signal"}
-          values={`${arrows.macd.toFixed(2)} vs ${arrows.signal.toFixed(2)}`}
+          arrow={active.macdArrow}
+          detail={active.macdArrow === "green" ? "MACD above signal" : "MACD below signal"}
+          values={`${active.macd.toFixed(2)} vs ${active.signal.toFixed(2)}`}
         />
         <ArrowChip
           name="Stochastic"
           sub={`${STOCH_PERIOD}-${STOCH_K}-${STOCH_D}`}
-          arrow={arrows.stochArrow}
-          detail={arrows.stochArrow === "green" ? "%K above %D" : "%K below %D"}
-          values={`%K ${arrows.k.toFixed(0)} · %D ${arrows.d.toFixed(0)}`}
+          arrow={active.stochArrow}
+          detail={active.stochArrow === "green" ? "%K above %D" : "%K below %D"}
+          values={`%K ${active.k.toFixed(0)} · %D ${active.d.toFixed(0)}`}
         />
         <ArrowChip
           name={`${SMA_PERIOD}-day MA`}
           sub="Trend"
-          arrow={arrows.maArrow}
-          detail={arrows.maArrow === "green" ? "Price above rising MA" : "Price below MA"}
-          values={`${formatMoney(arrows.price, cur)} vs ${formatMoney(arrows.sma, cur)}`}
+          arrow={active.maArrow}
+          detail={active.maArrow === "green" ? "Price above rising MA" : "Price below MA"}
+          values={`${formatMoney(active.price, cur)} vs ${formatMoney(active.sma, cur)}`}
         />
       </div>
 
@@ -516,7 +570,7 @@ export function TechnicalTab({
         </div>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+            <LineChart data={rows} syncId="tech-dash" onMouseMove={onChartMove} onMouseLeave={onChartLeave} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
               <CartesianGrid stroke={gridStroke} fill={plotFill} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
               <YAxis
@@ -565,7 +619,7 @@ export function TechnicalTab({
         </div>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+            <LineChart data={rows} syncId="tech-dash" onMouseMove={onChartMove} onMouseLeave={onChartLeave} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
               <CartesianGrid stroke={gridStroke} fill={plotFill} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
               <YAxis
@@ -607,7 +661,7 @@ export function TechnicalTab({
       {/* MACD 8-17-9 — histogram (book layout) */}
       <ChartCard title="MACD" subtitle={`(${MACD_FAST}, ${MACD_SLOW}, ${MACD_SIGNAL})`}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+          <ComposedChart data={rows} syncId="tech-dash" onMouseMove={onChartMove} onMouseLeave={onChartLeave} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
             <CartesianGrid stroke={gridStroke} fill={plotFill} />
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
             <YAxis tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} width={56} />
@@ -641,7 +695,7 @@ export function TechnicalTab({
       {/* Stochastic 14-5-5 */}
       <ChartCard title="Stochastic" subtitle={`(${STOCH_PERIOD}, ${STOCH_K}, ${STOCH_D})`}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows} syncId="tech-dash" margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
+          <LineChart data={rows} syncId="tech-dash" onMouseMove={onChartMove} onMouseLeave={onChartLeave} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
             <CartesianGrid stroke={gridStroke} fill={plotFill} />
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} minTickGap={40} />
             <YAxis domain={[0, 100]} ticks={[0, 20, 50, 80, 100]} tick={{ fontSize: 10, fill: axisTick }} tickLine={false} axisLine={{ stroke: border }} width={56} />
