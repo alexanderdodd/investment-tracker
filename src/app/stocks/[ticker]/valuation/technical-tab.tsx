@@ -16,6 +16,7 @@ import {
   ReferenceDot,
 } from "recharts";
 import { formatMoney } from "@/lib/currency";
+import { computeSticker, defaultGrowthRate } from "@/lib/rule-one";
 
 // Phil Town's "three tools" (Rule #1) with his configurations:
 //   MACD 8-17-9, Stochastic 14-5-5, Simple Moving Average 10.
@@ -317,6 +318,15 @@ interface FetchResult {
   error: string | null;
 }
 
+// Minimal shape of the sticker-price API needed to recompute the sticker here.
+interface StickerInputs {
+  available: boolean;
+  eps: number | null;
+  analystGrowth: number | null;
+  equityGrowth: { value: number } | null;
+  historicalHighPe: number | null;
+}
+
 export function TechnicalTab({
   ticker,
   currency,
@@ -361,6 +371,26 @@ export function TechnicalTab({
       cancelled = true;
     };
   }, [ticker, currency]);
+
+  // Our calculated Rule #1 sticker price (fair value) + margin-of-safety buy price.
+  const [sticker, setSticker] = useState<StickerInputs | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/stocks/${ticker}/sticker-price`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled) setSticker(j);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [ticker]);
+  const stickerCalc = useMemo(() => {
+    if (!sticker || !sticker.available) return null;
+    const g = defaultGrowthRate(sticker.equityGrowth?.value, sticker.analystGrowth);
+    return computeSticker(sticker.eps, g, sticker.historicalHighPe);
+  }, [sticker]);
 
   const loading = result?.ticker !== ticker;
   const points = useMemo(() => result?.points ?? [], [result]);
@@ -562,13 +592,15 @@ export function TechnicalTab({
         />
       </div>
 
-      {/* Dedicated stock price chart (hero) + period context */}
-      <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+      {/* Chart dashboard: 2×2 grid — price | MA over MACD | Stochastic */}
+      <div className="grid gap-5 lg:grid-cols-2">
+      {/* Dedicated stock price chart + period context */}
+      <div className="flex h-full flex-col rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 px-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{ticker}</p>
           <p className="text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">Stock Price</p>
         </div>
-        <div className="h-80">
+        <div className="min-h-[18rem] flex-1">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={rows} syncId="tech-dash" onMouseMove={onChartMove} onMouseLeave={onChartLeave} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
               <CartesianGrid stroke={gridStroke} fill={plotFill} />
@@ -596,6 +628,16 @@ export function TechnicalTab({
               {hiView !== null && <ReferenceLine y={hiView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
               {loView !== null && <ReferenceLine y={loView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
               <Line type="monotone" dataKey="close" stroke={priceLineColor} strokeWidth={2} dot={false} />
+              {stickerCalc && (
+                <ReferenceLine
+                  y={stickerCalc.sticker}
+                  stroke="#a855f7"
+                  strokeWidth={1.5}
+                  strokeDasharray="6 4"
+                  ifOverflow="extendDomain"
+                  label={{ value: `Sticker ${formatMoney(stickerCalc.sticker, cur)}`, position: "insideTopLeft", fill: "#a855f7", fontSize: 10, fontWeight: 600 }}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -612,12 +654,12 @@ export function TechnicalTab({
       </div>
 
       {/* Moving average and price history (price vs 10-day MA + crossover) */}
-      <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex h-full flex-col rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 px-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{ticker}</p>
           <p className="text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">Moving Average and Price History</p>
         </div>
-        <div className="h-72">
+        <div className="min-h-[18rem] flex-1">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={rows} syncId="tech-dash" onMouseMove={onChartMove} onMouseLeave={onChartLeave} margin={{ top: 10, right: 18, bottom: 0, left: 8 }}>
               <CartesianGrid stroke={gridStroke} fill={plotFill} />
@@ -656,8 +698,6 @@ export function TechnicalTab({
         </div>
       </div>
 
-      {/* Indicator panels */}
-      <div className="grid gap-5 lg:grid-cols-2">
       {/* MACD 8-17-9 — histogram (book layout) */}
       <ChartCard title="MACD" subtitle={`(${MACD_FAST}, ${MACD_SLOW}, ${MACD_SIGNAL})`}>
         <ResponsiveContainer width="100%" height="100%">
@@ -787,7 +827,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="flex h-full flex-col rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-2 px-2">
         {eyebrow && (
           <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{eyebrow}</p>
@@ -797,7 +837,7 @@ function ChartCard({
           {subtitle && <span className="ml-1.5 font-normal normal-case tracking-normal text-zinc-400 dark:text-zinc-500">{subtitle}</span>}
         </p>
       </div>
-      <div className="h-56">{children}</div>
+      <div className="min-h-[16rem] flex-1">{children}</div>
     </div>
   );
 }
