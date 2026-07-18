@@ -49,6 +49,11 @@ export interface StickerPriceInputs {
   /** Fiscal-year-end month name (e.g. "September") — lets clients date each
    *  FY's ~annual report for a rolling historical sticker */
   fiscalYearEndMonth: string | null;
+  /** Per-fiscal-year diluted EPS in the FILING currency (positive years only,
+   *  split-adjusted). Sticker ∝ EPS with growth & P/E held constant, so the
+   *  ratio to the latest year gives a rolling sticker even for cross-currency
+   *  filers (e.g. a PLN filer quoting in EUR) where the currency cancels. */
+  epsHistory: { fiscalYear: number; eps: number }[];
   peYearsUsed: YearlyPe[];
   /** Last monthly close within each fiscal year — lets the Time Travel tab
    *  compare a past sticker price with the price back then */
@@ -221,6 +226,12 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
   }
   const historicalHighPe = median(peYearsUsed.map((y) => y.highPe));
 
+  // Per-FY diluted EPS in filing currency (positive years only) for the rolling
+  // sticker's EPS-ratio scaling — works regardless of filing/quote currency.
+  const epsHistory = (payload?.years ?? [])
+    .filter((y): y is typeof y & { epsDiluted: number } => y.epsDiluted !== null && y.epsDiluted > 0)
+    .map((y) => ({ fiscalYear: y.fiscalYear, eps: y.epsDiluted }));
+
   const available = eps !== null && eps > 0;
   const unavailableReason = !available
     ? eps === null
@@ -243,6 +254,7 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
     equityGrowth,
     historicalHighPe,
     fiscalYearEndMonth: payload?.fiscalYearEndMonth ?? null,
+    epsHistory,
     peYearsUsed,
     yearEndPrices,
   };

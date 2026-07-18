@@ -327,7 +327,7 @@ interface StickerInputs {
   equityGrowth: { value: number } | null;
   historicalHighPe: number | null;
   fiscalYearEndMonth: string | null;
-  peYearsUsed: { fiscalYear: number; eps: number }[];
+  epsHistory: { fiscalYear: number; eps: number }[];
 }
 
 const MONTH_NUM: Record<string, number> = {
@@ -401,27 +401,28 @@ export function TechnicalTab({
       cancelled = true;
     };
   }, [ticker]);
-  // Rolling sticker: hold growth & historical P/E at today's values and vary the
-  // (annual) EPS. Each fiscal year's filed EPS gives a sticker that applies from
-  // that year's ~report date; the current segment (after the latest report) uses
-  // today's TTM sticker so the right edge matches the Sticker Price tab.
+  // Rolling sticker: the sticker is proportional to EPS when growth & P/E are
+  // held at today's values, so scale today's (quote-currency) sticker by the
+  // ratio of each fiscal year's EPS to the latest year's. The ratio cancels the
+  // filing currency, so this also works for cross-currency filers (e.g. a PLN
+  // filer quoting in EUR). Each step applies from that FY's ~report date; the
+  // current segment uses today's sticker so the right edge matches the tab.
   const rollingSticker = useMemo(() => {
     if (!sticker || !sticker.available) return null;
     const g = defaultGrowthRate(sticker.equityGrowth?.value, sticker.analystGrowth);
     const current = computeSticker(sticker.eps, g, sticker.historicalHighPe)?.sticker ?? null;
+    if (current === null) return null;
+    const hist = (sticker.epsHistory ?? []).slice().sort((a, b) => a.fiscalYear - b.fiscalYear);
+    if (hist.length === 0) return { current, at: () => current };
     const fyEndMonth = MONTH_NUM[sticker.fiscalYearEndMonth ?? "December"] ?? 12;
-    const steps = (sticker.peYearsUsed ?? [])
-      .filter((y) => y.eps > 0)
-      .map((y) => {
-        const s = computeSticker(y.eps, g, sticker.historicalHighPe)?.sticker ?? null;
-        return s === null ? null : { reportTs: fyReportTs(y.fiscalYear, fyEndMonth), value: s };
-      })
-      .filter((s): s is { reportTs: number; value: number } => s !== null)
-      .sort((a, b) => a.reportTs - b.reportTs);
-    if (current === null && steps.length === 0) return null;
-    const lastReportTs = steps.length ? steps[steps.length - 1].reportTs : -Infinity;
+    const latestEps = hist[hist.length - 1].eps;
+    const latestReportTs = fyReportTs(hist[hist.length - 1].fiscalYear, fyEndMonth);
+    const steps = hist.map((h) => ({
+      reportTs: fyReportTs(h.fiscalYear, fyEndMonth),
+      value: current * (h.eps / latestEps),
+    }));
     const at = (tsSec: number): number | null => {
-      if (current !== null && tsSec >= lastReportTs) return current;
+      if (tsSec >= latestReportTs) return current;
       let v: number | null = null;
       for (const s of steps) {
         if (s.reportTs <= tsSec) v = s.value;
