@@ -46,6 +46,9 @@ export interface StickerPriceInputs {
   equityGrowth: { value: number; spanYears: number } | null;
   /** Median of yearly high P/Es (FY high price ÷ FY diluted EPS) */
   historicalHighPe: number | null;
+  /** Fiscal-year-end month name (e.g. "September") — lets clients date each
+   *  FY's ~annual report for a rolling historical sticker */
+  fiscalYearEndMonth: string | null;
   peYearsUsed: YearlyPe[];
   /** Last monthly close within each fiscal year — lets the Time Travel tab
    *  compare a past sticker price with the price back then */
@@ -239,6 +242,7 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
     analystGrowthPeriod: summary.analystGrowthPeriod,
     equityGrowth,
     historicalHighPe,
+    fiscalYearEndMonth: payload?.fiscalYearEndMonth ?? null,
     peYearsUsed,
     yearEndPrices,
   };

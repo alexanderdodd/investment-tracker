@@ -160,6 +160,7 @@ interface Row {
   hist: Num;
   k: Num;
   d: Num;
+  sticker: Num;
 }
 
 type Dir = "up" | "down";
@@ -325,6 +326,20 @@ interface StickerInputs {
   analystGrowth: number | null;
   equityGrowth: { value: number } | null;
   historicalHighPe: number | null;
+  fiscalYearEndMonth: string | null;
+  peYearsUsed: { fiscalYear: number; eps: number }[];
+}
+
+const MONTH_NUM: Record<string, number> = {
+  January: 1, February: 2, March: 3, April: 4, May: 5, June: 6,
+  July: 7, August: 8, September: 9, October: 10, November: 11, December: 12,
+};
+
+/** Epoch-seconds when a fiscal year's ~annual report lands: last day of the
+ *  FY-end month + ~75 days filing lag. FY is labeled by its end calendar year. */
+function fyReportTs(fiscalYear: number, fyEndMonth: number): number {
+  const endOfMonthMs = Date.UTC(fiscalYear, fyEndMonth, 0); // day 0 = last day of fyEndMonth
+  return Math.floor((endOfMonthMs + 75 * 24 * 3600 * 1000) / 1000);
 }
 
 export function TechnicalTab({
@@ -386,10 +401,35 @@ export function TechnicalTab({
       cancelled = true;
     };
   }, [ticker]);
-  const stickerCalc = useMemo(() => {
+  // Rolling sticker: hold growth & historical P/E at today's values and vary the
+  // (annual) EPS. Each fiscal year's filed EPS gives a sticker that applies from
+  // that year's ~report date; the current segment (after the latest report) uses
+  // today's TTM sticker so the right edge matches the Sticker Price tab.
+  const rollingSticker = useMemo(() => {
     if (!sticker || !sticker.available) return null;
     const g = defaultGrowthRate(sticker.equityGrowth?.value, sticker.analystGrowth);
-    return computeSticker(sticker.eps, g, sticker.historicalHighPe);
+    const current = computeSticker(sticker.eps, g, sticker.historicalHighPe)?.sticker ?? null;
+    const fyEndMonth = MONTH_NUM[sticker.fiscalYearEndMonth ?? "December"] ?? 12;
+    const steps = (sticker.peYearsUsed ?? [])
+      .filter((y) => y.eps > 0)
+      .map((y) => {
+        const s = computeSticker(y.eps, g, sticker.historicalHighPe)?.sticker ?? null;
+        return s === null ? null : { reportTs: fyReportTs(y.fiscalYear, fyEndMonth), value: s };
+      })
+      .filter((s): s is { reportTs: number; value: number } => s !== null)
+      .sort((a, b) => a.reportTs - b.reportTs);
+    if (current === null && steps.length === 0) return null;
+    const lastReportTs = steps.length ? steps[steps.length - 1].reportTs : -Infinity;
+    const at = (tsSec: number): number | null => {
+      if (current !== null && tsSec >= lastReportTs) return current;
+      let v: number | null = null;
+      for (const s of steps) {
+        if (s.reportTs <= tsSec) v = s.value;
+        else break;
+      }
+      return v;
+    };
+    return { current, at };
   }, [sticker]);
 
   const loading = result?.ticker !== ticker;
@@ -433,9 +473,10 @@ export function TechnicalTab({
         hist: series.hist[i],
         k: series.k[i],
         d: series.d[i],
+        sticker: rollingSticker ? rollingSticker.at(p.ts) : null,
       };
     });
-  }, [series, points, range]);
+  }, [series, points, range, rollingSticker]);
 
   // Theme-aware ink/paper for the book-style annotations & chart chrome.
   const isDark = useIsDark();
@@ -598,7 +639,14 @@ export function TechnicalTab({
       <div className="flex h-full flex-col rounded-2xl border border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 px-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{ticker}</p>
-          <p className="text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">Stock Price</p>
+          <p className="text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
+            Stock Price
+            {rollingSticker?.current != null && (
+              <span className="ml-2 text-[11px] font-medium normal-case tracking-normal text-purple-500 dark:text-purple-400">
+                ┈ Sticker {formatMoney(rollingSticker.current, cur)}
+              </span>
+            )}
+          </p>
         </div>
         <div className="min-h-[18rem] flex-1">
           <ResponsiveContainer width="100%" height="100%">
@@ -620,7 +668,11 @@ export function TechnicalTab({
                     border={border}
                     ink={ink}
                     resolve={(p) =>
-                      p.value == null ? null : { text: "Stock price", color: priceLineColor, value: formatMoney(Number(p.value), cur) }
+                      p.value == null
+                        ? null
+                        : p.dataKey === "sticker"
+                          ? { text: "Sticker", color: "#a855f7", value: formatMoney(Number(p.value), cur) }
+                          : { text: "Stock price", color: priceLineColor, value: formatMoney(Number(p.value), cur) }
                     }
                   />
                 }
@@ -628,15 +680,8 @@ export function TechnicalTab({
               {hiView !== null && <ReferenceLine y={hiView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
               {loView !== null && <ReferenceLine y={loView} stroke={axisTick} strokeDasharray="2 5" strokeOpacity={0.5} />}
               <Line type="monotone" dataKey="close" stroke={priceLineColor} strokeWidth={2} dot={false} />
-              {stickerCalc && (
-                <ReferenceLine
-                  y={stickerCalc.sticker}
-                  stroke="#a855f7"
-                  strokeWidth={1.5}
-                  strokeDasharray="6 4"
-                  ifOverflow="extendDomain"
-                  label={{ value: `Sticker ${formatMoney(stickerCalc.sticker, cur)}`, position: "insideTopLeft", fill: "#a855f7", fontSize: 10, fontWeight: 600 }}
-                />
+              {rollingSticker && (
+                <Line type="stepAfter" dataKey="sticker" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls isAnimationActive={false} />
               )}
             </LineChart>
           </ResponsiveContainer>
@@ -770,7 +815,9 @@ export function TechnicalTab({
       <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
         Indicators computed from ~2 years of daily closes (Yahoo Finance), split-adjusted, and shown for the
         selected window. Hover any panel to compare the same date across every chart. The triangle marks the
-        most recent crossover — ▲ green for a bullish cross, ▼ red for bearish. MACD is shown as its histogram
+        most recent crossover — ▲ green for a bullish cross, ▼ red for bearish. The purple stepped line on the
+        price chart is our Rule #1 sticker (fair value), recomputed as each fiscal year&apos;s EPS is reported
+        (growth and historical P/E held at today&apos;s values). MACD is shown as its histogram
         (MACD − signal); the moving-average arrow checks price against a rising 10-day SMA. Timing only — Phil
         Town uses these to decide <em>when</em> to act on a wonderful company already trading at or below its
         Margin of Safety, never as a standalone buy signal.
