@@ -111,6 +111,28 @@ function fmtPct(v: number | null): string {
   return `${pct > 0 ? "+" : ""}${pct}%`;
 }
 
+// The screener's dropdown/toggle filters, remembered in localStorage so the
+// page comes back the way you left it (score tier, region, sector, size, sort,
+// watched-only). MOS fraction and "only on sale" are remembered separately.
+const FILTERS_KEY = "rule-one-screener-filters";
+interface SavedScreenerFilters {
+  minScore?: number;
+  sector?: string;
+  region?: string;
+  minMcap?: number;
+  maxMcap?: number | null;
+  sort?: string;
+  watchedOnly?: boolean;
+}
+function loadScreenerFilters(): SavedScreenerFilters {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(FILTERS_KEY) ?? "{}") as SavedScreenerFilters;
+  } catch {
+    return {};
+  }
+}
+
 export default function ScreenerPage() {
   // useSearchParams requires a Suspense boundary in client pages
   return (
@@ -122,19 +144,23 @@ export default function ScreenerPage() {
 
 function ScreenerPageInner() {
   const searchParams = useSearchParams();
-  const [minScore, setMinScore] = useState(() =>
-    parseInt(searchParams.get("minScore") ?? "4", 10)
-  );
-  const [sector, setSector] = useState("");
-  const [region, setRegion] = useState("");
-  const [minMcap, setMinMcap] = useState(0);
-  const [maxMcap, setMaxMcap] = useState<number | null>(null);
+  // Restore remembered filters (URL params, when present, still take precedence
+  // so deep-links win). Read once on mount.
+  const saved = useMemo(() => loadScreenerFilters(), []);
+  const [minScore, setMinScore] = useState(() => {
+    const p = searchParams.get("minScore");
+    return p != null ? parseInt(p, 10) : saved.minScore ?? 4;
+  });
+  const [sector, setSector] = useState(saved.sector ?? "");
+  const [region, setRegion] = useState(saved.region ?? "");
+  const [minMcap, setMinMcap] = useState(saved.minMcap ?? 0);
+  const [maxMcap, setMaxMcap] = useState<number | null>(saved.maxMcap ?? null);
   // Whether the current cap range is one of the preset bands (vs a custom cap
   // set by a natural-language query) — governs the removable "≤ $X" chip.
   const mcapIsBand = MCAP_BANDS.some(
     (b) => b.min === minMcap && (b.max ?? null) === (maxMcap ?? null)
   );
-  const [sort, setSort] = useState(searchParams.get("sort") ?? "score");
+  const [sort, setSort] = useState(searchParams.get("sort") ?? saved.sort ?? "score");
   const [mosFraction, setMosFraction] = useRememberedMos();
   const [onlyOnSale, setOnlyOnSale] = useRememberedOnlyOnSale();
   // Watchlist: which tickers the signed-in user is watching, plus in-flight
@@ -143,7 +169,7 @@ function ScreenerPageInner() {
   const [authed, setAuthed] = useState(false);
   const [watched, setWatched] = useState<Set<string>>(new Set());
   const [watchBusy, setWatchBusy] = useState<Set<string>>(new Set());
-  const [watchedOnly, setWatchedOnly] = useState(false);
+  const [watchedOnly, setWatchedOnly] = useState(saved.watchedOnly ?? false);
   const [tags, setTags] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [nlInput, setNlInput] = useState("");
@@ -158,6 +184,17 @@ function ScreenerPageInner() {
       relevanceAvailable?: boolean;
     };
   } | null>(null);
+
+  // Remember the dropdown/toggle filters so they persist across visits.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const data: SavedScreenerFilters = { minScore, sector, region, minMcap, maxMcap, sort, watchedOnly };
+    try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify(data));
+    } catch {
+      /* ignore quota/private-mode errors */
+    }
+  }, [minScore, sector, region, minMcap, maxMcap, sort, watchedOnly]);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
