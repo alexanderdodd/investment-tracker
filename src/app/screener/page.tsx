@@ -83,6 +83,23 @@ const MCAP_BANDS: { key: string; label: string; min: number; max: number | null 
   { key: "mega", label: "Mega (≥ $200B)", min: 2e11, max: null },
 ];
 
+// One hue per Yahoo sector so rows can be scanned/grouped visually. Full class
+// strings (not interpolated) so Tailwind's scanner keeps them.
+const SECTOR_COLORS: Record<string, string> = {
+  Technology: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  "Financial Services": "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  Healthcare: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  Industrials: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  "Consumer Cyclical": "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  "Consumer Defensive": "bg-lime-500/10 text-lime-600 dark:text-lime-400",
+  Energy: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+  "Basic Materials": "bg-teal-500/10 text-teal-600 dark:text-teal-400",
+  "Real Estate": "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+  Utilities: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
+  "Communication Services": "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
+};
+const SECTOR_FALLBACK = "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400";
+
 const SORT_OPTIONS = [
   { value: "score", label: "Big Five score" },
   { value: "relevance", label: "Relevance (my interests)" },
@@ -646,8 +663,11 @@ function ScreenerPageInner() {
                           </td>
                         )}
                         <td className="px-4 py-2.5">
-                          <Link href={`/stocks/${r.ticker}/valuation`} className="group">
-                            <p className="text-sm font-medium text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/stocks/${r.ticker}/valuation`}
+                              className="text-sm font-medium text-zinc-900 hover:text-blue-600 dark:text-zinc-100 dark:hover:text-blue-400 transition-colors"
+                            >
                               {r.ticker}
                               {r.minSpanYears !== null && r.minSpanYears < 10 && (
                                 <span className="ml-1 text-[10px] font-normal text-zinc-400 dark:text-zinc-500">
@@ -659,9 +679,22 @@ function ScreenerPageInner() {
                                   {r.currency}
                                 </span>
                               )}
-                            </p>
+                            </Link>
+                            {r.sector && (
+                              <button
+                                onClick={() => setSector(r.sector!)}
+                                title={`Show only ${r.sector}`}
+                                className={`rounded-full px-2 py-px text-[10px] font-medium whitespace-nowrap transition-opacity hover:opacity-70 ${
+                                  SECTOR_COLORS[r.sector] ?? SECTOR_FALLBACK
+                                }`}
+                              >
+                                {r.sector}
+                              </button>
+                            )}
+                          </div>
+                          <Link href={`/stocks/${r.ticker}/valuation`} className="block">
                             <p className="max-w-[260px] truncate text-xs text-zinc-500 dark:text-zinc-400">
-                              {r.oneLiner ?? `${r.companyName ?? ""}${r.sector ? ` · ${r.sector}` : ""}`}
+                              {r.oneLiner ?? r.companyName ?? ""}
                             </p>
                             {r.matchedTags.length > 0 && (
                               <p className="mt-0.5 flex max-w-[260px] flex-wrap gap-1">
