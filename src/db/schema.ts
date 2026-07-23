@@ -10,6 +10,7 @@ import {
   boolean,
   doublePrecision,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { GrowthHistoryPayload } from "@/lib/sec-edgar/growth-history";
@@ -369,6 +370,54 @@ export const watchlistItems = pgTable("watchlist_item", {
   status: text("status").notNull().default("watching"),
   addedAt: timestamp("added_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+// User-defined labels for triaging stocks (e.g. "consider", "pass", "deep
+// dive"). Separate from the watchlist: a label is a free-form impression you
+// can apply to a stock without committing to watch it. One row per label the
+// user has created; `color` is a palette key (see LABEL_COLORS in the UI).
+export const userLabels = pgTable(
+  "user_label",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: text("color").notNull().default("zinc"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("user_label_user_idx").on(t.userId),
+    // Case-insensitive uniqueness of label names per user (no dup "Consider"s)
+    uniqueIndex("user_label_name_unique").on(t.userId, sql`lower(${t.name})`),
+  ]
+);
+
+// Many-to-many: which labels are applied to which stocks. A stock can carry
+// multiple labels; a label spans many stocks. Cascades from both the user and
+// the label so deleting either cleans up assignments.
+export const stockLabels = pgTable(
+  "stock_label",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    labelId: text("label_id")
+      .notNull()
+      .references(() => userLabels.id, { onDelete: "cascade" }),
+    ticker: text("ticker").notNull(),
+    addedAt: timestamp("added_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("stock_label_user_ticker_idx").on(t.userId, t.ticker),
+    uniqueIndex("stock_label_unique").on(t.labelId, t.ticker),
+  ]
+);
 
 export const sectorValueStocks = pgTable("sector_value_stock", {
   id: text("id")

@@ -10,6 +10,8 @@ import { MosControl, useRememberedMos, useRememberedOnlyOnSale } from "@/compone
 import { currentMos, priceVerdictAt } from "@/lib/rule-one";
 import { formatMoney } from "@/lib/currency";
 import { displayTag } from "@/lib/meaning-tags";
+import { StockLabels, labelPillClass } from "@/components/stock-labels";
+import type { StockLabel } from "@/lib/labels";
 
 interface ScreenRow {
   ticker: string;
@@ -187,6 +189,12 @@ function ScreenerPageInner() {
   const [watched, setWatched] = useState<Set<string>>(new Set());
   const [watchBusy, setWatchBusy] = useState<Set<string>>(new Set());
   const [watchedOnly, setWatchedOnly] = useState(saved.watchedOnly ?? false);
+  // User-defined labels: the label catalogue + a ticker→labelIds map, both
+  // loaded once for the signed-in user. `labelFilter` is a client-side tri-state
+  // per label (include = only these, exclude = hide these).
+  const [labels, setLabels] = useState<StockLabel[]>([]);
+  const [assignments, setAssignments] = useState<Record<string, string[]>>({});
+  const [labelFilter, setLabelFilter] = useState<Record<string, "include" | "exclude">>({});
   const [tags, setTags] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [nlInput, setNlInput] = useState("");
@@ -286,6 +294,70 @@ function ScreenerPageInner() {
       .catch(() => {});
   }, []);
 
+  // Load the user's labels + assignments once (401 => signed out, leave empty)
+  useEffect(() => {
+    fetch("/api/labels")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!json) return;
+        setLabels(json.labels ?? []);
+        setAssignments(json.assignments ?? {});
+      })
+      .catch(() => {});
+  }, []);
+
+  // Apply/remove a label on a stock, optimistically. Reverts on failure.
+  async function toggleLabel(ticker: string, labelId: string, assign: boolean) {
+    setAssignments((prev) => {
+      const cur = prev[ticker] ?? [];
+      const next = assign ? [...new Set([...cur, labelId])] : cur.filter((id) => id !== labelId);
+      return { ...prev, [ticker]: next };
+    });
+    try {
+      const res = await fetch("/api/labels/assign", {
+        method: assign ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker, labelId }),
+      });
+      if (!res.ok) throw new Error("assign failed");
+    } catch {
+      setAssignments((prev) => {
+        const cur = prev[ticker] ?? [];
+        const next = assign ? cur.filter((id) => id !== labelId) : [...new Set([...cur, labelId])];
+        return { ...prev, [ticker]: next };
+      });
+    }
+  }
+
+  // Create a new label and immediately apply it to the stock.
+  async function createAndAssignLabel(ticker: string, name: string) {
+    try {
+      const res = await fetch("/api/labels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) return;
+      const { label } = (await res.json()) as { label: StockLabel };
+      setLabels((prev) => (prev.some((l) => l.id === label.id) ? prev : [...prev, label]));
+      await toggleLabel(ticker, label.id, true);
+    } catch {
+      /* ignore — nothing applied */
+    }
+  }
+
+  // Cycle a label's filter state: off → include → exclude → off.
+  function cycleLabelFilter(labelId: string) {
+    setLabelFilter((prev) => {
+      const next = { ...prev };
+      const cur = prev[labelId];
+      if (!cur) next[labelId] = "include";
+      else if (cur === "include") next[labelId] = "exclude";
+      else delete next[labelId];
+      return next;
+    });
+  }
+
   // Optimistic watch/unwatch; revert on failure.
   async function toggleWatch(row: ScreenRow) {
     if (watchBusy.has(row.ticker)) return;
@@ -350,8 +422,18 @@ function ScreenerPageInner() {
     if (onlyOnSale)
       rs = rs.filter((r) => priceVerdictAt(r.price, r.sticker, mosFraction) === "mos");
     if (watchedOnly) rs = rs.filter((r) => watched.has(r.ticker));
+    const includes = Object.keys(labelFilter).filter((id) => labelFilter[id] === "include");
+    const excludes = Object.keys(labelFilter).filter((id) => labelFilter[id] === "exclude");
+    if (includes.length > 0 || excludes.length > 0) {
+      rs = rs.filter((r) => {
+        const ids = assignments[r.ticker] ?? [];
+        if (excludes.some((id) => ids.includes(id))) return false;
+        if (includes.length > 0 && !includes.some((id) => ids.includes(id))) return false;
+        return true;
+      });
+    }
     return rs;
-  }, [rows, onlyOnSale, mosFraction, watchedOnly, watched]);
+  }, [rows, onlyOnSale, mosFraction, watchedOnly, watched, labelFilter, assignments]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
@@ -567,6 +649,49 @@ function ScreenerPageInner() {
           )}
         </div>
 
+        {/* Label filter — click a label to show only those, again to hide them */}
+        {authed && labels.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
+            <span className="text-[11px] text-zinc-400 dark:text-zinc-500">Labels:</span>
+            {labels.map((l) => {
+              const state = labelFilter[l.id];
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => cycleLabelFilter(l.id)}
+                  title={
+                    state === "include"
+                      ? `Only showing “${l.name}” — click to hide instead`
+                      : state === "exclude"
+                        ? `Hiding “${l.name}” — click to clear`
+                        : `Show only “${l.name}”`
+                  }
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-all ${labelPillClass(
+                    l.color
+                  )} ${
+                    state === "include"
+                      ? "ring-2 ring-current ring-offset-1 ring-offset-white dark:ring-offset-zinc-900"
+                      : state === "exclude"
+                        ? "opacity-40 line-through"
+                        : "opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  {state === "exclude" && <span className="no-underline">∅</span>}
+                  {l.name}
+                </button>
+              );
+            })}
+            {Object.keys(labelFilter).length > 0 && (
+              <button
+                onClick={() => setLabelFilter({})}
+                className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              >
+                clear
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Margin of safety */}
         {stats && stats.total > 0 && (
           <MosControl
@@ -709,6 +834,17 @@ function ScreenerPageInner() {
                               </p>
                             )}
                           </Link>
+                          {authed && (
+                            <div className="mt-1">
+                              <StockLabels
+                                ticker={r.ticker}
+                                labels={labels}
+                                assignedIds={assignments[r.ticker] ?? []}
+                                onToggle={(labelId, assign) => toggleLabel(r.ticker, labelId, assign)}
+                                onCreateAndAssign={(name) => createAndAssignLabel(r.ticker, name)}
+                              />
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right text-xs text-zinc-500 dark:text-zinc-400">
                           {fmtMcap(r.marketCap)}
