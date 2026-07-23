@@ -58,10 +58,17 @@ interface FetchResult {
   error: string | null;
 }
 
+// Which of the two growth inputs (steps 2a/2b) feeds the projection. Defaults
+// to the more conservative "lower of the two" (Rule #1's rule), with quick
+// switches to either one alone or their midpoint.
+type GrowthBasis = "conservative" | "2a" | "2b" | "average";
+
 export function StickerPriceTab({ ticker }: { ticker: string }) {
   const [result, setResult] = useState<FetchResult | null>(null);
-  // Growth override: empty string means "use the computed default"
+  // Growth override: empty string means "follow the selected basis"
   const [growthInput, setGrowthInput] = useState("");
+  // Basis for the growth rate when not manually overridden
+  const [basis, setBasis] = useState<GrowthBasis>("conservative");
 
   useEffect(() => {
     let cancelled = false;
@@ -92,15 +99,33 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
   // listings, USD for US ones) — formatted with the right symbol
   const money = (v: number | null) => formatCurrency(v, data?.quoteCurrency);
 
-  // Rule #1: use the LOWER of your own estimate (historical equity growth)
-  // and the analyst estimate
-  const defaultGrowth = useMemo(
-    () => (data ? defaultGrowthRate(data.equityGrowth?.value, data.analystGrowth) : null),
-    [data]
-  );
+  // The growth rate implied by the current basis (before any manual override).
+  // Rule #1's default is the LOWER of your own estimate (historical equity
+  // growth, 2a) and the analyst estimate (2b); "average" is the midpoint.
+  const basisGrowth = useMemo(() => {
+    if (!data) return null;
+    const a = data.equityGrowth?.value ?? null;
+    const b = data.analystGrowth ?? null;
+    switch (basis) {
+      case "2a":
+        return a;
+      case "2b":
+        return b;
+      case "average":
+        return a !== null && b !== null ? (a + b) / 2 : (a ?? b);
+      default:
+        return defaultGrowthRate(a, b);
+    }
+  }, [data, basis]);
 
   const overridden = growthInput.trim() !== "";
-  const growth = overridden ? parseFloat(growthInput) / 100 : defaultGrowth;
+  const growth = overridden ? parseFloat(growthInput) / 100 : basisGrowth;
+
+  // Switch which input drives the projection; clears any manual override.
+  const chooseBasis = (b: GrowthBasis) => {
+    setBasis(b);
+    setGrowthInput("");
+  };
 
   const calc = useMemo(
     () => (data ? computeSticker(data.eps, growth, data.historicalHighPe) : null),
@@ -152,6 +177,26 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
   const discountVsSticker =
     calc && price !== null ? 1 - price / calc.sticker : null;
 
+  // Quick-switch options for the growth basis, each with the value it resolves
+  // to (for the button tooltip) and whether the underlying input exists.
+  const gaVal = data.equityGrowth?.value ?? null;
+  const gbVal = data.analystGrowth ?? null;
+  const basisOptions: { key: GrowthBasis; label: string; value: number | null; enabled: boolean }[] = [
+    { key: "conservative", label: "Lower", value: defaultGrowthRate(gaVal, gbVal), enabled: gaVal !== null || gbVal !== null },
+    { key: "2a", label: "2a", value: gaVal, enabled: gaVal !== null },
+    { key: "2b", label: "2b", value: gbVal, enabled: gbVal !== null },
+    { key: "average", label: "Avg", value: gaVal !== null && gbVal !== null ? (gaVal + gbVal) / 2 : null, enabled: gaVal !== null && gbVal !== null },
+  ];
+  const basisNote = overridden
+    ? "custom"
+    : basis === "2a"
+      ? "equity (2a)"
+      : basis === "2b"
+        ? "analyst (2b)"
+        : basis === "average"
+          ? "avg of 2a / 2b"
+          : "lower of 2a / 2b";
+
   const rows: {
     step: string;
     label: string;
@@ -189,28 +234,54 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
     {
       step: "2",
       label: "Growth rate used",
-      tooltip: "Rule #1 takes the LOWER of your own estimate and the analyst estimate. Override it to test your own assumption.",
+      tooltip: "Rule #1 defaults to the LOWER of your own estimate (2a) and the analyst estimate (2b). Switch to either one, their average, or type your own.",
       value: (
-        <span className="inline-flex items-center gap-1.5">
-          <input
-            type="number"
-            value={overridden ? growthInput : defaultGrowth !== null ? (defaultGrowth * 100).toFixed(1) : ""}
-            onChange={(e) => setGrowthInput(e.target.value)}
-            step="0.5"
-            className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1 text-right text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-          />
-          <span className="text-zinc-500 dark:text-zinc-400">%</span>
-          {overridden && (
-            <button
-              onClick={() => setGrowthInput("")}
-              className="text-xs text-blue-500 hover:underline dark:text-blue-400"
-            >
-              reset
-            </button>
-          )}
+        <span className="flex flex-col items-end gap-1.5">
+          <span className="inline-flex overflow-hidden rounded-lg border border-zinc-300 dark:border-zinc-700">
+            {basisOptions.map((opt, i) => {
+              const active = !overridden && basis === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  disabled={!opt.enabled}
+                  onClick={() => chooseBasis(opt.key)}
+                  title={opt.enabled ? `${opt.label} — ${fmtPct(opt.value)}` : `${opt.label} unavailable`}
+                  className={`px-2 py-1 text-xs font-medium transition-colors ${
+                    i > 0 ? "border-l border-zinc-300 dark:border-zinc-700" : ""
+                  } ${
+                    !opt.enabled
+                      ? "cursor-not-allowed text-zinc-300 dark:text-zinc-600"
+                      : active
+                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                        : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <input
+              type="number"
+              value={overridden ? growthInput : basisGrowth !== null ? (basisGrowth * 100).toFixed(1) : ""}
+              onChange={(e) => setGrowthInput(e.target.value)}
+              step="0.5"
+              className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1 text-right text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            />
+            <span className="text-zinc-500 dark:text-zinc-400">%</span>
+            {overridden && (
+              <button
+                onClick={() => setGrowthInput("")}
+                className="text-xs text-blue-500 hover:underline dark:text-blue-400"
+              >
+                reset
+              </button>
+            )}
+          </span>
         </span>
       ),
-      note: overridden ? "custom" : "lower of 2a / 2b",
+      note: basisNote,
       emphasize: true,
     },
     {
