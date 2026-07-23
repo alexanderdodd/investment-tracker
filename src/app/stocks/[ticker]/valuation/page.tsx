@@ -17,6 +17,8 @@ import { friendlyExchange } from "@/lib/exchanges";
 import { formatMoney } from "@/lib/currency";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
 import { StatusPicker, type WatchlistStatus } from "@/components/watchlist-status";
+import { StockLabels } from "@/components/stock-labels";
+import type { StockLabel } from "@/lib/labels";
 
 type Tab = "overview" | "growth" | "sticker" | "moat" | "timetravel" | "technical" | "management" | "valuation";
 
@@ -70,6 +72,11 @@ export default function StockPage() {
   const [watchStatus, setWatchStatus] = useState<string>("watching");
   const [watchLoading, setWatchLoading] = useState(false);
   const [showSimBuy, setShowSimBuy] = useState(false);
+  // User-defined labels: the full catalogue (for the picker menu) + the ids
+  // applied to this ticker. `labelsAuthed` gates the picker to signed-in users.
+  const [labels, setLabels] = useState<StockLabel[]>([]);
+  const [assignedLabelIds, setAssignedLabelIds] = useState<string[]>([]);
+  const [labelsAuthed, setLabelsAuthed] = useState(false);
   const [profile, setProfile] = useState<{
     name: string | null;
     description: string | null;
@@ -145,6 +152,55 @@ export default function StockPage() {
       .then((data) => setProfile(data))
       .catch(() => {});
   }, [ticker]);
+
+  // Load the user's labels + this ticker's assignments (401 => signed out)
+  useEffect(() => {
+    fetch("/api/labels")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!json) return;
+        setLabelsAuthed(true);
+        setLabels(json.labels ?? []);
+        setAssignedLabelIds((json.assignments ?? {})[ticker] ?? []);
+      })
+      .catch(() => {});
+  }, [ticker]);
+
+  // Apply/remove a label on this stock, optimistically. Reverts on failure.
+  async function toggleLabel(labelId: string, assign: boolean) {
+    setAssignedLabelIds((prev) =>
+      assign ? [...new Set([...prev, labelId])] : prev.filter((id) => id !== labelId)
+    );
+    try {
+      const res = await fetch("/api/labels/assign", {
+        method: assign ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker, labelId }),
+      });
+      if (!res.ok) throw new Error("assign failed");
+    } catch {
+      setAssignedLabelIds((prev) =>
+        assign ? prev.filter((id) => id !== labelId) : [...new Set([...prev, labelId])]
+      );
+    }
+  }
+
+  // Create a new label and immediately apply it to this stock.
+  async function createAndAssignLabel(name: string) {
+    try {
+      const res = await fetch("/api/labels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) return;
+      const { label } = (await res.json()) as { label: StockLabel };
+      setLabels((prev) => (prev.some((l) => l.id === label.id) ? prev : [...prev, label]));
+      await toggleLabel(label.id, true);
+    } catch {
+      /* ignore — nothing applied */
+    }
+  }
 
   async function toggleWatch() {
     setWatchLoading(true);
@@ -239,6 +295,16 @@ export default function StockPage() {
             >
               Simulate Buy
             </button>
+            {/* Impression labels */}
+            {labelsAuthed && (
+              <StockLabels
+                ticker={ticker}
+                labels={labels}
+                assignedIds={assignedLabelIds}
+                onToggle={toggleLabel}
+                onCreateAndAssign={createAndAssignLabel}
+              />
+            )}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-3">
             <p className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
