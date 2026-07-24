@@ -14,6 +14,8 @@ import {
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
 import { formatMoney } from "@/lib/currency";
+import { StockLabels } from "@/components/stock-labels";
+import type { StockLabel } from "@/lib/labels";
 
 export interface RuleOneItem {
   ticker: string;
@@ -125,6 +127,10 @@ export function RuleOneTable({
   extraHeader,
   mosFraction = MARGIN_OF_SAFETY,
   onlyOnSale = false,
+  labels,
+  assignments,
+  onToggleLabel,
+  onCreateLabel,
 }: {
   items: RuleOneItem[];
   /** When provided, renders a Remove action column (watchlist) */
@@ -136,7 +142,14 @@ export function RuleOneTable({
   mosFraction?: number;
   /** When true, hide rows that aren't on sale (price ≤ MOS) once loaded */
   onlyOnSale?: boolean;
+  /** User's label catalogue — when provided, renders the inline label picker */
+  labels?: StockLabel[];
+  /** ticker → applied label ids */
+  assignments?: Record<string, string[]>;
+  onToggleLabel?: (ticker: string, labelId: string, assign: boolean) => void;
+  onCreateLabel?: (ticker: string, name: string) => void;
 }) {
+  const labelsEnabled = !!labels && !!onToggleLabel && !!onCreateLabel;
   const [rows, setRows] = useState<Record<string, RowData>>({});
 
   // Fan out per-ticker fetches; each row fills in as its data arrives.
@@ -234,7 +247,7 @@ export function RuleOneTable({
                 className="border-b border-zinc-50 last:border-b-0 dark:border-zinc-800/50"
               >
                 <td className="px-4 py-3">
-                  <Link href={`/stocks/${item.ticker}/valuation`} className="group">
+                  <Link href={`/stocks/${item.ticker}/valuation`} className="group block">
                     <p className="text-sm font-medium text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400 transition-colors">
                       {item.ticker}
                     </p>
@@ -242,6 +255,17 @@ export function RuleOneTable({
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">{item.companyName}</p>
                     )}
                   </Link>
+                  {labelsEnabled && (
+                    <div className="mt-1">
+                      <StockLabels
+                        ticker={item.ticker}
+                        labels={labels!}
+                        assignedIds={assignments?.[item.ticker] ?? []}
+                        onToggle={(labelId, assign) => onToggleLabel!(item.ticker, labelId, assign)}
+                        onCreateAndAssign={(name) => onCreateLabel!(item.ticker, name)}
+                      />
+                    </div>
+                  )}
                 </td>
                 {renderExtra && <td className="px-3 py-3">{renderExtra(item)}</td>}
                 <td className={`px-3 py-3 text-right text-sm font-semibold ${priceColor}`}>
