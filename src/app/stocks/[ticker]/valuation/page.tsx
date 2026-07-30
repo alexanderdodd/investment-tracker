@@ -12,6 +12,7 @@ import { MoatTab } from "./moat-tab";
 import { TimeTravelTab } from "./time-travel-tab";
 import { TechnicalTab } from "./technical-tab";
 import { parseStockValuationInsights, type StockValuationInsights } from "@/lib/stock-valuation-insights";
+import { defaultGrowthRate, computeSticker } from "@/lib/rule-one";
 import { sectorToSlug } from "@/lib/sectors";
 import { friendlyExchange } from "@/lib/exchanges";
 import { formatMoney } from "@/lib/currency";
@@ -51,13 +52,39 @@ function useRememberedTab(): [Tab, (tab: Tab) => void] {
   return [tab, setTab];
 }
 
-function verdictColor(verdict: string) {
-  switch (verdict) {
-    case "Undervalued": return "border-green-500/40 bg-green-500/15 text-green-500 dark:text-green-400 font-semibold";
-    case "Fair Value": return "border-blue-500/40 bg-blue-500/15 text-blue-500 dark:text-blue-400 font-semibold";
-    case "Overvalued": return "border-red-500/40 bg-red-500/15 text-red-500 dark:text-red-400 font-semibold";
-    default: return "border-zinc-500/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400";
+// Header verdict pill, derived from the Sticker Price tab's evaluation (price
+// vs. sticker & 50% MOS) so the two never disagree. Mirrors the labels/colours
+// used in sticker-price-tab.tsx.
+interface StickerVerdict {
+  label: string;
+  title: string;
+  className: string;
+}
+function stickerVerdictFor(
+  price: number | null,
+  sticker: number | null,
+  mos: number | null
+): StickerVerdict | null {
+  if (price === null || sticker === null || mos === null) return null;
+  if (price <= mos) {
+    return {
+      label: "On sale",
+      title: "On sale — below MOS price",
+      className: "border-green-500/40 bg-green-500/15 text-green-500 dark:text-green-400 font-semibold",
+    };
   }
+  if (price <= sticker) {
+    return {
+      label: "Below sticker",
+      title: "Below sticker, above MOS",
+      className: "border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold",
+    };
+  }
+  return {
+    label: "Above sticker",
+    title: "Above sticker price",
+    className: "border-red-500/40 bg-red-500/15 text-red-500 dark:text-red-400 font-semibold",
+  };
 }
 
 export default function StockPage() {
@@ -68,6 +95,9 @@ export default function StockPage() {
   const [quoteMeta, setQuoteMeta] = useState<{ exchange: string | null; currency: string | null } | null>(null);
   const [insights, setInsights] = useState<StockValuationInsights | null>(null);
   const [hasValuation, setHasValuation] = useState(false);
+  // Verdict pill sourced from the Sticker Price tab's math (default Rule #1
+  // growth), so the header agrees with that tab rather than the old report.
+  const [stickerVerdict, setStickerVerdict] = useState<StickerVerdict | null>(null);
   const [watching, setWatching] = useState(false);
   const [watchStatus, setWatchStatus] = useState<string>("watching");
   const [watchLoading, setWatchLoading] = useState(false);
@@ -123,6 +153,22 @@ export default function StockPage() {
   useEffect(() => {
     refreshInsights();
   }, [refreshInsights]);
+
+  // Load sticker-price inputs → derive the header verdict (matches the tab)
+  useEffect(() => {
+    setStickerVerdict(null);
+    fetch(`/api/stocks/${ticker}/sticker-price`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d || !d.available) return;
+        const g = defaultGrowthRate(d.equityGrowth?.value, d.analystGrowth);
+        const calc = computeSticker(d.eps, g, d.historicalHighPe);
+        setStickerVerdict(
+          stickerVerdictFor(d.currentPrice ?? null, calc?.sticker ?? null, calc?.mos ?? null)
+        );
+      })
+      .catch(() => {});
+  }, [ticker]);
 
   // Load GICS classification
   useEffect(() => {
@@ -264,10 +310,13 @@ export default function StockPage() {
                 )}
               </span>
             )}
-            {/* Valuation verdict badge (confidence shown in valuation tab only) */}
-            {insights && insights.verdict !== "Withheld" && (
-              <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm ${verdictColor(insights.verdict)}`}>
-                {insights.verdict}
+            {/* Verdict badge — from the Sticker Price evaluation */}
+            {stickerVerdict && (
+              <span
+                title={stickerVerdict.title}
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-sm ${stickerVerdict.className}`}
+              >
+                {stickerVerdict.label}
               </span>
             )}
             {/* Watch button */}
