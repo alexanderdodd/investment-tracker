@@ -52,9 +52,10 @@ function useRememberedTab(): [Tab, (tab: Tab) => void] {
   return [tab, setTab];
 }
 
-// Header verdict pill, derived from the Sticker Price tab's evaluation (price
-// vs. sticker & 50% MOS) so the two never disagree. Mirrors the labels/colours
-// used in sticker-price-tab.tsx.
+// Header verdict pill, derived from the Sticker Price tab's evaluation so the
+// two never disagree. A five-tier scale on price relative to the sticker price:
+// the 50% MOS line marks "deeply undervalued", ±15% around the sticker is
+// "fair", and 50% above sticker is "deeply overvalued".
 interface StickerVerdict {
   label: string;
   title: string;
@@ -65,25 +66,39 @@ function stickerVerdictFor(
   sticker: number | null,
   mos: number | null
 ): StickerVerdict | null {
-  if (price === null || sticker === null || mos === null) return null;
+  if (price === null || sticker === null || mos === null || sticker <= 0) return null;
   if (price <= mos) {
     return {
-      label: "On sale",
-      title: "On sale — below MOS price",
-      className: "border-green-500/40 bg-green-500/15 text-green-500 dark:text-green-400 font-semibold",
+      label: "Deeply undervalued",
+      title: "At or below the MOS buy price (≥50% below sticker)",
+      className: "border-emerald-500/50 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold",
     };
   }
-  if (price <= sticker) {
+  if (price <= sticker * 0.85) {
     return {
-      label: "Below sticker",
-      title: "Below sticker, above MOS",
-      className: "border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold",
+      label: "Undervalued",
+      title: "Below sticker, above the MOS buy price",
+      className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium",
+    };
+  }
+  if (price < sticker * 1.15) {
+    return {
+      label: "Fair value",
+      title: "Within ±15% of the sticker price",
+      className: "border-blue-500/40 bg-blue-500/15 text-blue-500 dark:text-blue-400 font-semibold",
+    };
+  }
+  if (price < sticker * 1.5) {
+    return {
+      label: "Overvalued",
+      title: "15–50% above the sticker price",
+      className: "border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-medium",
     };
   }
   return {
-    label: "Above sticker",
-    title: "Above sticker price",
-    className: "border-red-500/40 bg-red-500/15 text-red-500 dark:text-red-400 font-semibold",
+    label: "Deeply overvalued",
+    title: "50%+ above the sticker price",
+    className: "border-red-500/50 bg-red-500/20 text-red-500 dark:text-red-400 font-semibold",
   };
 }
 
