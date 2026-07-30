@@ -106,6 +106,8 @@ const SUMMARY_ROWS: {
   /** Shown instead of "—" when the rate is undefined because of negative values */
   negativeLabel?: string;
 }[] = [
+  // Ordered by Phil Town's priority: ROIC first, then the four growth rates in
+  // his order of importance — Equity (BVPS), EPS, Sales, then Free Cash Flow.
   {
     key: "roic",
     yearKey: "roic",
@@ -114,11 +116,12 @@ const SUMMARY_ROWS: {
       "Return on Invested Capital: after-tax operating income ÷ (equity + debt). Rule #1 wants ≥10% every year — 10y/5y columns show the average, 1y the latest fiscal year.",
   },
   {
-    key: "salesGrowth",
-    yearKey: "revenue",
-    label: "Sales Growth",
+    key: "equityGrowth",
+    yearKey: "equity",
+    label: "Equity (BV) Growth",
     description:
-      "Revenue growth rate. 10y/5y columns are compound annual growth rates (CAGR); 1y is the latest year-over-year change. Rule #1 threshold: ≥10%/yr.",
+      "Book value (stockholders' equity) growth. Phil Town's most important growth rate. Buyback-heavy companies can shrink equity while still compounding value — read together with ROIC. Shows < 0% when equity was negative in a start or end year.",
+    negativeLabel: "negative equity",
   },
   {
     key: "epsGrowth",
@@ -129,12 +132,11 @@ const SUMMARY_ROWS: {
     negativeLabel: "loss-making",
   },
   {
-    key: "equityGrowth",
-    yearKey: "equity",
-    label: "Equity (BV) Growth",
+    key: "salesGrowth",
+    yearKey: "revenue",
+    label: "Sales Growth",
     description:
-      "Book value (stockholders' equity) growth. Buyback-heavy companies can shrink equity while still compounding value — read together with ROIC. Shows < 0% when equity was negative in a start or end year.",
-    negativeLabel: "negative equity",
+      "Revenue growth rate. 10y/5y columns are compound annual growth rates (CAGR); 1y is the latest year-over-year change. Rule #1 threshold: ≥10%/yr.",
   },
   {
     key: "fcfGrowth",
