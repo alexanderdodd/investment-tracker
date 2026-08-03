@@ -1,0 +1,35 @@
+name: Sweep Big Five (hourly)
+
+# Vercel's Hobby plan caps built-in cron at once per day, which is far too slow
+# to keep the ~10k-filer Big Five universe fresh (the sweep needs ~hourly to
+# roll through in a few days). This external scheduler calls the same
+# authenticated sweep endpoint every hour, restoring the ~3.5-day full-cycle the
+# route was designed for. Each call refreshes only the stalest slice, so runs
+# are cheap and idempotent.
+
+on:
+  schedule:
+    # Hourly, offset off the top of the hour (GitHub delays :00 crons under load)
+    - cron: "17 * * * *"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+concurrency:
+  group: sweep-big-five
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the sweep endpoint
+        env:
+          # Override with a repo variable SWEEP_URL if your production domain differs.
+          SWEEP_URL: ${{ vars.SWEEP_URL || 'https://investment-tracker-black.vercel.app' }}
+          # Only needed if CRON_SECRET is set in Vercel; harmless otherwise.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "Sweeping via $SWEEP_URL/api/cron/sweep-big-five"
+          curl -fsS --max-time 75 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -w '\nHTTP %{http_code}  (%{time_total}s)\n' \
+            "$SWEEP_URL/api/cron/sweep-big-five"

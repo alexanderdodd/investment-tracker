@@ -6,12 +6,17 @@ import {
   sweepTickers,
 } from "@/lib/sweep-big-five";
 
-// Vercel cron: each invocation sweeps the stalest slice of the universe
-// within a time budget; hourly runs roll through all ~8k filers in ~3-4
-// days, keeping every row fresher than a week. Deterministic — no LLM.
-export const maxDuration = 300;
+// Each invocation sweeps the stalest slice of the universe within a time
+// budget; hourly runs roll through all ~10k filers in ~3-4 days, keeping every
+// row fresher than a week. Deterministic — no LLM.
+//
+// Triggered hourly by the GitHub Actions workflow (.github/workflows/
+// sweep-big-five.yml), NOT the Vercel cron — the Hobby plan caps built-in cron
+// at once/day, far too slow for the universe. maxDuration is 60 (the Hobby
+// function ceiling); the internal budget exits cleanly just under it.
+export const maxDuration = 60;
 
-const TIME_BUDGET_MS = 220_000; // leave headroom for quotes/stickers + response
+const TIME_BUDGET_MS = 55_000; // stay under the 60s function ceiling
 const BATCH_SIZE = 120;
 const FRESH_DAYS = 6;
 
