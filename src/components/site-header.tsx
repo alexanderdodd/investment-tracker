@@ -28,8 +28,8 @@ export function SiteHeader() {
         </Link>
 
         <Link
-          href="/watchlist"
-          title="My Watchlist"
+          href="/lists"
+          title="My Watchlists"
           className="flex shrink-0 items-center gap-1.5 rounded-lg p-1.5 text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           <svg
@@ -43,7 +43,7 @@ export function SiteHeader() {
           >
             <path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9L12 3z" />
           </svg>
-          <span className="hidden text-sm font-medium sm:inline">Watchlist</span>
+          <span className="hidden text-sm font-medium sm:inline">Watchlists</span>
         </Link>
 
         <Link

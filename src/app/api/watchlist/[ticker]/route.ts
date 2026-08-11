@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { getDb } from "@/db/index";
-import { watchlistItems } from "@/db/schema";
+import { listItems } from "@/db/schema";
+import { getOrCreateDefaultList, VALID_LIST_STATUSES } from "@/lib/lists";
+
+// Compatibility layer over the user's protected default ("Watchlist") list.
+// Backs the screener star and the legacy per-ticker watch endpoints.
 
 export async function GET(
   _request: Request,
@@ -15,14 +19,17 @@ export async function GET(
 
   const { ticker } = await params;
   const db = getDb();
+  const list = await getOrCreateDefaultList(db, session.user.id);
+  if (!list) return NextResponse.json({ watching: false, status: null });
 
   const item = await db
     .select()
-    .from(watchlistItems)
+    .from(listItems)
     .where(
       and(
-        eq(watchlistItems.userId, session.user.id),
-        eq(watchlistItems.ticker, ticker.toUpperCase())
+        eq(listItems.userId, session.user.id),
+        eq(listItems.listId, list.id),
+        eq(listItems.ticker, ticker.toUpperCase())
       )
     )
     .then((rows) => rows[0] ?? null);
@@ -30,9 +37,7 @@ export async function GET(
   return NextResponse.json({ watching: !!item, status: item?.status ?? null });
 }
 
-const VALID_STATUSES = ["watching", "to-research", "to-buy", "own", "pass"];
-
-// PATCH { status }: update the triage status of a watched stock
+// PATCH { status }: update the triage status of the watched stock.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ ticker: string }> }
@@ -45,18 +50,22 @@ export async function PATCH(
   const { ticker } = await params;
   const body = (await request.json().catch(() => null)) as { status?: string } | null;
   const status = String(body?.status ?? "");
-  if (!VALID_STATUSES.includes(status)) {
+  if (!(VALID_LIST_STATUSES as readonly string[]).includes(status)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
   const db = getDb();
+  const list = await getOrCreateDefaultList(db, session.user.id);
+  if (!list) return NextResponse.json({ error: "Could not resolve watchlist" }, { status: 500 });
+
   await db
-    .update(watchlistItems)
+    .update(listItems)
     .set({ status })
     .where(
       and(
-        eq(watchlistItems.userId, session.user.id),
-        eq(watchlistItems.ticker, ticker.toUpperCase())
+        eq(listItems.userId, session.user.id),
+        eq(listItems.listId, list.id),
+        eq(listItems.ticker, ticker.toUpperCase())
       )
     );
 
@@ -74,13 +83,16 @@ export async function DELETE(
 
   const { ticker } = await params;
   const db = getDb();
+  const list = await getOrCreateDefaultList(db, session.user.id);
+  if (!list) return NextResponse.json({ status: "removed" });
 
   await db
-    .delete(watchlistItems)
+    .delete(listItems)
     .where(
       and(
-        eq(watchlistItems.userId, session.user.id),
-        eq(watchlistItems.ticker, ticker.toUpperCase())
+        eq(listItems.userId, session.user.id),
+        eq(listItems.listId, list.id),
+        eq(listItems.ticker, ticker.toUpperCase())
       )
     );
 

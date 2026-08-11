@@ -17,7 +17,7 @@ import { sectorToSlug } from "@/lib/sectors";
 import { friendlyExchange } from "@/lib/exchanges";
 import { formatMoney } from "@/lib/currency";
 import { SimulateBuyModal } from "@/components/simulate-buy-modal";
-import { StatusPicker, type WatchlistStatus } from "@/components/watchlist-status";
+import { AddToListPicker } from "@/components/add-to-list-picker";
 import { StockLabels } from "@/components/stock-labels";
 import type { StockLabel } from "@/lib/labels";
 
@@ -113,9 +113,6 @@ export default function StockPage() {
   // Verdict pill sourced from the Sticker Price tab's math (default Rule #1
   // growth), so the header agrees with that tab rather than the old report.
   const [stickerVerdict, setStickerVerdict] = useState<StickerVerdict | null>(null);
-  const [watching, setWatching] = useState(false);
-  const [watchStatus, setWatchStatus] = useState<string>("watching");
-  const [watchLoading, setWatchLoading] = useState(false);
   const [showSimBuy, setShowSimBuy] = useState(false);
   // User-defined labels: the full catalogue (for the picker menu) + the ids
   // applied to this ticker. `labelsAuthed` gates the picker to signed-in users.
@@ -195,17 +192,6 @@ export default function StockPage() {
       .catch(() => {});
   }, [ticker]);
 
-  // Load watchlist status
-  useEffect(() => {
-    fetch(`/api/watchlist/${ticker}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setWatching(data.watching);
-        if (data.status) setWatchStatus(data.status);
-      })
-      .catch(() => {});
-  }, [ticker]);
-
   // Load company profile (name + business description from Yahoo)
   useEffect(() => {
     fetch(`/api/stocks/${ticker}/profile`)
@@ -263,40 +249,6 @@ export default function StockPage() {
     }
   }
 
-  async function toggleWatch() {
-    setWatchLoading(true);
-    try {
-      if (watching) {
-        await fetch(`/api/watchlist/${ticker}`, { method: "DELETE" });
-        setWatching(false);
-        setWatchStatus("watching");
-      } else {
-        await fetch("/api/watchlist", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ticker,
-            companyName: insights?.companyName ?? null,
-            sector: insights?.sector ?? null,
-          }),
-        });
-        setWatching(true);
-      }
-    } catch { /* ignore */ }
-    setWatchLoading(false);
-  }
-
-  async function changeWatchStatus(status: WatchlistStatus) {
-    const prev = watchStatus;
-    setWatchStatus(status);
-    const res = await fetch(`/api/watchlist/${ticker}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    }).catch(() => null);
-    if (!res?.ok) setWatchStatus(prev);
-  }
-
   const dayChange = livePrice?.previousClose
     ? ((livePrice.price - livePrice.previousClose) / livePrice.previousClose) * 100
     : null;
@@ -334,24 +286,12 @@ export default function StockPage() {
                 {stickerVerdict.label}
               </span>
             )}
-            {/* Watch button */}
-            <button
-              onClick={toggleWatch}
-              disabled={watchLoading}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-                watching
-                  ? "border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25"
-                  : "border-zinc-300 bg-white text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
-              }`}
-              title={watching ? "Remove from watchlist" : "Add to watchlist"}
-            >
-              {watching ? "\u2605" : "\u2606"}
-              {!watching && "Watch"}
-            </button>
-            {/* Watchlist triage status */}
-            {watching && (
-              <StatusPicker value={watchStatus} onChange={changeWatchStatus} />
-            )}
+            {/* Add-to-list picker (multi-list, with note) */}
+            <AddToListPicker
+              ticker={ticker}
+              companyName={insights?.companyName ?? profile?.name ?? null}
+              sector={insights?.sector ?? null}
+            />
             {/* Simulate Buy button */}
             <button
               onClick={() => setShowSimBuy(true)}

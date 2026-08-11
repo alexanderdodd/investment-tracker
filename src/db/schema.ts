@@ -371,6 +371,66 @@ export const watchlistItems = pgTable("watchlist_item", {
   addedAt: timestamp("added_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// A user-defined list of stocks (e.g. "Watchlist", "Risky", "Deep dive").
+// Unlike a portfolio, a list carries no cash allocation — it's just a curated
+// bucket of tickers, each with an optional note. Every user has exactly one
+// protected `isDefault` list named "Watchlist" that the "Watch" action and the
+// screener star target; other lists are freely renamed/deleted.
+export const stockLists = pgTable(
+  "stock_list",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    // Palette key shared with labels (see LABEL_COLORS); "zinc" is the neutral.
+    color: text("color").notNull().default("zinc"),
+    // The built-in Watchlist: can't be renamed or deleted; target of the Watch
+    // action + screener star. Exactly one per user.
+    isDefault: boolean("is_default").notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("stock_list_user_idx").on(t.userId),
+    // Case-insensitive uniqueness of list names per user.
+    uniqueIndex("stock_list_name_unique").on(t.userId, sql`lower(${t.name})`),
+  ]
+);
+
+// A stock's membership in a list, with an optional free-text note and the same
+// triage status the watchlist has always used. A ticker may appear in many
+// lists; unique per (list, ticker).
+export const listItems = pgTable(
+  "list_item",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    listId: text("list_id")
+      .notNull()
+      .references(() => stockLists.id, { onDelete: "cascade" }),
+    ticker: text("ticker").notNull(),
+    companyName: text("company_name"),
+    sector: text("sector"),
+    note: text("note"),
+    /** Triage status: watching | to-research | to-buy | own | pass */
+    status: text("status").notNull().default("watching"),
+    addedAt: timestamp("added_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("list_item_user_idx").on(t.userId),
+    index("list_item_list_idx").on(t.listId),
+    uniqueIndex("list_item_unique").on(t.listId, t.ticker),
+  ]
+);
+
 // User-defined labels for triaging stocks (e.g. "consider", "pass", "deep
 // dive"). Separate from the watchlist: a label is a free-form impression you
 // can apply to a stock without committing to watch it. One row per label the

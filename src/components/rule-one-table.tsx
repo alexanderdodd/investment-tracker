@@ -22,6 +22,11 @@ export interface RuleOneItem {
   companyName: string | null;
 }
 
+/** Columns the table can sort by. Metric sorts use each row's loaded price/
+ *  sticker/MOS; rows still loading sink to the bottom. */
+export type RuleOneSortKey = "added" | "ticker" | "name" | "price" | "sticker" | "mos";
+export type SortDir = "asc" | "desc";
+
 interface PeriodStat {
   value: number | null;
   spanYears: number | null;
@@ -131,6 +136,10 @@ export function RuleOneTable({
   assignments,
   onToggleLabel,
   onCreateLabel,
+  notes,
+  onEditNote,
+  sortKey = "added",
+  sortDir = "desc",
 }: {
   items: RuleOneItem[];
   /** When provided, renders a Remove action column (watchlist) */
@@ -148,8 +157,15 @@ export function RuleOneTable({
   assignments?: Record<string, string[]>;
   onToggleLabel?: (ticker: string, labelId: string, assign: boolean) => void;
   onCreateLabel?: (ticker: string, name: string) => void;
+  /** ticker → note; when onEditNote is also provided, renders an editable Note column */
+  notes?: Record<string, string | null>;
+  onEditNote?: (ticker: string, note: string) => void;
+  /** Column to sort rows by (default: incoming order = "added") */
+  sortKey?: RuleOneSortKey;
+  sortDir?: SortDir;
 }) {
   const labelsEnabled = !!labels && !!onToggleLabel && !!onCreateLabel;
+  const notesEnabled = !!notes && !!onEditNote;
   const [rows, setRows] = useState<Record<string, RowData>>({});
 
   // Fan out per-ticker fetches; each row fills in as its data arrives.
@@ -167,6 +183,55 @@ export function RuleOneTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(items.map((i) => i.ticker))]);
+
+  // Loaded price/sticker/MOS for a ticker (null while still fetching), used both
+  // for metric sorting and to keep it consistent with the row render below.
+  function metricsOf(ticker: string): { price: number | null; sticker: number | null; mos: number | null } {
+    const sticker = rows[ticker]?.sticker;
+    if (!sticker?.available) return { price: sticker?.currentPrice ?? null, sticker: null, mos: null };
+    const g = defaultGrowthRate(sticker.equityGrowth?.value, sticker.analystGrowth);
+    const calc = computeSticker(sticker.eps, g, sticker.historicalHighPe);
+    return {
+      price: sticker.currentPrice ?? null,
+      sticker: calc?.sticker ?? null,
+      mos: currentMos(sticker.currentPrice ?? null, calc?.sticker ?? null),
+    };
+  }
+
+  // Sort a copy of items. "added" preserves the server order (addedAt desc from
+  // the caller), honouring sortDir. Metric sorts push not-yet-loaded rows last.
+  const orderedItems = (() => {
+    if (sortKey === "added") return sortDir === "asc" ? [...items].reverse() : items;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const val = (item: RuleOneItem): number | string | null => {
+      switch (sortKey) {
+        case "ticker":
+          return item.ticker;
+        case "name":
+          return (item.companyName || item.ticker).toLowerCase();
+        case "price":
+          return metricsOf(item.ticker).price;
+        case "sticker":
+          return metricsOf(item.ticker).sticker;
+        case "mos":
+          return metricsOf(item.ticker).mos;
+        default:
+          return null;
+      }
+    };
+    return [...items].sort((a, b) => {
+      const va = val(a);
+      const vb = val(b);
+      // Nulls always sink to the bottom regardless of direction.
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      if (typeof va === "string" && typeof vb === "string") {
+        return va.localeCompare(vb) * dir;
+      }
+      return ((va as number) - (vb as number)) * dir;
+    });
+  })();
 
   return (
     <div className="overflow-x-auto">
@@ -199,11 +264,12 @@ export function RuleOneTable({
                 <span>MOS %</span>
               </MetricTooltip>
             </th>
+            {notesEnabled && <th className="px-3 py-3 text-left font-medium">Note</th>}
             {onRemove && <th className="px-3 py-3" />}
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => {
+          {orderedItems.map((item) => {
             const row = rows[item.ticker] ?? {};
             const growth = row.growth;
             const sticker = row.sticker;
@@ -304,12 +370,20 @@ export function RuleOneTable({
                     fmtPct(mos)
                   )}
                 </td>
+                {notesEnabled && (
+                  <td className="px-3 py-3 align-top">
+                    <NoteCell
+                      value={notes![item.ticker] ?? null}
+                      onSave={(note) => onEditNote!(item.ticker, note)}
+                    />
+                  </td>
+                )}
                 {onRemove && (
                   <td className="px-3 py-3 text-right">
                     <button
                       onClick={() => onRemove(item.ticker)}
                       className="text-xs text-zinc-400 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 transition-colors"
-                      title="Remove from watchlist"
+                      title="Remove from list"
                     >
                       Remove
                     </button>
@@ -321,5 +395,60 @@ export function RuleOneTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Inline-editable note: shows the text (or a "+ note" affordance); click to
+ *  edit in a small textarea; Enter or blur saves, Esc cancels. */
+function NoteCell({ value, onSave }: { value: string | null; onSave: (note: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+
+  function startEditing() {
+    setDraft(value ?? "");
+    setEditing(true);
+  }
+
+  function commit() {
+    setEditing(false);
+    const next = draft.trim();
+    if (next !== (value ?? "")) onSave(next);
+  }
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            setDraft(value ?? "");
+            setEditing(false);
+          }
+        }}
+        rows={2}
+        placeholder="Add a note…"
+        className="w-48 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={startEditing}
+      title={value ? "Edit note" : "Add a note"}
+      className={`max-w-[12rem] text-left text-xs transition-colors ${
+        value
+          ? "whitespace-pre-wrap text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+          : "text-zinc-400 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-400"
+      }`}
+    >
+      {value || "＋ note"}
+    </button>
   );
 }

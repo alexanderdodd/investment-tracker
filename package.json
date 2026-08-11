@@ -26,7 +26,8 @@
     "discover-european": "npx tsx scripts/discover-european.ts",
     "backfill-european": "npx tsx scripts/backfill-european.ts",
     "sweep-big-five": "npx tsx scripts/sweep-big-five.ts",
-    "enrich-meaning": "npx tsx scripts/enrich-meaning.ts"
+    "enrich-meaning": "npx tsx scripts/enrich-meaning.ts",
+    "migrate-watchlist-to-lists": "npx tsx scripts/migrate-watchlist-to-lists.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",

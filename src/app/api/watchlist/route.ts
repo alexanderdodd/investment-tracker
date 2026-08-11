@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { getDb } from "@/db/index";
-import { watchlistItems } from "@/db/schema";
+import { listItems } from "@/db/schema";
 import { fetchYahooSector } from "@/lib/stock-metrics";
 import { SECTORS } from "@/lib/sectors";
+import { getOrCreateDefaultList } from "@/lib/lists";
 
+// Compatibility layer over the user's protected default ("Watchlist") list, so
+// the screener star and other legacy callers keep working after the move to
+// multiple lists. New UI should prefer /api/lists.
 const VALID_SECTORS = new Set<string>(SECTORS);
 
 export async function GET() {
@@ -15,13 +19,15 @@ export async function GET() {
   }
 
   const db = getDb();
+  const list = await getOrCreateDefaultList(db, session.user.id);
+  if (!list) return NextResponse.json({ items: [] });
+
   const items = await db
     .select()
-    .from(watchlistItems)
-    .where(eq(watchlistItems.userId, session.user.id))
-    .orderBy(desc(watchlistItems.addedAt));
+    .from(listItems)
+    .where(and(eq(listItems.userId, session.user.id), eq(listItems.listId, list.id)))
+    .orderBy(desc(listItems.addedAt));
 
-  // Backfill items with missing or non-GICS sector
   const toFix = items.filter((i) => !i.sector || !VALID_SECTORS.has(i.sector));
   if (toFix.length > 0) {
     await Promise.all(
@@ -30,12 +36,11 @@ export async function GET() {
           const sector = await fetchYahooSector(item.ticker);
           if (sector) {
             item.sector = sector;
-            await db
-              .update(watchlistItems)
-              .set({ sector })
-              .where(eq(watchlistItems.id, item.id));
+            await db.update(listItems).set({ sector }).where(eq(listItems.id, item.id));
           }
-        } catch { /* ignore — will retry next load */ }
+        } catch {
+          /* ignore — retry next load */
+        }
       })
     );
   }
@@ -59,30 +64,29 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const { ticker, companyName, sector } = body;
-
   if (!ticker || typeof ticker !== "string") {
     return NextResponse.json({ error: "ticker is required" }, { status: 400 });
   }
 
   const db = getDb();
+  const list = await getOrCreateDefaultList(db, session.user.id);
+  if (!list) return NextResponse.json({ error: "Could not resolve watchlist" }, { status: 500 });
 
-  // Check if already watching
+  const upper = ticker.toUpperCase();
   const existing = await db
     .select()
-    .from(watchlistItems)
-    .where(eq(watchlistItems.userId, session.user.id))
-    .then((rows) => rows.find((r) => r.ticker === ticker.toUpperCase()));
-
+    .from(listItems)
+    .where(and(eq(listItems.userId, session.user.id), eq(listItems.listId, list.id)))
+    .then((rows) => rows.find((r) => r.ticker === upper));
   if (existing) {
     return NextResponse.json({ status: "already_watching" });
   }
 
-  // Fetch GICS sector from Yahoo Finance for accurate sector classification
-  const resolvedSector = await fetchYahooSector(ticker.toUpperCase()).catch(() => null);
-
-  await db.insert(watchlistItems).values({
+  const resolvedSector = await fetchYahooSector(upper).catch(() => null);
+  await db.insert(listItems).values({
     userId: session.user.id,
-    ticker: ticker.toUpperCase(),
+    listId: list.id,
+    ticker: upper,
     companyName: companyName || null,
     sector: resolvedSector || sector || null,
   });

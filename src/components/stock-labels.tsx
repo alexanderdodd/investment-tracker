@@ -38,6 +38,10 @@ export function labelPillClass(color: LabelColor): string {
   return PILL[color] ?? PILL.zinc;
 }
 
+export function labelDotClass(color: LabelColor): string {
+  return DOT[color] ?? DOT.zinc;
+}
+
 interface Props {
   ticker: string;
   /** All of the user's labels (for the picker menu). */
