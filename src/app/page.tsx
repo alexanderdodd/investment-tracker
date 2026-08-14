@@ -4,13 +4,25 @@ import { StockSearchBox } from "@/components/stock-search-box";
 import { MeaningProfileCard } from "@/components/meaning-profile-card";
 import { getProfile, topCircleCompanies } from "@/lib/meaning-match";
 import { displayTag } from "@/lib/meaning-tags";
+import { beatenDownQualifiers } from "@/lib/biggest-losers";
+
+/** Signed decimal fraction → e.g. "-38%" (rounded, always signed) */
+function fmtDelta(v: number | null): string {
+  if (v === null) return "—";
+  const pct = Math.round(v * 100);
+  return `${pct > 0 ? "+" : ""}${pct}%`;
+}
 
 export default async function Home() {
   const session = await auth();
   const userId = session?.user?.id ?? null;
-  const [profile, circle] = userId
-    ? await Promise.all([getProfile(userId), topCircleCompanies(userId, 8)])
-    : [null, []];
+  const [profile, circle, losers] = userId
+    ? await Promise.all([
+        getProfile(userId),
+        topCircleCompanies(userId, 8),
+        beatenDownQualifiers(6),
+      ])
+    : [null, [], []];
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 dark:bg-black">
@@ -177,6 +189,68 @@ export default async function Home() {
                             ))}
                           </p>
                         )}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Beaten-down quality — Big Five qualifiers furthest below their 52-week high */}
+            {losers.length > 0 && (
+              <div className="w-full sm:w-[34rem] rounded-2xl border border-zinc-200 bg-white p-6 text-left dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      Beaten-down quality
+                    </h2>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Big Five qualifiers furthest below their 52-week high
+                    </p>
+                  </div>
+                  <Link
+                    href="/screener?sort=off52high&minScore=3"
+                    className="text-xs text-blue-500 hover:underline dark:text-blue-400"
+                  >
+                    See all →
+                  </Link>
+                </div>
+                <div className="mb-1.5 grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-3 px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  <span>Company</span>
+                  <span className="w-12 text-right">50d</span>
+                  <span className="w-12 text-right">200d</span>
+                  <span className="w-14 text-right">Off high</span>
+                  <span className="w-8 text-right">Big 5</span>
+                </div>
+                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {losers.map((s) => (
+                    <li key={s.ticker} className="py-2 first:pt-0 last:pb-0">
+                      <Link
+                        href={`/stocks/${s.ticker}/valuation`}
+                        className="group grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-3"
+                      >
+                        <span className="min-w-0">
+                          <span className="text-sm font-medium text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400">
+                            {s.ticker}
+                          </span>
+                          {s.companyName && (
+                            <span className="ml-2 truncate text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                              {s.companyName}
+                            </span>
+                          )}
+                        </span>
+                        <span className="w-12 text-right text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+                          {fmtDelta(s.pctVs50dAvg)}
+                        </span>
+                        <span className="w-12 text-right text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+                          {fmtDelta(s.pctVs200dAvg)}
+                        </span>
+                        <span className="w-14 text-right text-xs font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+                          {fmtDelta(s.pctFrom52wHigh)}
+                        </span>
+                        <span className="w-8 text-right text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                          {s.score}/5
+                        </span>
                       </Link>
                     </li>
                   ))}

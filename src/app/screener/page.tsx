@@ -109,6 +109,7 @@ const SORT_OPTIONS = [
   { value: "sales", label: "Sales growth" },
   { value: "eps", label: "EPS growth" },
   { value: "discount", label: "Discount to sticker" },
+  { value: "off52high", label: "Below 52-week high" },
   { value: "marketCap", label: "Market cap" },
 ];
 

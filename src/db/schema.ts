@@ -588,6 +588,14 @@ export const bigFiveScreen = pgTable("big_five_screen", {
   sticker: real("sticker"),
   mos: real("mos"),
   verdict: text("verdict"),
+  /**
+   * Beaten-down signals, all lifted for free from the same v7 quote payload
+   * enrichQuotes already fetches. Stored as decimal fractions (e.g. -0.38 =
+   * 38% below the 52-week high). Negative = below the reference level.
+   */
+  pctFrom52wHigh: real("pct_from_52w_high"),
+  pctVs50dAvg: real("pct_vs_50d_avg"),
+  pctVs200dAvg: real("pct_vs_200d_avg"),
   generatedAt: timestamp("generated_at", { mode: "date" }).notNull().defaultNow(),
 });
 

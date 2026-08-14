@@ -14,6 +14,7 @@ const SORTS = {
   fcf: bigFiveScreen.fcf10y,
   marketCap: bigFiveScreen.marketCap,
   discount: sql`(${bigFiveScreen.sticker} - ${bigFiveScreen.price}) / nullif(${bigFiveScreen.sticker}, 0)`,
+  off52high: bigFiveScreen.pctFrom52wHigh,
 } as const;
 
 // Everything except company_meaning.description (large; never shipped)
@@ -44,6 +45,9 @@ const ROW_COLUMNS = {
   sticker: bigFiveScreen.sticker,
   mos: bigFiveScreen.mos,
   verdict: bigFiveScreen.verdict,
+  pctFrom52wHigh: bigFiveScreen.pctFrom52wHigh,
+  pctVs50dAvg: bigFiveScreen.pctVs50dAvg,
+  pctVs200dAvg: bigFiveScreen.pctVs200dAvg,
   oneLiner: companyMeaning.oneLiner,
   tags: companyMeaning.tags,
 };
@@ -139,11 +143,15 @@ export async function GET(request: Request) {
     fcf: sq.fcf10y,
     marketCap: sq.marketCap,
     discount: sql`(${sq.sticker} - ${sq.price}) / nullif(${sq.sticker}, 0)`,
+    off52high: sq.pctFrom52wHigh,
   } as const;
   const orderBy =
     sortKey === "relevance" && relevanceAvailable
       ? [desc(sq.relevance), desc(sq.score), desc(sq.marketCap)]
-      : [dir(SORTS_SQ[(sortKey === "relevance" ? "score" : sortKey) as keyof typeof SORTS_SQ] ?? SORTS_SQ.score), desc(sq.marketCap)];
+      : sortKey === "off52high"
+        ? // Biggest losers first: most-negative fraction ascending (NULLs last)
+          [asc(sq.pctFrom52wHigh), desc(sq.marketCap)]
+        : [dir(SORTS_SQ[(sortKey === "relevance" ? "score" : sortKey) as keyof typeof SORTS_SQ] ?? SORTS_SQ.score), desc(sq.marketCap)];
 
   const [rows, stats, sectors] = await Promise.all([
     db.select().from(sq).where(eq(sq.rn, 1)).orderBy(...orderBy).limit(limit).offset(offset),

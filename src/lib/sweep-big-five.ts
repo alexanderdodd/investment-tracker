@@ -283,12 +283,19 @@ export async function enrichQuotes(tickers: string[]): Promise<void> {
         // store that as the row's currency — not the filing currency, which
         // differs for e.g. AstraZeneca (files USD, trades in GBP).
         const { currency, divisor } = normalizeCurrency(q.currency);
+        // Change signals are unit-free fractions Yahoo already computes, so no
+        // currency divisor applies. fiftyTwoWeekHighChangePercent is negative
+        // when below the high — the "beaten-down" direction we rank on.
+        const frac = (v: unknown) => (typeof v === "number" ? v : null);
         await db
           .update(bigFiveScreen)
           .set({
             currency: currency ?? undefined,
             price: typeof q.regularMarketPrice === "number" ? q.regularMarketPrice / divisor : null,
             marketCap: typeof q.marketCap === "number" ? q.marketCap : null,
+            pctFrom52wHigh: frac(q.fiftyTwoWeekHighChangePercent),
+            pctVs50dAvg: frac(q.fiftyDayAverageChangePercent),
+            pctVs200dAvg: frac(q.twoHundredDayAverageChangePercent),
           })
           .where(eq(bigFiveScreen.ticker, String(q.symbol).toUpperCase()));
       }
