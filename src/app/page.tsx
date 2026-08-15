@@ -20,7 +20,7 @@ export default async function Home() {
     ? await Promise.all([
         getProfile(userId),
         topCircleCompanies(userId, 8),
-        beatenDownQualifiers(6),
+        beatenDownQualifiers(12),
       ])
     : [null, [], []];
 
@@ -209,7 +209,7 @@ export default async function Home() {
                     </p>
                   </div>
                   <Link
-                    href="/screener?sort=off52high&minScore=3"
+                    href="/screener?sort=off52high&minScore=3&minMcap=2000000000"
                     className="text-xs text-blue-500 hover:underline dark:text-blue-400"
                   >
                     See all →

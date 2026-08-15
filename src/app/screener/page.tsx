@@ -40,6 +40,9 @@ interface ScreenRow {
   sticker: number | null;
   mos: number | null;
   verdict: string | null;
+  pctFrom52wHigh: number | null;
+  pctVs50dAvg: number | null;
+  pctVs200dAvg: number | null;
   oneLiner: string | null;
   tags: string[] | null;
   matchedTags: string[];
@@ -173,7 +176,10 @@ function ScreenerPageInner() {
   });
   const [sector, setSector] = useState(saved.sector ?? "");
   const [region, setRegion] = useState(saved.region ?? "");
-  const [minMcap, setMinMcap] = useState(saved.minMcap ?? 0);
+  const [minMcap, setMinMcap] = useState(() => {
+    const p = searchParams.get("minMcap");
+    return p != null ? parseFloat(p) : saved.minMcap ?? 0;
+  });
   const [maxMcap, setMaxMcap] = useState<number | null>(saved.maxMcap ?? null);
   // Whether the current cap range is one of the preset bands (vs a custom cap
   // set by a natural-language query) — governs the removable "≤ $X" chip.
@@ -721,7 +727,7 @@ function ScreenerPageInner() {
         ) : (
           <div className={`overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 ${loading ? "opacity-60" : ""}`}>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1050px]">
+              <table className="w-full min-w-[1180px]">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                     {authed && <th className="w-9 py-3 pl-4 pr-1" aria-label="Watch" />}
@@ -735,6 +741,11 @@ function ScreenerPageInner() {
                         </MetricTooltip>
                       </th>
                     ))}
+                    <th className="px-3 py-3 text-right font-medium">
+                      <MetricTooltip label="Off 52-week high" description="How far below the 52-week high the stock trades (the pullback), with price vs its 50-day and 200-day averages beneath. Beaten-down quality on sale.">
+                        <span>Off high</span>
+                      </MetricTooltip>
+                    </th>
                     <th className="px-3 py-3 text-right font-medium">Price</th>
                     <th className="px-3 py-3 text-right font-medium">Sticker</th>
                     <th className="px-4 py-3 text-right font-medium">MOS %</th>
@@ -744,7 +755,7 @@ function ScreenerPageInner() {
                   {displayRows.length === 0 && (
                     <tr>
                       <td
-                        colSpan={11 + (authed ? 1 : 0)}
+                        colSpan={12 + (authed ? 1 : 0)}
                         className="px-4 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
                       >
                         {watchedOnly
@@ -870,6 +881,20 @@ function ScreenerPageInner() {
                             />
                           </td>
                         ))}
+                        <td className="px-3 py-2.5 text-right align-middle">
+                          {r.pctFrom52wHigh !== null ? (
+                            <>
+                              <div className="text-sm font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
+                                {fmtPct(r.pctFrom52wHigh)}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 tabular-nums whitespace-nowrap">
+                                50d {fmtPct(r.pctVs50dAvg)} · 200d {fmtPct(r.pctVs200dAvg)}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                          )}
+                        </td>
                         <td className={`px-3 py-2.5 text-right text-sm font-semibold ${priceColor}`}>
                           {fmtMoney(r.price, r.sticker !== null ? r.currency : "USD")}
                         </td>
