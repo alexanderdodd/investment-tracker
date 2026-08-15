@@ -10,6 +10,14 @@ export const PROJECTION_YEARS = 10;
 export const MINIMUM_RETURN = 0.15; // Rule #1 minimum acceptable rate of return
 export const DISCOUNT_FACTOR = Math.pow(1 + MINIMUM_RETURN, PROJECTION_YEARS); // ≈ 4.05
 export const MARGIN_OF_SAFETY = 0.5;
+/**
+ * No business compounds earnings at triple digits for a decade. Cap the growth
+ * fed into the 10-year projection so a bad-data spike — e.g. a book-value CAGR
+ * measured off a tiny base on a thin foreign-listing feed — can't manufacture
+ * an absurd sticker (and, via 2×growth, an absurd default P/E). 30%/yr is
+ * already an aggressive decade-long assumption.
+ */
+export const MAX_GROWTH_RATE = 0.3;
 
 /** Rule #1 rule of thumb: all Big Five should be ≥ 10%/year */
 export function rateBigFive(v: number | null): MetricRating {
@@ -50,8 +58,11 @@ export function computeSticker(
   historicalHighPe: number | null
 ): StickerCalc | null {
   if (eps === null || eps <= 0 || growth === null || !isFinite(growth)) return null;
-  const futureEps = eps * Math.pow(1 + growth, PROJECTION_YEARS);
-  const defaultPe = growth * 2 * 100;
+  // Clamp the upper end only — negative growth still flows through to a
+  // non-positive P/E below (the method's "pass" signal for shrinking earners).
+  const g = Math.min(growth, MAX_GROWTH_RATE);
+  const futureEps = eps * Math.pow(1 + g, PROJECTION_YEARS);
+  const defaultPe = g * 2 * 100;
   const futurePe = historicalHighPe !== null ? Math.min(defaultPe, historicalHighPe) : defaultPe;
   if (futurePe <= 0) return null;
   const futurePrice = futureEps * futurePe;

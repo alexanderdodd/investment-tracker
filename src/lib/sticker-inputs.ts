@@ -12,6 +12,9 @@ import { normalizeCurrency } from "./currency";
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 
+/** Above this annual CAGR, equity growth is a data artifact, not real growth. */
+const IMPLAUSIBLE_GROWTH = 1.0;
+
 const MONTH_NUMBER: Record<string, number> = {
   January: 1, February: 2, March: 3, April: 4, May: 5, June: 6,
   July: 7, August: 8, September: 9, October: 10, November: 11, December: 12,
@@ -181,11 +184,16 @@ export async function buildStickerInputs(ticker: string): Promise<StickerPriceIn
     }
   }
 
-  // Equity growth: 10y CAGR, falling back to 5y for shorter histories
+  // Equity growth: 10y CAGR, falling back to 5y for shorter histories.
+  // Reject implausibly high CAGRs (> 100%/yr): no real business compounds book
+  // value that fast for years — it's a base-effect artifact of a thin feed
+  // (e.g. a foreign listing whose only fundamentals are a 3-year Yahoo scrap
+  // off a near-zero starting equity). Treating it as absent makes the sticker
+  // "pass" like the primary listing instead of printing a bogus fair value.
   let equityGrowth: StickerPriceInputs["equityGrowth"] = null;
   const eq = payload?.summary?.equityGrowth;
   const pick = eq?.tenYear.value !== null && eq?.tenYear.value !== undefined ? eq.tenYear : eq?.fiveYear;
-  if (pick && pick.value !== null && pick.spanYears !== null) {
+  if (pick && pick.value !== null && pick.spanYears !== null && pick.value <= IMPLAUSIBLE_GROWTH) {
     equityGrowth = { value: pick.value, spanYears: pick.spanYears };
   }
 

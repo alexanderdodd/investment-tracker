@@ -6,6 +6,7 @@ import {
   PROJECTION_YEARS,
   MINIMUM_RETURN,
   DISCOUNT_FACTOR,
+  MAX_GROWTH_RATE,
   defaultGrowthRate,
   computeSticker,
 } from "@/lib/rule-one";
@@ -187,7 +188,7 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
     { key: "2b", label: "2b", value: gbVal, enabled: gbVal !== null },
     { key: "average", label: "Avg", value: gaVal !== null && gbVal !== null ? (gaVal + gbVal) / 2 : null, enabled: gaVal !== null && gbVal !== null },
   ];
-  const basisNote = overridden
+  const baseNote = overridden
     ? "custom"
     : basis === "2a"
       ? "equity (2a)"
@@ -196,6 +197,12 @@ export function StickerPriceTab({ ticker }: { ticker: string }) {
         : basis === "average"
           ? "avg of 2a / 2b"
           : "lower of 2a / 2b";
+  // The projection clamps growth to MAX_GROWTH_RATE; flag it so the derivation
+  // below (which uses the capped rate) stays consistent with the % shown here.
+  const growthCapped = growth !== null && growth > MAX_GROWTH_RATE;
+  const basisNote = growthCapped
+    ? `${baseNote} · capped at ${(MAX_GROWTH_RATE * 100).toFixed(0)}%`
+    : baseNote;
 
   const rows: {
     step: string;
