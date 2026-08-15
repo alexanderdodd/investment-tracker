@@ -585,6 +585,8 @@ export const bigFiveScreen = pgTable("big_five_screen", {
   minSpanYears: integer("min_span_years"),
   marketCap: doublePrecision("market_cap"),
   price: real("price"),
+  /** Yahoo exchange code (e.g. "NMS", "NYQ", "VIE") — friendlyExchange() maps it */
+  exchange: text("exchange"),
   sticker: real("sticker"),
   mos: real("mos"),
   verdict: text("verdict"),

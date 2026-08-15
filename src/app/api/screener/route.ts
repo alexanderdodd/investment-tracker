@@ -42,6 +42,7 @@ const ROW_COLUMNS = {
   minSpanYears: bigFiveScreen.minSpanYears,
   marketCap: bigFiveScreen.marketCap,
   price: bigFiveScreen.price,
+  exchange: bigFiveScreen.exchange,
   sticker: bigFiveScreen.sticker,
   mos: bigFiveScreen.mos,
   verdict: bigFiveScreen.verdict,

@@ -293,6 +293,7 @@ export async function enrichQuotes(tickers: string[]): Promise<void> {
             currency: currency ?? undefined,
             price: typeof q.regularMarketPrice === "number" ? q.regularMarketPrice / divisor : null,
             marketCap: typeof q.marketCap === "number" ? q.marketCap : null,
+            exchange: typeof q.exchange === "string" ? q.exchange : undefined,
             pctFrom52wHigh: frac(q.fiftyTwoWeekHighChangePercent),
             pctVs50dAvg: frac(q.fiftyDayAverageChangePercent),
             pctVs200dAvg: frac(q.twoHundredDayAverageChangePercent),

@@ -9,6 +9,7 @@ import { TriHorizonValues, TriHorizonHeader } from "@/components/tri-horizon";
 import { MosControl, useRememberedMos, useRememberedOnlyOnSale } from "@/components/mos-control";
 import { currentMos, priceVerdictAt } from "@/lib/rule-one";
 import { formatMoney } from "@/lib/currency";
+import { friendlyExchange } from "@/lib/exchanges";
 import { displayTag } from "@/lib/meaning-tags";
 import { StockLabels, labelPillClass } from "@/components/stock-labels";
 import type { StockLabel } from "@/lib/labels";
@@ -37,6 +38,7 @@ interface ScreenRow {
   minSpanYears: number | null;
   marketCap: number | null;
   price: number | null;
+  exchange: string | null;
   sticker: number | null;
   mos: number | null;
   verdict: string | null;
@@ -830,6 +832,14 @@ function ScreenerPageInner() {
                               >
                                 {r.sector}
                               </button>
+                            )}
+                            {friendlyExchange(r.exchange) && (
+                              <span
+                                title={`Listed on ${friendlyExchange(r.exchange)}`}
+                                className="rounded-full border border-zinc-200 px-2 py-px text-[10px] font-medium whitespace-nowrap text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+                              >
+                                {friendlyExchange(r.exchange)}
+                              </span>
                             )}
                           </div>
                           <Link href={`/stocks/${r.ticker}/valuation`} className="block">
