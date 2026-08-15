@@ -660,6 +660,9 @@ function ScreenerPageInner() {
         {authed && labels.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
             <span className="text-[11px] text-zinc-400 dark:text-zinc-500">Labels:</span>
+            <span className="hidden text-[11px] text-zinc-300 dark:text-zinc-600 sm:inline">
+              click: show-only → exclude (∅) → off
+            </span>
             {labels.map((l) => {
               const state = labelFilter[l.id];
               return (

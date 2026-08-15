@@ -322,6 +322,9 @@ export default function ListDetailPage() {
         {items.length > 0 && labels.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] text-zinc-400 dark:text-zinc-500">Labels:</span>
+            <span className="hidden text-[11px] text-zinc-300 dark:text-zinc-600 sm:inline">
+              click: show-only → exclude (∅) → off
+            </span>
             {labels.map((l) => {
               const state = labelFilter[l.id];
               return (
