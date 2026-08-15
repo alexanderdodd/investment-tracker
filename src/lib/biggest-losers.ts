@@ -7,6 +7,7 @@
 import { and, eq, gte, lte, isNotNull, asc, sql } from "drizzle-orm";
 import { getDb } from "../db/index";
 import { bigFiveScreen } from "../db/schema";
+import { normNameSql, primaryRankSql, keepPrimaryListingSql } from "./cross-listing";
 
 /**
  * A quality business "on sale" is a large, liquid name that's pulled back —
@@ -44,12 +45,12 @@ export interface BeatenDownStock {
 export async function beatenDownQualifiers(limit = 6): Promise<BeatenDownStock[]> {
   const db = getDb();
 
-  // Collapse multi-exchange listings of the same company to one row, keeping
-  // the primary line (highest market cap first) — matches the screener's
-  // dedup. This drops foreign shadow listings (e.g. Broadcom's Frankfurt line)
-  // whose 52-week-high data is unreliable in favour of the real US/primary quote.
-  const dedupeKey = sql`lower(trim(coalesce(${bigFiveScreen.companyName}, ${bigFiveScreen.ticker})))`;
-  const rn = sql<number>`row_number() over (partition by ${dedupeKey} order by ${bigFiveScreen.marketCap} desc nulls last, ${bigFiveScreen.score} desc, ${bigFiveScreen.ticker} asc)`;
+  // Collapse a company's listings to one row, keeping the primary (filing
+  // source / real ticker first). Shares the screener's cross-listing helpers so
+  // foreign shadow listings — e.g. Broadcom's Frankfurt line, whose 52-week
+  // data is unreliable — never outrank the real US/primary quote.
+  const dedupeKey = normNameSql("big_five_screen");
+  const rn = sql<number>`row_number() over (partition by ${dedupeKey} order by ${primaryRankSql("big_five_screen")} desc, ${bigFiveScreen.marketCap} desc nulls last, ${bigFiveScreen.score} desc, ${bigFiveScreen.ticker} asc)`;
 
   const sq = db
     .select({
@@ -73,7 +74,8 @@ export async function beatenDownQualifiers(limit = 6): Promise<BeatenDownStock[]
         gte(bigFiveScreen.pctFrom52wHigh, MAX_DRAWDOWN),
         isNotNull(bigFiveScreen.pctVs200dAvg),
         lte(bigFiveScreen.pctVs200dAvg, MAX_VS_200D_AVG),
-        gte(bigFiveScreen.marketCap, MIN_MARKET_CAP)
+        gte(bigFiveScreen.marketCap, MIN_MARKET_CAP),
+        keepPrimaryListingSql()
       )
     )
     .as("sq");

@@ -188,12 +188,16 @@ export async function sweepTickers(
         fcf1y: s?.fcfGrowth.oneYear.value ?? null,
       };
       // Rule #1 is "≥10%/yr on all five, CONSISTENTLY" — a metric only
-      // counts when 10y AND 5y AND 1y all clear 10% (nulls fail)
+      // counts when 10y AND 5y AND 1y all clear 10% (nulls fail). On the thin
+      // Yahoo fallback feed, also reject implausible >100%/yr readings: those
+      // are base-effect artifacts (a CAGR off a near-zero base), not growth,
+      // and would otherwise hand a foreign cross-listing a bogus qualifier.
+      const plausibleCeiling = payload.source === "yahoo" ? 1.0 : Infinity;
       const score = metrics.filter(
         (m) =>
           m &&
           [m.tenYear.value, m.fiveYear.value, m.oneYear.value].every(
-            (v) => v !== null && v >= 0.1
+            (v) => v !== null && v >= 0.1 && v <= plausibleCeiling
           )
       ).length;
       const spans = s
@@ -209,6 +213,8 @@ export async function sweepTickers(
         companyName: payload.companyName ?? name,
         sector: sectorMap.get(ticker) ?? null,
         currency: payload.currency ?? null,
+        cik: payload.cik ?? null,
+        source: payload.source ?? null,
         available: payload.available,
         score,
         ...values,

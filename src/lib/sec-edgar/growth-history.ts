@@ -41,6 +41,10 @@ export interface GrowthHistoryPayload {
   unavailableReason: string | null;
   years: GrowthYearRow[];
   summary: GrowthSummary | null;
+  /** Where the fundamentals came from. SEC/ESEF are real filings; "yahoo" is
+   *  the thin last-resort feed used for cross-listings and small non-filers,
+   *  whose data the screener distrusts when a filing-sourced sibling exists. */
+  source?: "sec" | "esef" | "yahoo" | null;
 }
 
 // 16 years: enough that the Time Travel tab can compute a true 10-year
@@ -163,7 +167,8 @@ async function tryEsef(
     const name = knownName ?? (await fetchYahooLongName(ticker));
     if (!name) return null;
     const { buildEsefGrowthHistory } = await import("../esef/esef-growth");
-    return await buildEsefGrowthHistory(ticker, name);
+    const esef = await buildEsefGrowthHistory(ticker, name);
+    return esef ? { ...esef, source: "esef" as const } : esef;
   } catch {
     return null;
   }
@@ -177,7 +182,8 @@ async function tryYahoo(
 ): Promise<GrowthHistoryPayload | null> {
   try {
     const { buildYahooGrowthHistory } = await import("../yahoo-fundamentals");
-    return await buildYahooGrowthHistory(ticker, knownName);
+    const y = await buildYahooGrowthHistory(ticker, knownName);
+    return y ? { ...y, source: "yahoo" as const } : y;
   } catch {
     return null;
   }
@@ -360,5 +366,6 @@ export async function buildGrowthHistory(ticker: string): Promise<GrowthHistoryP
     unavailableReason: null,
     years,
     summary,
+    source: "sec",
   };
 }

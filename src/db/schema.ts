@@ -563,6 +563,12 @@ export const bigFiveScreen = pgTable("big_five_screen", {
   companyName: text("company_name"),
   sector: text("sector"),
   currency: text("currency"),
+  /** SEC cik when resolved via EDGAR — the identity anchor for collapsing a
+   *  company's foreign cross-listings down to its primary filing. */
+  cik: text("cik"),
+  /** Fundamentals provenance: "sec" | "esef" | "yahoo". Filing sources are
+   *  trusted; "yahoo" cross-listings are suppressed when a filing sibling exists. */
+  source: text("source"),
   available: boolean("available").notNull().default(false),
   /** Metrics passing ≥10%/yr on ALL of 10y, 5y AND 1y (across the board) */
   score: integer("score").notNull().default(0),

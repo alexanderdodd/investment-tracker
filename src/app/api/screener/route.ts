@@ -4,6 +4,12 @@ import { auth } from "@/auth";
 import { getDb } from "@/db/index";
 import { bigFiveScreen, companyMeaning } from "@/db/schema";
 import { getProfile, relevanceExpr, textArray } from "@/lib/meaning-match";
+import {
+  normNameSql,
+  primaryRankSql,
+  keepPrimaryListingSql,
+  europeanHomeSql,
+} from "@/lib/cross-listing";
 
 const SORTS = {
   score: bigFiveScreen.score,
@@ -86,8 +92,11 @@ export async function GET(request: Request) {
     conditions.push(or(isNull(bigFiveScreen.currency), eq(bigFiveScreen.currency, "USD"))!);
   } else if (region === "uk") {
     conditions.push(eq(bigFiveScreen.currency, "GBP"));
+    // Only names actually headquartered/listed in Europe, not relisted shadows
+    conditions.push(europeanHomeSql());
   } else if (region === "eu") {
     conditions.push(inArray(bigFiveScreen.currency, EU_CURRENCIES));
+    conditions.push(europeanHomeSql());
   }
   if (minMcap > 0) conditions.push(gte(bigFiveScreen.marketCap, minMcap));
   if (maxMcap > 0) conditions.push(lte(bigFiveScreen.marketCap, maxMcap));
@@ -118,13 +127,17 @@ export async function GET(request: Request) {
     }
   }
 
-  // Collapse multi-exchange listings of the same company (e.g. a Polish name
-  // cross-listed on Xetra/Frankfurt/Vienna, or a US name and its EU shadow) to
-  // one row. Keep the best-ranked listing per company: highest score, then
-  // market cap, then ticker (favours the primary/US line). Grouping is by the
-  // company name, falling back to ticker when the name is missing.
-  const dedupeKey = sql`lower(trim(coalesce(${bigFiveScreen.companyName}, ${bigFiveScreen.ticker})))`;
-  const rnExpr = sql<number>`row_number() over (partition by ${dedupeKey} order by ${bigFiveScreen.score} desc, ${bigFiveScreen.marketCap} desc nulls last, ${bigFiveScreen.ticker} asc)`;
+  // Suppress a company's untrustworthy Yahoo shadow listings whenever a real
+  // filing-sourced sibling exists (so e.g. Oracle's Vienna line drops out —
+  // and with the SEC line failing Rule #1, Oracle correctly shows nowhere).
+  conditions.push(keepPrimaryListingSql());
+
+  // Collapse whatever listings remain for a company to one row. Grouping is by
+  // the normalized company name (suffix/punctuation-insensitive so a US filing
+  // and its foreign shadows share a key); keep the primary listing — filing
+  // source first, then un-suffixed ticker, then score, then market cap.
+  const dedupeKey = normNameSql("big_five_screen");
+  const rnExpr = sql<number>`row_number() over (partition by ${dedupeKey} order by ${primaryRankSql("big_five_screen")} desc, ${bigFiveScreen.score} desc, ${bigFiveScreen.marketCap} desc nulls last, ${bigFiveScreen.ticker} asc)`;
   const relevanceCol =
     sortKey === "relevance" && relevanceAvailable ? relevanceExpr(interestTags) : sql<number>`0`;
 
