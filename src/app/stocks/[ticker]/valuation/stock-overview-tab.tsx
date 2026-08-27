@@ -15,10 +15,12 @@ import {
   CartesianGrid,
 } from "recharts";
 
-type Timeframe = "1D" | "3M" | "1Y" | "5Y";
+type Timeframe = "1D" | "7D" | "3M" | "1Y" | "5Y";
 
 const RANGE_MAP: Record<Timeframe, string> = {
   "1D": "1d",
+  // Yahoo has no literal 7d range; 5d covers the last ~week of trading days.
+  "7D": "5d",
   "3M": "3mo",
   "1Y": "1y",
   "5Y": "5y",
@@ -26,9 +28,18 @@ const RANGE_MAP: Record<Timeframe, string> = {
 
 const DATE_FORMAT: Record<Timeframe, Intl.DateTimeFormatOptions> = {
   "1D": { hour: "2-digit", minute: "2-digit" },
+  "7D": { weekday: "short", hour: "2-digit" },
   "3M": { month: "short", day: "numeric" },
   "1Y": { month: "short", day: "numeric" },
   "5Y": { month: "short", year: "2-digit" },
+};
+
+const PERIOD_LABEL: Record<Timeframe, string> = {
+  "1D": "today",
+  "7D": "past 7 days",
+  "3M": "past 3 months",
+  "1Y": "past year",
+  "5Y": "past 5 years",
 };
 
 interface ChartPoint {
@@ -145,13 +156,13 @@ export function StockOverviewTab({ ticker, sector }: { ticker: string; sector?: 
               <p className={`text-lg font-semibold ${isPositive ? "text-green-500" : "text-red-500"}`}>
                 {isPositive ? "+" : ""}{periodChange.toFixed(1)}%
                 <span className="ml-2 text-sm font-normal text-zinc-400 dark:text-zinc-500">
-                  {timeframe === "1D" ? "today" : `past ${timeframe.replace("M", " months").replace("Y", " year").replace("5 year", "5 years")}`}
+                  {PERIOD_LABEL[timeframe]}
                 </span>
               </p>
             )}
           </div>
           <div className="flex gap-1">
-            {(["1D", "3M", "1Y", "5Y"] as Timeframe[]).map(tf => (
+            {(["1D", "7D", "3M", "1Y", "5Y"] as Timeframe[]).map(tf => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
