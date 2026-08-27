@@ -65,6 +65,26 @@ export function SiteHeader() {
           <span className="hidden text-sm font-medium sm:inline">Screener</span>
         </Link>
 
+        <Link
+          href="/portfolios"
+          title="My Portfolios"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg p-1.5 text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          <svg
+            className="h-5 w-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+          </svg>
+          <span className="hidden text-sm font-medium sm:inline">Portfolios</span>
+        </Link>
+
         <div className="ml-auto w-full max-w-xs sm:max-w-sm">
           <StockSearchBox compact />
         </div>
