@@ -5,6 +5,7 @@ import { simPortfolios, simTrades } from "@/db/schema";
 import { auth } from "@/auth";
 import { calculateFee, type FeeModel } from "@/lib/sim-fees";
 import { getYahooCrumb } from "@/lib/stock-metrics";
+import { computeSaleRealizedGain, type TradeRecord } from "@/lib/sim-lots";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 
@@ -74,10 +75,32 @@ export async function POST(
   const portfolio = portfolios[0];
   const body = await request.json();
   const { ticker, companyName, shares, notes } = body;
+  const tradeType: "buy" | "sell" = body.tradeType === "sell" ? "sell" : "buy";
 
   if (!ticker || typeof shares !== "number" || shares <= 0) {
     return NextResponse.json({ error: "Ticker and positive shares required" }, { status: 400 });
   }
+
+  // Existing trades — used for cash checks and FIFO realized-gain computation.
+  const existingRows = await db
+    .select()
+    .from(simTrades)
+    .where(eq(simTrades.portfolioId, portfolioId));
+
+  const existingTrades: TradeRecord[] = existingRows.map((t) => ({
+    id: t.id,
+    ticker: t.ticker,
+    companyName: t.companyName,
+    tradeType: t.tradeType,
+    shares: t.shares,
+    pricePerShare: t.pricePerShare,
+    fees: t.fees,
+    totalCost: t.totalCost,
+    executedAt: t.executedAt,
+    spyPriceAtTrade: t.spyPriceAtTrade,
+    sectorEtfTicker: t.sectorEtfTicker,
+    sectorEtfPriceAtTrade: t.sectorEtfPriceAtTrade,
+  }));
 
   // Fetch live prices
   const { crumb, cookie } = await getYahooCrumb();
@@ -97,22 +120,66 @@ export async function POST(
     sectorEtfPrice = await fetchLivePrice(sectorInfo.etfTicker, crumb, cookie);
   }
 
-  // Calculate fees
+  // Calculate fees (same fee model for buys and sells)
   const fees = calculateFee(portfolio.feeModel as FeeModel, shares, stockPrice);
-  const totalCost = shares * stockPrice + fees;
-
-  // Check cash available
-  const existingTrades = await db
-    .select()
-    .from(simTrades)
-    .where(eq(simTrades.portfolioId, portfolioId));
 
   const totalSpent = existingTrades
     .filter((t) => t.tradeType === "buy")
     .reduce((sum, t) => sum + t.totalCost, 0);
+  const totalProceeds = existingTrades
+    .filter((t) => t.tradeType === "sell")
+    .reduce((sum, t) => sum + t.totalCost, 0);
+  const cashAvailable = portfolio.startingCash - totalSpent + totalProceeds;
 
-  const cashAvailable = portfolio.startingCash - totalSpent;
+  if (tradeType === "sell") {
+    // Sell: proceeds credited to cash, realized gain computed FIFO.
+    const proceeds = shares * stockPrice - fees;
+    const result = computeSaleRealizedGain(existingTrades, ticker, shares, stockPrice, fees);
+    if (!result) {
+      const held = existingTrades.length
+        ? computeSaleRealizedGain(existingTrades, ticker, 0, stockPrice, 0)?.sharesHeld ?? 0
+        : 0;
+      return NextResponse.json(
+        { error: `Not enough shares to sell (holding ${held}, tried to sell ${shares})` },
+        { status: 400 }
+      );
+    }
 
+    const tradeId = crypto.randomUUID();
+    await db.insert(simTrades).values({
+      id: tradeId,
+      portfolioId,
+      ticker,
+      companyName: companyName ?? ticker,
+      tradeType: "sell",
+      shares,
+      pricePerShare: stockPrice,
+      fees,
+      totalCost: proceeds,
+      realizedGain: result.realizedGain,
+      spyPriceAtTrade: spyPrice,
+      sectorEtfTicker: sectorInfo?.etfTicker ?? null,
+      sectorEtfPriceAtTrade: sectorEtfPrice,
+      notes: notes ?? null,
+    });
+
+    return NextResponse.json({
+      trade: {
+        id: tradeId,
+        tradeType: "sell",
+        ticker,
+        shares,
+        pricePerShare: stockPrice,
+        fees,
+        proceeds,
+        realizedGain: result.realizedGain,
+        cashRemaining: cashAvailable + proceeds,
+      },
+    });
+  }
+
+  // Buy
+  const totalCost = shares * stockPrice + fees;
   if (totalCost > cashAvailable) {
     return NextResponse.json({
       error: "Insufficient cash",
@@ -122,7 +189,6 @@ export async function POST(
     }, { status: 400 });
   }
 
-  // Execute trade
   const tradeId = crypto.randomUUID();
   await db.insert(simTrades).values({
     id: tradeId,
@@ -143,6 +209,7 @@ export async function POST(
   return NextResponse.json({
     trade: {
       id: tradeId,
+      tradeType: "buy",
       ticker,
       shares,
       pricePerShare: stockPrice,

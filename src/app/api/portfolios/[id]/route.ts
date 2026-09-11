@@ -3,6 +3,8 @@ import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/db/index";
 import { simPortfolios, simTrades, simDividends } from "@/db/schema";
 import { auth } from "@/auth";
+import { replayTrades, type TradeRecord } from "@/lib/sim-lots";
+import { calculateCapitalGainsTax } from "@/lib/german-tax";
 
 // GET — portfolio detail with positions, trades, dividends
 export async function GET(
@@ -42,42 +44,22 @@ export async function GET(
     .where(eq(simDividends.portfolioId, id))
     .orderBy(desc(simDividends.recordedAt));
 
-  // Compute positions (aggregate by ticker)
-  const positionMap: Record<string, {
-    ticker: string;
-    companyName: string;
-    shares: number;
-    totalCost: number;
-    totalFees: number;
-    avgCostBasis: number;
-    firstBuyDate: string;
-    sectorEtfTicker: string | null;
-    spyPriceAtFirstBuy: number | null;
-    sectorEtfPriceAtFirstBuy: number | null;
-  }> = {};
-
-  for (const trade of trades) {
-    if (trade.tradeType !== "buy") continue;
-    if (!positionMap[trade.ticker]) {
-      positionMap[trade.ticker] = {
-        ticker: trade.ticker,
-        companyName: trade.companyName,
-        shares: 0,
-        totalCost: 0,
-        totalFees: 0,
-        avgCostBasis: 0,
-        firstBuyDate: trade.executedAt.toISOString(),
-        sectorEtfTicker: trade.sectorEtfTicker,
-        spyPriceAtFirstBuy: trade.spyPriceAtTrade,
-        sectorEtfPriceAtFirstBuy: trade.sectorEtfPriceAtTrade,
-      };
-    }
-    const pos = positionMap[trade.ticker];
-    pos.shares += trade.shares;
-    pos.totalCost += trade.totalCost;
-    pos.totalFees += trade.fees;
-    pos.avgCostBasis = pos.totalCost / pos.shares;
-  }
+  // Compute positions via FIFO replay (accounts for sells).
+  const tradeRecords: TradeRecord[] = trades.map((t) => ({
+    id: t.id,
+    ticker: t.ticker,
+    companyName: t.companyName,
+    tradeType: t.tradeType,
+    shares: t.shares,
+    pricePerShare: t.pricePerShare,
+    fees: t.fees,
+    totalCost: t.totalCost,
+    executedAt: t.executedAt,
+    spyPriceAtTrade: t.spyPriceAtTrade,
+    sectorEtfTicker: t.sectorEtfTicker,
+    sectorEtfPriceAtTrade: t.sectorEtfPriceAtTrade,
+  }));
+  const replay = replayTrades(tradeRecords);
 
   // Sum dividends per ticker
   const dividendsByTicker: Record<string, number> = {};
@@ -85,15 +67,43 @@ export async function GET(
     dividendsByTicker[d.ticker] = (dividendsByTicker[d.ticker] ?? 0) + d.totalAmount;
   }
 
-  const positions = Object.values(positionMap).map((pos) => ({
+  const positions = replay.positions.map((pos) => ({
     ...pos,
+    totalFees: 0, // remaining-lot fees are folded into totalCost basis
     dividendsReceived: dividendsByTicker[pos.ticker] ?? 0,
   }));
 
+  // Cash: starting − buys + sell proceeds (sell.totalCost stores net proceeds).
+  const totalSpent = trades
+    .filter((t) => t.tradeType === "buy")
+    .reduce((sum, t) => sum + t.totalCost, 0);
+  const totalProceeds = trades
+    .filter((t) => t.tradeType === "sell")
+    .reduce((sum, t) => sum + t.totalCost, 0);
+  const cashRemaining = portfolio.startingCash - totalSpent + totalProceeds;
+
   const totalInvested = positions.reduce((sum, p) => sum + p.totalCost, 0);
-  const totalFees = positions.reduce((sum, p) => sum + p.totalFees, 0);
   const totalDividends = dividends.reduce((sum, d) => sum + d.totalAmount, 0);
-  const cashRemaining = portfolio.startingCash - totalInvested;
+
+  // Realized gains + German capital-gains tax, grouped by calendar year.
+  const yearMap: Record<number, { realizedGains: number; realizedLosses: number }> = {};
+  let realizedTotal = 0;
+  for (const t of trades) {
+    if (t.tradeType !== "sell") continue;
+    const gain = replay.realizedByTrade[t.id] ?? t.realizedGain ?? 0;
+    realizedTotal += gain;
+    const year = t.executedAt.getUTCFullYear();
+    if (!yearMap[year]) yearMap[year] = { realizedGains: 0, realizedLosses: 0 };
+    if (gain >= 0) yearMap[year].realizedGains += gain;
+    else yearMap[year].realizedLosses += gain;
+  }
+
+  const taxByYear = Object.entries(yearMap)
+    .map(([year, { realizedGains, realizedLosses }]) => ({
+      year: Number(year),
+      ...calculateCapitalGainsTax(realizedGains, realizedLosses),
+    }))
+    .sort((a, b) => b.year - a.year);
 
   return NextResponse.json({
     portfolio: {
@@ -107,11 +117,12 @@ export async function GET(
     summary: {
       cashRemaining,
       totalInvested,
-      totalFees,
       totalDividends,
+      realizedGains: realizedTotal,
       positionCount: positions.length,
       tradeCount: trades.length,
     },
+    taxByYear,
     positions,
     trades: trades.map((t) => ({
       id: t.id,
@@ -122,6 +133,10 @@ export async function GET(
       pricePerShare: t.pricePerShare,
       fees: t.fees,
       totalCost: t.totalCost,
+      realizedGain:
+        t.tradeType === "sell"
+          ? replay.realizedByTrade[t.id] ?? t.realizedGain ?? null
+          : null,
       notes: t.notes,
       executedAt: t.executedAt.toISOString(),
     })),

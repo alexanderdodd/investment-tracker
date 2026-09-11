@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { type StockMetrics, formatMetric } from "@/lib/stock-metrics";
+import { SimulateSellModal } from "@/components/simulate-sell-modal";
+import { type FeeModel } from "@/lib/sim-fees";
 
 interface Position {
   ticker: string;
@@ -28,8 +29,21 @@ interface Trade {
   pricePerShare: number;
   fees: number;
   totalCost: number;
+  realizedGain: number | null;
   notes: string | null;
   executedAt: string;
+}
+
+interface TaxYear {
+  year: number;
+  realizedGains: number;
+  realizedLosses: number;
+  netRealized: number;
+  allowance: number;
+  allowanceApplied: number;
+  taxableAmount: number;
+  tax: number;
+  effectiveRate: number;
 }
 
 interface PortfolioData {
@@ -44,11 +58,12 @@ interface PortfolioData {
   summary: {
     cashRemaining: number;
     totalInvested: number;
-    totalFees: number;
     totalDividends: number;
+    realizedGains: number;
     positionCount: number;
     tradeCount: number;
   };
+  taxByYear: TaxYear[];
   positions: Position[];
   trades: Trade[];
 }
@@ -77,14 +92,19 @@ export default function PortfolioDetailPage() {
   const [data, setData] = useState<PortfolioData | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [sellTarget, setSellTarget] = useState<Position | null>(null);
 
-  useEffect(() => {
-    fetch(`/api/portfolios/${id}`)
+  const loadData = useCallback(() => {
+    return fetch(`/api/portfolios/${id}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Fetch live prices for positions + SPY + sector ETFs
   useEffect(() => {
@@ -95,15 +115,6 @@ export default function PortfolioDetailPage() {
       tickers.add(p.ticker);
       if (p.sectorEtfTicker) tickers.add(p.sectorEtfTicker);
     });
-
-    fetch(`/api/stocks/metrics?tickers=${[...tickers].join(",")}`)
-      .then((r) => r.json())
-      .then((metrics: Record<string, StockMetrics>) => {
-        // Extract current prices from forward P/E isn't quite right — let me use a price endpoint
-        // For now, use metrics as a proxy to verify loading works
-        // TODO: use a dedicated price endpoint
-      })
-      .catch(() => {});
 
     // Fetch from price endpoint
     Promise.all(
@@ -142,7 +153,10 @@ export default function PortfolioDetailPage() {
     );
   }
 
-  const { portfolio, summary, positions, trades } = data;
+  const { portfolio, summary, positions, trades, taxByYear } = data;
+  const currentYear = new Date().getFullYear();
+  const currentYearTax =
+    taxByYear?.find((t) => t.year === currentYear) ?? taxByYear?.[0] ?? null;
 
   // Compute live portfolio value
   const positionsWithLive = positions.map((pos) => {
@@ -230,6 +244,7 @@ export default function PortfolioDetailPage() {
                     <th className="px-3 py-3 text-right font-medium">vs SPY</th>
                     <th className="px-3 py-3 text-right font-medium">vs Sector</th>
                     <th className="px-3 py-3 text-right font-medium">Divs</th>
+                    <th className="px-3 py-3 text-right font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -271,6 +286,14 @@ export default function PortfolioDetailPage() {
                       <td className="px-3 py-3 text-right text-sm text-emerald-600 dark:text-emerald-400">
                         {pos.dividendsReceived > 0 ? fmt(pos.dividendsReceived) : "-"}
                       </td>
+                      <td className="px-3 py-3 text-right">
+                        <button
+                          onClick={() => setSellTarget(pos)}
+                          className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:border-red-400 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:text-red-400 transition-colors"
+                        >
+                          Sell
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -293,6 +316,113 @@ export default function PortfolioDetailPage() {
           </div>
         )}
 
+        {/* Capital gains & German tax */}
+        {taxByYear && taxByYear.length > 0 && (
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                Capital Gains &amp; Tax
+              </h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                German capital gains tax (Abgeltungssteuer 25% + 5.5% Soli = 26.375%), €1,000
+                annual allowance. Realized losses offset gains (tax-loss harvesting).
+              </p>
+            </div>
+
+            {currentYearTax && (
+              <div className="grid grid-cols-2 gap-px bg-zinc-100 sm:grid-cols-4 dark:bg-zinc-800">
+                <div className="bg-white px-4 py-3 dark:bg-zinc-900">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Realized Gains {currentYearTax.year}</p>
+                  <p className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
+                    {fmt(currentYearTax.realizedGains)}
+                  </p>
+                </div>
+                <div className="bg-white px-4 py-3 dark:bg-zinc-900">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Harvested Losses</p>
+                  <p className="text-base font-semibold text-red-600 dark:text-red-400">
+                    {fmt(currentYearTax.realizedLosses)}
+                  </p>
+                </div>
+                <div className="bg-white px-4 py-3 dark:bg-zinc-900">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Net Realized</p>
+                  <p
+                    className={`text-base font-semibold ${
+                      currentYearTax.netRealized >= 0
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {fmt(currentYearTax.netRealized)}
+                  </p>
+                </div>
+                <div className="bg-white px-4 py-3 dark:bg-zinc-900">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Est. Tax Owed</p>
+                  <p className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                    {fmt(currentYearTax.tax)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {currentYearTax && (
+              <div className="border-t border-zinc-100 px-6 py-4 text-sm dark:border-zinc-800">
+                <div className="flex justify-between py-1">
+                  <span className="text-zinc-500 dark:text-zinc-400">Net realized gains</span>
+                  <span className="text-zinc-900 dark:text-zinc-100">
+                    {fmt(Math.max(0, currentYearTax.netRealized))}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-zinc-500 dark:text-zinc-400">
+                    Tax-free allowance applied (of {fmt(currentYearTax.allowance)})
+                  </span>
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    −{fmt(currentYearTax.allowanceApplied)}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-zinc-100 py-1 pt-2 dark:border-zinc-800">
+                  <span className="text-zinc-700 dark:text-zinc-300">Taxable amount</span>
+                  <span className="text-zinc-900 dark:text-zinc-100">{fmt(currentYearTax.taxableAmount)}</span>
+                </div>
+                <div className="flex justify-between py-1 font-medium">
+                  <span className="text-zinc-700 dark:text-zinc-300">Estimated tax @ 26.375%</span>
+                  <span className="text-zinc-900 dark:text-zinc-100">{fmt(currentYearTax.tax)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Per-year breakdown when more than one year of sells exists */}
+            {taxByYear.length > 1 && (
+              <div className="overflow-x-auto border-t border-zinc-100 dark:border-zinc-800">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-zinc-500 dark:text-zinc-400">
+                      <th className="px-6 py-2 font-medium">Year</th>
+                      <th className="px-3 py-2 text-right font-medium">Gains</th>
+                      <th className="px-3 py-2 text-right font-medium">Losses</th>
+                      <th className="px-3 py-2 text-right font-medium">Net</th>
+                      <th className="px-3 py-2 text-right font-medium">Taxable</th>
+                      <th className="px-6 py-2 text-right font-medium">Tax</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {taxByYear.map((ty) => (
+                      <tr key={ty.year} className="border-t border-zinc-50 dark:border-zinc-800/50">
+                        <td className="px-6 py-2 text-zinc-700 dark:text-zinc-300">{ty.year}</td>
+                        <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">{fmt(ty.realizedGains)}</td>
+                        <td className="px-3 py-2 text-right text-red-600 dark:text-red-400">{fmt(ty.realizedLosses)}</td>
+                        <td className="px-3 py-2 text-right text-zinc-700 dark:text-zinc-300">{fmt(ty.netRealized)}</td>
+                        <td className="px-3 py-2 text-right text-zinc-700 dark:text-zinc-300">{fmt(ty.taxableAmount)}</td>
+                        <td className="px-6 py-2 text-right font-medium text-zinc-900 dark:text-zinc-100">{fmt(ty.tax)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Recent trades */}
         {trades.length > 0 && (
           <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -304,7 +434,10 @@ export default function PortfolioDetailPage() {
                 <div key={t.id} className="px-6 py-3 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {t.tradeType === "buy" ? "Buy" : "Sell"} {t.shares}{" "}
+                      <span className={t.tradeType === "sell" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}>
+                        {t.tradeType === "buy" ? "Buy" : "Sell"}
+                      </span>{" "}
+                      {t.shares}{" "}
                       <Link
                         href={`/stocks/${t.ticker}/valuation`}
                         className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -327,7 +460,20 @@ export default function PortfolioDetailPage() {
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{fmt(t.totalCost)}</p>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {t.tradeType === "sell" ? "+" : "−"}{fmt(t.totalCost)}
+                    </p>
+                    {t.tradeType === "sell" && t.realizedGain !== null && (
+                      <p
+                        className={`text-xs ${
+                          t.realizedGain >= 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {t.realizedGain >= 0 ? "gain" : "loss"} {fmt(t.realizedGain)}
+                      </p>
+                    )}
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       {new Date(t.executedAt).toLocaleDateString()}
                     </p>
@@ -338,6 +484,23 @@ export default function PortfolioDetailPage() {
           </div>
         )}
       </div>
+
+      {sellTarget && (
+        <SimulateSellModal
+          portfolioId={portfolio.id}
+          feeModel={portfolio.feeModel as FeeModel}
+          ticker={sellTarget.ticker}
+          companyName={sellTarget.companyName}
+          sharesHeld={sellTarget.shares}
+          avgCostBasis={sellTarget.avgCostBasis}
+          currentPrice={livePrices[sellTarget.ticker] ?? null}
+          onClose={() => setSellTarget(null)}
+          onDone={() => {
+            setLoading(true);
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -316,7 +316,10 @@ export const simTrades = pgTable("sim_trade", {
   shares: real("shares").notNull(),
   pricePerShare: real("price_per_share").notNull(),
   fees: real("fees").notNull().default(0),
+  // For buys: cash out (shares × price + fees). For sells: proceeds (shares × price − fees).
   totalCost: real("total_cost").notNull(),
+  // Realized capital gain for sell trades (FIFO), null for buys. Proceeds − consumed cost basis.
+  realizedGain: real("realized_gain"),
   // Benchmark prices at time of trade (for comparison)
   spyPriceAtTrade: real("spy_price_at_trade"),
   sectorEtfTicker: text("sector_etf_ticker"),
