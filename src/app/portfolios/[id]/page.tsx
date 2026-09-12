@@ -216,6 +216,29 @@ export default function PortfolioDetailPage() {
     return { ...pos, livePrice, currentValue, unrealizedPnl, spyReturn, etfReturn };
   });
 
+  // Column totals for the Positions table footer. Percentages use the cost
+  // basis of only the positions that contribute to each metric.
+  const totals = positionsWithLive.reduce(
+    (a, p) => {
+      a.fees += p.totalFees;
+      a.divs += p.dividendsReceived;
+      if (p.currentValue != null) {
+        a.value += p.currentValue;
+        a.costForValue += p.totalCost;
+      }
+      if (p.spyReturn != null) {
+        a.spy += p.spyReturn;
+        a.costForSpy += p.totalCost;
+      }
+      if (p.etfReturn != null) {
+        a.etf += p.etfReturn;
+        a.costForEtf += p.totalCost;
+      }
+      return a;
+    },
+    { fees: 0, divs: 0, value: 0, costForValue: 0, spy: 0, costForSpy: 0, etf: 0, costForEtf: 0 }
+  );
+
   const totalCurrentValue = positionsWithLive.reduce((s, p) => s + (p.currentValue ?? 0), 0);
   const totalPortfolioValue = summary.cashRemaining + totalCurrentValue;
   const totalPnl = totalPortfolioValue - portfolio.startingCash;
@@ -358,6 +381,35 @@ export default function PortfolioDetailPage() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-zinc-200 text-sm font-medium dark:border-zinc-700">
+                    <td className="px-4 py-3 text-zinc-900 dark:text-zinc-100">Total</td>
+                    <td className="px-3 py-3"></td>
+                    <td className="px-3 py-3 text-right text-zinc-400 dark:text-zinc-500">
+                      {totals.fees > 0 && (
+                        <span className="text-[11px]">{fmt(totals.fees)} fees</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3"></td>
+                    <td className="px-3 py-3 text-right text-zinc-900 dark:text-zinc-100">{fmt(totals.value)}</td>
+                    <td className="px-3 py-3 text-right">
+                      <PnlText value={totals.value} basis={totals.costForValue} />
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <EffectivePnlText value={totals.value} basis={totals.costForValue} />
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {totals.costForSpy > 0 ? <PnlText value={totals.spy} basis={totals.costForSpy} /> : "-"}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {totals.costForEtf > 0 ? <PnlText value={totals.etf} basis={totals.costForEtf} /> : "-"}
+                    </td>
+                    <td className="px-3 py-3 text-right text-emerald-600 dark:text-emerald-400">
+                      {totals.divs > 0 ? fmt(totals.divs) : "-"}
+                    </td>
+                    <td className="px-3 py-3"></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
