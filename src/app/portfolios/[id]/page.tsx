@@ -220,7 +220,6 @@ export default function PortfolioDetailPage() {
   // basis of only the positions that contribute to each metric.
   const totals = positionsWithLive.reduce(
     (a, p) => {
-      a.fees += p.totalFees;
       a.divs += p.dividendsReceived;
       if (p.currentValue != null) {
         a.value += p.currentValue;
@@ -236,7 +235,7 @@ export default function PortfolioDetailPage() {
       }
       return a;
     },
-    { fees: 0, divs: 0, value: 0, costForValue: 0, spy: 0, costForSpy: 0, etf: 0, costForEtf: 0 }
+    { divs: 0, value: 0, costForValue: 0, spy: 0, costForSpy: 0, etf: 0, costForEtf: 0 }
   );
 
   const totalCurrentValue = positionsWithLive.reduce((s, p) => s + (p.currentValue ?? 0), 0);
@@ -385,11 +384,7 @@ export default function PortfolioDetailPage() {
                   <tr className="border-t-2 border-zinc-200 text-sm font-medium dark:border-zinc-700">
                     <td className="px-4 py-3 text-zinc-900 dark:text-zinc-100">Total</td>
                     <td className="px-3 py-3"></td>
-                    <td className="px-3 py-3 text-right text-zinc-400 dark:text-zinc-500">
-                      {totals.fees > 0 && (
-                        <span className="text-[11px]">{fmt(totals.fees)} fees</span>
-                      )}
-                    </td>
+                    <td className="px-3 py-3"></td>
                     <td className="px-3 py-3"></td>
                     <td className="px-3 py-3 text-right text-zinc-900 dark:text-zinc-100">{fmt(totals.value)}</td>
                     <td className="px-3 py-3 text-right">
