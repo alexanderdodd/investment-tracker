@@ -20,13 +20,13 @@ export function SectorTabs({
   onViewEvidence: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800">
-      <div className="flex gap-1">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex min-w-0 gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? "border-b-2 border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
