@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getDb } from "@/db/index";
-import { simPortfolios, simTrades } from "@/db/schema";
+import { simPortfolios, simTrades, simDividends } from "@/db/schema";
 import { auth } from "@/auth";
 import { calculateFee, type FeeModel } from "@/lib/sim-fees";
 import { getYahooCrumb } from "@/lib/stock-metrics";
@@ -258,4 +258,41 @@ export async function POST(
       sectorEtfPriceAtTrade: sectorBenchmark,
     },
   });
+}
+
+// DELETE — completely remove a position: all trades (and dividends) for a
+// ticker in this portfolio. Used to undo a mistaken entry.
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id: portfolioId } = await params;
+  const ticker = new URL(request.url).searchParams.get("ticker");
+  if (!ticker) {
+    return NextResponse.json({ error: "ticker query param required" }, { status: 400 });
+  }
+
+  const db = getDb();
+  const portfolios = await db
+    .select()
+    .from(simPortfolios)
+    .where(eq(simPortfolios.id, portfolioId));
+
+  if (portfolios.length === 0 || portfolios[0].userId !== session.user.id) {
+    return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
+  }
+
+  await db
+    .delete(simTrades)
+    .where(and(eq(simTrades.portfolioId, portfolioId), eq(simTrades.ticker, ticker)));
+  await db
+    .delete(simDividends)
+    .where(and(eq(simDividends.portfolioId, portfolioId), eq(simDividends.ticker, ticker)));
+
+  return NextResponse.json({ deleted: true, ticker });
 }

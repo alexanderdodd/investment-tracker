@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { SimulateSellModal } from "@/components/simulate-sell-modal";
 import { AddCashModal } from "@/components/add-cash-modal";
+import { PositionMenu } from "@/components/position-menu";
 import { type FeeModel } from "@/lib/sim-fees";
 import { EFFECTIVE_RATE } from "@/lib/german-tax";
 
@@ -109,6 +110,7 @@ export default function PortfolioDetailPage() {
   const [loading, setLoading] = useState(true);
   const [sellTarget, setSellTarget] = useState<Position | null>(null);
   const [showAddCash, setShowAddCash] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
     return fetch(`/api/portfolios/${id}`)
@@ -173,6 +175,24 @@ export default function PortfolioDetailPage() {
   const currentYear = new Date().getFullYear();
   const currentYearTax =
     taxByYear?.find((t) => t.year === currentYear) ?? taxByYear?.[0] ?? null;
+
+  const deletePosition = async (ticker: string) => {
+    if (!window.confirm(`Delete ${ticker} entirely? This removes all its trades and dividends from this portfolio.`)) {
+      return;
+    }
+    setDeleting(ticker);
+    try {
+      const res = await fetch(`/api/portfolios/${id}/trades?ticker=${encodeURIComponent(ticker)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setLoading(true);
+        await loadData();
+      }
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   // Compute live portfolio value
   const positionsWithLive = positions.map((pos) => {
@@ -317,12 +337,14 @@ export default function PortfolioDetailPage() {
                         {pos.dividendsReceived > 0 ? fmt(pos.dividendsReceived) : "-"}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <button
-                          onClick={() => setSellTarget(pos)}
-                          className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:border-red-400 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:text-red-400 transition-colors"
-                        >
-                          Sell
-                        </button>
+                        {deleting === pos.ticker ? (
+                          <span className="text-xs text-zinc-400 dark:text-zinc-500">Deleting…</span>
+                        ) : (
+                          <PositionMenu
+                            onSell={() => setSellTarget(pos)}
+                            onDelete={() => deletePosition(pos.ticker)}
+                          />
+                        )}
                       </td>
                     </tr>
                   ))}
