@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { calculateFee, type FeeModel } from "@/lib/sim-fees";
 import { getYahooCrumb } from "@/lib/stock-metrics";
 import { computeSaleRealizedGain, type TradeRecord } from "@/lib/sim-lots";
+import { fetchHistoricalClose } from "@/lib/yahoo-history";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 
@@ -125,11 +126,34 @@ export async function POST(
     return NextResponse.json({ error: `Could not fetch price for ${ticker}` }, { status: 400 });
   }
 
+  // Optional custom buy date — backdate a position bought a while ago.
+  let executedAt: Date | null = null;
+  if (tradeType === "buy" && body.executedAt) {
+    const parsed = new Date(body.executedAt);
+    if (isNaN(parsed.getTime()) || parsed.getTime() > Date.now() + 86400_000) {
+      return NextResponse.json({ error: "Invalid buy date" }, { status: 400 });
+    }
+    executedAt = parsed;
+  }
+
   // Fetch sector ETF info and price
   const sectorInfo = await fetchSectorInfo(ticker, crumb, cookie);
   let sectorEtfPrice: number | null = null;
   if (sectorInfo?.etfTicker) {
     sectorEtfPrice = await fetchLivePrice(sectorInfo.etfTicker, crumb, cookie);
+  }
+
+  // For a backdated buy, capture benchmark levels as of that date so the
+  // "vs SPY" / "vs Sector" comparisons stay meaningful.
+  let spyBenchmark = spyPrice;
+  let sectorBenchmark = sectorEtfPrice;
+  if (executedAt) {
+    const [spyHist, etfHist] = await Promise.all([
+      fetchHistoricalClose("SPY", executedAt),
+      sectorInfo?.etfTicker ? fetchHistoricalClose(sectorInfo.etfTicker, executedAt) : Promise.resolve(null),
+    ]);
+    spyBenchmark = spyHist?.close ?? null;
+    sectorBenchmark = etfHist?.close ?? null;
   }
 
   // Calculate fees on the effective execution price
@@ -212,10 +236,11 @@ export async function POST(
     pricePerShare: effectivePrice,
     fees,
     totalCost,
-    spyPriceAtTrade: spyPrice,
+    spyPriceAtTrade: spyBenchmark,
     sectorEtfTicker: sectorInfo?.etfTicker ?? null,
-    sectorEtfPriceAtTrade: sectorEtfPrice,
+    sectorEtfPriceAtTrade: sectorBenchmark,
     notes: notes ?? null,
+    ...(executedAt ? { executedAt } : {}),
   });
 
   return NextResponse.json({
@@ -228,9 +253,9 @@ export async function POST(
       fees,
       totalCost,
       cashRemaining: cashAvailable - totalCost,
-      spyPriceAtTrade: spyPrice,
+      spyPriceAtTrade: spyBenchmark,
       sectorEtfTicker: sectorInfo?.etfTicker,
-      sectorEtfPriceAtTrade: sectorEtfPrice,
+      sectorEtfPriceAtTrade: sectorBenchmark,
     },
   });
 }

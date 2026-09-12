@@ -332,7 +332,7 @@ export default function IndustryDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-black">
-        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 space-y-6">
+        <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 space-y-6">
           <div className="h-20 w-full animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
           <div className="h-64 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
         </div>
@@ -343,7 +343,7 @@ export default function IndustryDetailPage() {
   if (!industry) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-black">
-        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8">
           <p className="text-zinc-500">Industry not found.</p>
         </div>
       </div>
@@ -356,7 +356,7 @@ export default function IndustryDetailPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 space-y-6">
+      <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 space-y-6">
         {/* Header */}
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500 mb-2">

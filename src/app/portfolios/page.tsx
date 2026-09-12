@@ -63,7 +63,7 @@ export default function PortfoliosPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8 space-y-6">
+      <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Simulation Portfolios</h1>

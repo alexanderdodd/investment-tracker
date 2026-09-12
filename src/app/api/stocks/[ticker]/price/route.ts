@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { normalizeCurrency } from "@/lib/currency";
+import { fetchHistoricalClose } from "@/lib/yahoo-history";
 
 export const revalidate = 60;
 
 // GET: fetch current stock price + optional chart data
 // ?chart=true&range=5y returns historical prices for charting
+// ?date=YYYY-MM-DD returns the closing price on/before that date
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ ticker: string }> }
@@ -14,6 +16,25 @@ export async function GET(
   const url = new URL(request.url);
   const wantChart = url.searchParams.get("chart") === "true";
   const range = url.searchParams.get("range") ?? "1d";
+  const dateParam = url.searchParams.get("date");
+
+  // Historical single-day close lookup (for backdated trade entry).
+  if (dateParam) {
+    const date = new Date(`${dateParam}T12:00:00Z`);
+    if (isNaN(date.getTime())) {
+      return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+    }
+    const hist = await fetchHistoricalClose(upper, date);
+    if (!hist) {
+      return NextResponse.json({ error: "No price on that date" }, { status: 404 });
+    }
+    return NextResponse.json({
+      ticker: upper,
+      price: hist.close,
+      currency: hist.currency,
+      date: dateParam,
+    });
+  }
 
   // Map range to Yahoo interval
   const intervalMap: Record<string, string> = {

@@ -151,6 +151,43 @@ export async function GET(
   });
 }
 
+// PATCH — add cash to a portfolio (increases contributed capital)
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const db = getDb();
+
+  const portfolios = await db
+    .select()
+    .from(simPortfolios)
+    .where(eq(simPortfolios.id, id));
+
+  if (portfolios.length === 0 || portfolios[0].userId !== session.user.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const body = await request.json();
+  const addCash = Number(body.addCash);
+  if (!Number.isFinite(addCash) || addCash <= 0) {
+    return NextResponse.json({ error: "A positive cash amount is required" }, { status: 400 });
+  }
+
+  const newStartingCash = portfolios[0].startingCash + addCash;
+  await db
+    .update(simPortfolios)
+    .set({ startingCash: newStartingCash })
+    .where(eq(simPortfolios.id, id));
+
+  return NextResponse.json({ startingCash: newStartingCash, added: addCash });
+}
+
 // DELETE — delete portfolio
 export async function DELETE(
   _request: Request,

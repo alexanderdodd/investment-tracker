@@ -77,7 +77,7 @@ export default function ListsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8 space-y-6">
+      <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Watchlists</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">

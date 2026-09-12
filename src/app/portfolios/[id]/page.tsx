@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { SimulateSellModal } from "@/components/simulate-sell-modal";
+import { AddCashModal } from "@/components/add-cash-modal";
 import { type FeeModel } from "@/lib/sim-fees";
 import { EFFECTIVE_RATE } from "@/lib/german-tax";
 
@@ -107,6 +108,7 @@ export default function PortfolioDetailPage() {
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [sellTarget, setSellTarget] = useState<Position | null>(null);
+  const [showAddCash, setShowAddCash] = useState(false);
 
   const loadData = useCallback(() => {
     return fetch(`/api/portfolios/${id}`)
@@ -150,7 +152,7 @@ export default function PortfolioDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-black">
-        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8">
           <div className="h-64 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
         </div>
       </div>
@@ -160,7 +162,7 @@ export default function PortfolioDetailPage() {
   if (!data) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-black">
-        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8">
           <p className="text-zinc-500">Portfolio not found.</p>
         </div>
       </div>
@@ -203,7 +205,7 @@ export default function PortfolioDetailPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 space-y-6">
+      <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 space-y-6">
         {/* Header */}
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500 mb-2">
@@ -230,7 +232,15 @@ export default function PortfolioDetailPage() {
             <p className={`text-lg font-semibold ${pnlColor}`}>{fmt(totalPnl)} ({fmtPct(totalPnlPct)})</p>
           </div>
           <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">Cash Remaining</p>
+            <div className="flex items-start justify-between">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Cash Remaining</p>
+              <button
+                onClick={() => setShowAddCash(true)}
+                className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-600 hover:border-emerald-400 hover:text-emerald-600 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-emerald-500 dark:hover:text-emerald-400 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{fmt(summary.cashRemaining)}</p>
           </div>
           <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
@@ -260,6 +270,7 @@ export default function PortfolioDetailPage() {
                     </th>
                     <th className="px-3 py-3 text-right font-medium">vs SPY</th>
                     <th className="px-3 py-3 text-right font-medium">vs Sector</th>
+                    <th className="px-3 py-3 text-right font-medium">Divs</th>
                     <th className="px-3 py-3 text-right font-medium"></th>
                   </tr>
                 </thead>
@@ -301,6 +312,9 @@ export default function PortfolioDetailPage() {
                             <PnlText value={pos.etfReturn} basis={pos.totalCost} />
                           </span>
                         ) : "-"}
+                      </td>
+                      <td className="px-3 py-3 text-right text-sm text-emerald-600 dark:text-emerald-400">
+                        {pos.dividendsReceived > 0 ? fmt(pos.dividendsReceived) : "-"}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <button
@@ -511,6 +525,19 @@ export default function PortfolioDetailPage() {
           avgCostBasis={sellTarget.avgCostBasis}
           currentPrice={livePrices[sellTarget.ticker] ?? null}
           onClose={() => setSellTarget(null)}
+          onDone={() => {
+            setLoading(true);
+            loadData();
+          }}
+        />
+      )}
+
+      {showAddCash && (
+        <AddCashModal
+          portfolioId={portfolio.id}
+          portfolioName={portfolio.name}
+          cashRemaining={summary.cashRemaining}
+          onClose={() => setShowAddCash(false)}
           onDone={() => {
             setLoading(true);
             loadData();

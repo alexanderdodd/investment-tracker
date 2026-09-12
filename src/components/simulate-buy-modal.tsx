@@ -30,16 +30,37 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("");
   const [shares, setShares] = useState("");
   const [price, setPrice] = useState("");
+  const [buyDate, setBuyDate] = useState("");
+  const [priceLoading, setPriceLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  const today = new Date().toISOString().slice(0, 10);
+
   // Prefill the price with the live price; the user can override it to record a
   // position they already own, bought earlier at a different price.
   useEffect(() => {
-    if (currentPrice != null) setPrice(String(currentPrice));
+    if (currentPrice != null && !buyDate) setPrice(String(currentPrice));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPrice]);
+
+  // When a past buy date is chosen, look up that day's closing price so the
+  // cost basis reflects what you actually paid.
+  useEffect(() => {
+    if (!buyDate || buyDate === today) return;
+    let cancelled = false;
+    setPriceLoading(true);
+    fetch(`/api/stocks/${ticker}/price?date=${buyDate}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.price != null) setPrice(String(Math.round(d.price * 100) / 100));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPriceLoading(false); });
+    return () => { cancelled = true; };
+  }, [buyDate, ticker, today]);
 
   useEffect(() => {
     fetch("/api/portfolios")
@@ -79,6 +100,7 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
           companyName,
           shares: shareCount,
           pricePerShare: buyPrice,
+          executedAt: buyDate ? new Date(`${buyDate}T12:00:00Z`).toISOString() : null,
           notes: notes || null,
         }),
       });
@@ -198,9 +220,30 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
                 step="0.01"
                 className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
-              {isCustomPrice && (
+              {priceLoading ? (
+                <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Looking up price on {buyDate}…</p>
+              ) : isCustomPrice && (
                 <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
                   Custom price — recording a position bought at a different price than live.
+                </p>
+              )}
+            </div>
+
+            {/* Buy date input (optional; defaults to today) */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                Buy date (optional)
+              </label>
+              <input
+                type="date"
+                value={buyDate}
+                max={today}
+                onChange={(e) => setBuyDate(e.target.value)}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              />
+              {buyDate && buyDate !== today && (
+                <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                  Backdated buy — price prefilled from that day&apos;s close; benchmarks captured as of then.
                 </p>
               )}
             </div>
