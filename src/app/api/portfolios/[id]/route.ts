@@ -69,7 +69,6 @@ export async function GET(
 
   const positions = replay.positions.map((pos) => ({
     ...pos,
-    totalFees: 0, // remaining-lot fees are folded into totalCost basis
     dividendsReceived: dividendsByTicker[pos.ticker] ?? 0,
   }));
 

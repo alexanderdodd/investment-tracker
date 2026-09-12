@@ -27,7 +27,9 @@ export interface ReplayPosition {
   companyName: string;
   shares: number; // remaining shares after all sells
   totalCost: number; // remaining cost basis (includes allocated buy fees)
-  avgCostBasis: number;
+  avgCostBasis: number; // totalCost / shares (with fees)
+  avgPrice: number; // pure average share price, excluding fees
+  totalFees: number; // allocated buy fees on the remaining shares
   firstBuyDate: string;
   sectorEtfTicker: string | null;
   spyPriceAtFirstBuy: number | null;
@@ -47,7 +49,17 @@ export interface ReplayResult {
 
 interface Lot {
   shares: number;
-  costPerShare: number; // includes proportional buy fees
+  pricePerShare: number; // pure share price, excludes fees
+  feePerShare: number; // allocated buy fee per share
+}
+
+/** Build a FIFO lot for a buy trade, splitting price from fees. */
+function lotFromBuy(trade: TradeRecord): Lot {
+  return {
+    shares: trade.shares,
+    pricePerShare: trade.pricePerShare,
+    feePerShare: trade.shares > 0 ? trade.fees / trade.shares : 0,
+  };
 }
 
 interface TickerState {
@@ -69,7 +81,8 @@ function consumeLots(lots: Lot[], shares: number, proceeds: number): number {
   while (remaining > EPS && lots.length > 0) {
     const lot = lots[0];
     const take = Math.min(lot.shares, remaining);
-    costConsumed += take * lot.costPerShare;
+    // Acquisition cost includes fees (German tax basis).
+    costConsumed += take * (lot.pricePerShare + lot.feePerShare);
     lot.shares -= take;
     remaining -= take;
     if (lot.shares <= EPS) lots.shift();
@@ -104,9 +117,7 @@ export function replayTrades(trades: TradeRecord[]): ReplayResult {
     }
 
     if (trade.tradeType === "buy") {
-      // totalCost already includes buy fees.
-      const costPerShare = trade.shares > 0 ? trade.totalCost / trade.shares : 0;
-      state.lots.push({ shares: trade.shares, costPerShare });
+      state.lots.push(lotFromBuy(trade));
       if (state.firstBuyDate === null) {
         state.firstBuyDate = trade.executedAt.toISOString();
         state.sectorEtfTicker = trade.sectorEtfTicker;
@@ -129,13 +140,17 @@ export function replayTrades(trades: TradeRecord[]): ReplayResult {
     const shares = state.lots.reduce((s, l) => s + l.shares, 0);
     sharesByTicker[ticker] = shares;
     if (shares <= EPS) continue;
-    const totalCost = state.lots.reduce((s, l) => s + l.shares * l.costPerShare, 0);
+    const pureCost = state.lots.reduce((s, l) => s + l.shares * l.pricePerShare, 0);
+    const totalFees = state.lots.reduce((s, l) => s + l.shares * l.feePerShare, 0);
+    const totalCost = pureCost + totalFees;
     positions.push({
       ticker,
       companyName: state.companyName,
       shares,
       totalCost,
       avgCostBasis: shares > 0 ? totalCost / shares : 0,
+      avgPrice: shares > 0 ? pureCost / shares : 0,
+      totalFees,
       firstBuyDate: state.firstBuyDate ?? "",
       sectorEtfTicker: state.sectorEtfTicker,
       spyPriceAtFirstBuy: state.spyPriceAtFirstBuy,
@@ -173,8 +188,7 @@ export function computeSaleRealizedGain(
   const lots: Lot[] = [];
   for (const trade of sorted) {
     if (trade.tradeType === "buy") {
-      const costPerShare = trade.shares > 0 ? trade.totalCost / trade.shares : 0;
-      lots.push({ shares: trade.shares, costPerShare });
+      lots.push(lotFromBuy(trade));
     } else {
       const proceeds = trade.shares * trade.pricePerShare - trade.fees;
       consumeLots(lots, trade.shares, proceeds);

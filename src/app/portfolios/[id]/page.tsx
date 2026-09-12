@@ -16,6 +16,7 @@ interface Position {
   totalCost: number;
   totalFees: number;
   avgCostBasis: number;
+  avgPrice: number;
   firstBuyDate: string;
   sectorEtfTicker: string | null;
   spyPriceAtFirstBuy: number | null;
@@ -308,8 +309,16 @@ export default function PortfolioDetailPage() {
                       <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
                         {pos.shares}
                       </td>
-                      <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
-                        {fmt(pos.avgCostBasis)}
+                      <td
+                        className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300"
+                        title={`Pure price ${fmt(pos.avgPrice)} + fees ${fmt(pos.totalFees)} → incl. fees ${fmt(pos.avgCostBasis)}/share`}
+                      >
+                        {fmt(pos.avgPrice)}
+                        {pos.totalFees > 0 && (
+                          <span className="block text-[11px] text-zinc-400 dark:text-zinc-500">
+                            +{fmt(pos.totalFees)} fees
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
                         {pos.livePrice ? fmt(pos.livePrice) : "-"}
