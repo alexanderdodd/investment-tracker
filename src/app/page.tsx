@@ -24,50 +24,76 @@ export default async function Home() {
       ])
     : [null, [], []];
 
+  if (!session?.user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 dark:bg-black">
+        <main className="flex flex-col items-center gap-8 p-8">
+          <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Investment Tracker
+          </h1>
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-lg text-zinc-600 dark:text-zinc-400">
+              Track your investments in one place.
+            </p>
+            <form
+              action={async () => {
+                "use server";
+                await signIn("github");
+              }}
+            >
+              <button
+                type="submit"
+                className="rounded-full bg-zinc-900 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              >
+                Sign in with GitHub
+              </button>
+            </form>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 dark:bg-black">
-      <main className="flex flex-col items-center gap-8 p-8">
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Investment Tracker
-        </h1>
-
-        {session?.user ? (
-          <div className="flex flex-col items-center gap-6">
-            <div className="flex items-center gap-3">
-              {session.user.image && (
-                <img
-                  src={session.user.image}
-                  alt="Avatar"
-                  className="h-10 w-10 rounded-full"
-                />
-              )}
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                {session.user.name ?? session.user.email}
-              </p>
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut();
-                }}
+    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+      <div className="mx-auto w-full px-4 py-10 sm:px-6 lg:px-8 space-y-6">
+        {/* Header row */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Investment Tracker
+          </h1>
+          <div className="flex items-center gap-3">
+            {session.user.image && (
+              <img src={session.user.image} alt="Avatar" className="h-9 w-9 rounded-full" />
+            )}
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              {session.user.name ?? session.user.email}
+            </p>
+            <form
+              action={async () => {
+                "use server";
+                await signOut();
+              }}
+            >
+              <button
+                type="submit"
+                className="text-sm text-zinc-500 underline hover:text-zinc-700 dark:hover:text-zinc-300"
               >
-                <button
-                  type="submit"
-                  className="text-sm text-zinc-500 underline hover:text-zinc-700 dark:hover:text-zinc-300"
-                >
-                  Sign out
-                </button>
-              </form>
-            </div>
+                Sign out
+              </button>
+            </form>
+          </div>
+        </div>
 
-            <div className="w-full sm:w-[34rem]">
-              <StockSearchBox />
-            </div>
+        {/* Search */}
+        <StockSearchBox />
 
-            <nav className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Link
-                href="/search"
-                className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-6 py-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-              >
+        {/* Quick nav cards */}
+        <nav className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Link
+            href="/search"
+            className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-6 py-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          >
                 <span className="text-2xl">🔍</span>
                 <div>
                   <p className="font-medium text-zinc-900 dark:text-zinc-100">
@@ -120,27 +146,27 @@ export default async function Home() {
                   </p>
                 </div>
               </Link>
-            </nav>
+        </nav>
 
+        {/* Dashboard panels */}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
             {/* Rule #1 "Meaning" profile */}
-            <div className="w-full sm:w-[34rem]">
-              <MeaningProfileCard
-                initial={
-                  profile
-                    ? {
-                        talents: profile.talents,
-                        passions: profile.passions,
-                        spending: profile.spending,
-                        interestTags: profile.interestTags ?? [],
-                      }
-                    : null
-                }
-              />
-            </div>
+            <MeaningProfileCard
+              initial={
+                profile
+                  ? {
+                      talents: profile.talents,
+                      passions: profile.passions,
+                      spending: profile.spending,
+                      interestTags: profile.interestTags ?? [],
+                    }
+                  : null
+              }
+            />
 
             {/* Companies in your circle */}
             {circle.length > 0 && (
-              <div className="w-full sm:w-[34rem] rounded-2xl border border-zinc-200 bg-white p-6 text-left dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-left dark:border-zinc-800 dark:bg-zinc-900">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -198,7 +224,7 @@ export default async function Home() {
 
             {/* Beaten-down quality — Big Five qualifiers furthest below their 52-week high */}
             {losers.length > 0 && (
-              <div className="w-full sm:w-[34rem] rounded-2xl border border-zinc-200 bg-white p-6 text-left dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-left dark:border-zinc-800 dark:bg-zinc-900">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -257,28 +283,8 @@ export default async function Home() {
                 </ul>
               </div>
             )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-4">
-            <p className="text-lg text-zinc-600 dark:text-zinc-400">
-              Track your investments in one place.
-            </p>
-            <form
-              action={async () => {
-                "use server";
-                await signIn("github");
-              }}
-            >
-              <button
-                type="submit"
-                className="rounded-full bg-zinc-900 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
-              >
-                Sign in with GitHub
-              </button>
-            </form>
-          </div>
-        )}
-      </main>
+        </div>
+      </div>
     </div>
   );
 }
