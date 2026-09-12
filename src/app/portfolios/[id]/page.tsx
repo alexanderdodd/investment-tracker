@@ -260,7 +260,6 @@ export default function PortfolioDetailPage() {
                     </th>
                     <th className="px-3 py-3 text-right font-medium">vs SPY</th>
                     <th className="px-3 py-3 text-right font-medium">vs Sector</th>
-                    <th className="px-3 py-3 text-right font-medium">Divs</th>
                     <th className="px-3 py-3 text-right font-medium"></th>
                   </tr>
                 </thead>
@@ -302,9 +301,6 @@ export default function PortfolioDetailPage() {
                             <PnlText value={pos.etfReturn} basis={pos.totalCost} />
                           </span>
                         ) : "-"}
-                      </td>
-                      <td className="px-3 py-3 text-right text-sm text-emerald-600 dark:text-emerald-400">
-                        {pos.dividendsReceived > 0 ? fmt(pos.dividendsReceived) : "-"}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <button
