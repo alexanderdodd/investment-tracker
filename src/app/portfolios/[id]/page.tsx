@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { SimulateSellModal } from "@/components/simulate-sell-modal";
 import { type FeeModel } from "@/lib/sim-fees";
+import { EFFECTIVE_RATE } from "@/lib/german-tax";
 
 interface Position {
   ticker: string;
@@ -83,6 +84,19 @@ function PnlText({ value, basis }: { value: number; basis: number }) {
     ? "text-emerald-600 dark:text-emerald-400"
     : "text-red-600 dark:text-red-400";
   return <span className={color}>{fmt(pnl)} ({fmtPct(pct)})</span>;
+}
+
+// After-tax P&L: a gain is reduced by the 26.375% effective rate; a loss keeps
+// the same rate as its tax-loss-harvesting shield against other gains. Ignores
+// the €1,000 annual allowance, which applies at the portfolio level.
+function EffectivePnlText({ value, basis }: { value: number; basis: number }) {
+  const pnl = value - basis;
+  const afterTax = pnl * (1 - EFFECTIVE_RATE);
+  const pct = basis > 0 ? afterTax / basis : 0;
+  const color = afterTax >= 0
+    ? "text-emerald-600 dark:text-emerald-400"
+    : "text-red-600 dark:text-red-400";
+  return <span className={color}>{fmt(afterTax)} ({fmtPct(pct)})</span>;
 }
 
 export default function PortfolioDetailPage() {
@@ -232,7 +246,7 @@ export default function PortfolioDetailPage() {
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Positions</h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
+              <table className="w-full min-w-[1000px]">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                     <th className="px-4 py-3 font-medium">Stock</th>
@@ -241,6 +255,9 @@ export default function PortfolioDetailPage() {
                     <th className="px-3 py-3 text-right font-medium">Live Price</th>
                     <th className="px-3 py-3 text-right font-medium">Value</th>
                     <th className="px-3 py-3 text-right font-medium">P&L</th>
+                    <th className="px-3 py-3 text-right font-medium" title="P&L after 26.375% German capital gains tax (Abgeltungssteuer + Soli)">
+                      Eff. P&L
+                    </th>
                     <th className="px-3 py-3 text-right font-medium">vs SPY</th>
                     <th className="px-3 py-3 text-right font-medium">vs Sector</th>
                     <th className="px-3 py-3 text-right font-medium">Divs</th>
@@ -272,6 +289,9 @@ export default function PortfolioDetailPage() {
                       </td>
                       <td className="px-3 py-3 text-right text-sm">
                         {pos.currentValue ? <PnlText value={pos.currentValue} basis={pos.totalCost} /> : "-"}
+                      </td>
+                      <td className="px-3 py-3 text-right text-sm">
+                        {pos.currentValue ? <EffectivePnlText value={pos.currentValue} basis={pos.totalCost} /> : "-"}
                       </td>
                       <td className="px-3 py-3 text-right text-sm">
                         {pos.spyReturn ? <PnlText value={pos.spyReturn} basis={pos.totalCost} /> : "-"}
