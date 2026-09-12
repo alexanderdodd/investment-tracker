@@ -109,7 +109,19 @@ export async function POST(
     fetchLivePrice("SPY", crumb, cookie),
   ]);
 
-  if (!stockPrice) {
+  // Optional custom buy price — lets you backfill a position you already own,
+  // bought earlier at a price different from the current market price.
+  const customBuyPrice =
+    tradeType === "buy" &&
+    typeof body.pricePerShare === "number" &&
+    body.pricePerShare > 0
+      ? body.pricePerShare
+      : null;
+
+  // Sells always execute at the live price; buys may use a custom price.
+  const effectivePrice = tradeType === "buy" ? customBuyPrice ?? stockPrice : stockPrice;
+
+  if (!effectivePrice) {
     return NextResponse.json({ error: `Could not fetch price for ${ticker}` }, { status: 400 });
   }
 
@@ -120,8 +132,8 @@ export async function POST(
     sectorEtfPrice = await fetchLivePrice(sectorInfo.etfTicker, crumb, cookie);
   }
 
-  // Calculate fees (same fee model for buys and sells)
-  const fees = calculateFee(portfolio.feeModel as FeeModel, shares, stockPrice);
+  // Calculate fees on the effective execution price
+  const fees = calculateFee(portfolio.feeModel as FeeModel, shares, effectivePrice);
 
   const totalSpent = existingTrades
     .filter((t) => t.tradeType === "buy")
@@ -133,11 +145,11 @@ export async function POST(
 
   if (tradeType === "sell") {
     // Sell: proceeds credited to cash, realized gain computed FIFO.
-    const proceeds = shares * stockPrice - fees;
-    const result = computeSaleRealizedGain(existingTrades, ticker, shares, stockPrice, fees);
+    const proceeds = shares * effectivePrice - fees;
+    const result = computeSaleRealizedGain(existingTrades, ticker, shares, effectivePrice, fees);
     if (!result) {
       const held = existingTrades.length
-        ? computeSaleRealizedGain(existingTrades, ticker, 0, stockPrice, 0)?.sharesHeld ?? 0
+        ? computeSaleRealizedGain(existingTrades, ticker, 0, effectivePrice, 0)?.sharesHeld ?? 0
         : 0;
       return NextResponse.json(
         { error: `Not enough shares to sell (holding ${held}, tried to sell ${shares})` },
@@ -153,7 +165,7 @@ export async function POST(
       companyName: companyName ?? ticker,
       tradeType: "sell",
       shares,
-      pricePerShare: stockPrice,
+      pricePerShare: effectivePrice,
       fees,
       totalCost: proceeds,
       realizedGain: result.realizedGain,
@@ -169,7 +181,7 @@ export async function POST(
         tradeType: "sell",
         ticker,
         shares,
-        pricePerShare: stockPrice,
+        pricePerShare: effectivePrice,
         fees,
         proceeds,
         realizedGain: result.realizedGain,
@@ -178,8 +190,8 @@ export async function POST(
     });
   }
 
-  // Buy
-  const totalCost = shares * stockPrice + fees;
+  // Buy (at the effective price — live or user-supplied)
+  const totalCost = shares * effectivePrice + fees;
   if (totalCost > cashAvailable) {
     return NextResponse.json({
       error: "Insufficient cash",
@@ -197,7 +209,7 @@ export async function POST(
     companyName: companyName ?? ticker,
     tradeType: "buy",
     shares,
-    pricePerShare: stockPrice,
+    pricePerShare: effectivePrice,
     fees,
     totalCost,
     spyPriceAtTrade: spyPrice,
@@ -212,7 +224,7 @@ export async function POST(
       tradeType: "buy",
       ticker,
       shares,
-      pricePerShare: stockPrice,
+      pricePerShare: effectivePrice,
       fees,
       totalCost,
       cashRemaining: cashAvailable - totalCost,

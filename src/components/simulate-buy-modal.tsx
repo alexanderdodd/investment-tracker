@@ -29,10 +29,17 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("");
   const [shares, setShares] = useState("");
+  const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Prefill the price with the live price; the user can override it to record a
+  // position they already own, bought earlier at a different price.
+  useEffect(() => {
+    if (currentPrice != null) setPrice(String(currentPrice));
+  }, [currentPrice]);
 
   useEffect(() => {
     fetch("/api/portfolios")
@@ -51,21 +58,29 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
   }, []);
 
   const shareCount = parseFloat(shares) || 0;
+  const buyPrice = parseFloat(price) || 0;
+  const isCustomPrice = currentPrice != null && buyPrice > 0 && Math.abs(buyPrice - currentPrice) > 1e-6;
   const portfolio = portfolios.find((p) => p.id === selectedPortfolio);
   const feeModel = (portfolio?.feeModel ?? "ibkr_pro") as FeeModel;
-  const fees = currentPrice && shareCount > 0 ? calculateFee(feeModel, shareCount, currentPrice) : 0;
-  const totalCost = currentPrice && shareCount > 0 ? shareCount * currentPrice + fees : 0;
+  const fees = buyPrice > 0 && shareCount > 0 ? calculateFee(feeModel, shareCount, buyPrice) : 0;
+  const totalCost = buyPrice > 0 && shareCount > 0 ? shareCount * buyPrice + fees : 0;
   const canAfford = portfolio ? totalCost <= portfolio.cashRemaining : false;
 
   const executeTrade = async () => {
-    if (!selectedPortfolio || shareCount <= 0) return;
+    if (!selectedPortfolio || shareCount <= 0 || buyPrice <= 0) return;
     setSubmitting(true);
     setResult(null);
     try {
       const res = await fetch(`/api/portfolios/${selectedPortfolio}/trades`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker, companyName, shares: shareCount, notes: notes || null }),
+        body: JSON.stringify({
+          ticker,
+          companyName,
+          shares: shareCount,
+          pricePerShare: buyPrice,
+          notes: notes || null,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -158,6 +173,38 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
               />
             </div>
 
+            {/* Buy price input (defaults to live price, editable) */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Buy price / share
+                </label>
+                {currentPrice != null && (
+                  <button
+                    type="button"
+                    onClick={() => setPrice(String(currentPrice))}
+                    className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                  >
+                    Use live ({fmt(currentPrice)})
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder={currentPrice != null ? String(currentPrice) : "e.g. 150.00"}
+                min="0"
+                step="0.01"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              />
+              {isCustomPrice && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Custom price — recording a position bought at a different price than live.
+                </p>
+              )}
+            </div>
+
             {/* Notes */}
             <div>
               <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Notes (optional)</label>
@@ -171,11 +218,11 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
             </div>
 
             {/* Cost breakdown */}
-            {currentPrice && shareCount > 0 && (
+            {buyPrice > 0 && shareCount > 0 && (
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50 space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500 dark:text-zinc-400">{shareCount} shares x {fmt(currentPrice)}</span>
-                  <span className="text-zinc-900 dark:text-zinc-100">{fmt(shareCount * currentPrice)}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">{shareCount} shares x {fmt(buyPrice)}</span>
+                  <span className="text-zinc-900 dark:text-zinc-100">{fmt(shareCount * buyPrice)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-500 dark:text-zinc-400">
@@ -199,7 +246,7 @@ export function SimulateBuyModal({ ticker, companyName, currentPrice, onClose }:
 
             <button
               onClick={executeTrade}
-              disabled={submitting || shareCount <= 0 || !canAfford || !currentPrice}
+              disabled={submitting || shareCount <= 0 || buyPrice <= 0 || !canAfford}
               className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? "Executing..." : `Buy ${shareCount > 0 ? shareCount : ""} ${ticker}`}
