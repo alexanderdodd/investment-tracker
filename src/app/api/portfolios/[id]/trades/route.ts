@@ -110,17 +110,16 @@ export async function POST(
     fetchLivePrice("SPY", crumb, cookie),
   ]);
 
-  // Optional custom buy price — lets you backfill a position you already own,
-  // bought earlier at a price different from the current market price.
-  const customBuyPrice =
-    tradeType === "buy" &&
-    typeof body.pricePerShare === "number" &&
-    body.pricePerShare > 0
+  // Optional custom price — for buys, lets you backfill a position bought
+  // earlier at a different price; for sells, lets you record the actual price
+  // you sold at instead of the current market price.
+  const customPrice =
+    typeof body.pricePerShare === "number" && body.pricePerShare > 0
       ? body.pricePerShare
       : null;
 
-  // Sells always execute at the live price; buys may use a custom price.
-  const effectivePrice = tradeType === "buy" ? customBuyPrice ?? stockPrice : stockPrice;
+  // Both buys and sells may use a custom price; otherwise use the live price.
+  const effectivePrice = customPrice ?? stockPrice;
 
   if (!effectivePrice) {
     return NextResponse.json({ error: `Could not fetch price for ${ticker}` }, { status: 400 });

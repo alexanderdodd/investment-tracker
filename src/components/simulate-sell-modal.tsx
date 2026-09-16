@@ -32,16 +32,20 @@ export function SimulateSellModal({
   onDone,
 }: SimulateSellModalProps) {
   const [shares, setShares] = useState("");
+  const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const shareCount = parseFloat(shares) || 0;
+  // Sell price: user-specified if entered, otherwise the live market price.
+  const customPrice = parseFloat(price) > 0 ? parseFloat(price) : null;
+  const sellPrice = customPrice ?? currentPrice;
   const validShares = shareCount > 0 && shareCount <= sharesHeld;
-  const fees = currentPrice && shareCount > 0 ? calculateFee(feeModel, shareCount, currentPrice) : 0;
-  const proceeds = currentPrice && shareCount > 0 ? shareCount * currentPrice - fees : 0;
+  const fees = sellPrice && shareCount > 0 ? calculateFee(feeModel, shareCount, sellPrice) : 0;
+  const proceeds = sellPrice && shareCount > 0 ? shareCount * sellPrice - fees : 0;
   // Estimated realized gain (uses average cost; server computes exact FIFO gain).
-  const estGain = currentPrice && shareCount > 0 ? proceeds - shareCount * avgCostBasis : 0;
+  const estGain = sellPrice && shareCount > 0 ? proceeds - shareCount * avgCostBasis : 0;
   const estTax = estGain > 0 ? estGain * EFFECTIVE_RATE : 0;
 
   const executeSell = async () => {
@@ -57,6 +61,7 @@ export function SimulateSellModal({
           ticker,
           companyName,
           shares: shareCount,
+          pricePerShare: customPrice,
           notes: notes || null,
         }),
       });
@@ -157,6 +162,36 @@ export function SimulateSellModal({
               )}
             </div>
 
+            {/* Sell price */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Sell price per share
+                </label>
+                {currentPrice && (
+                  <button
+                    type="button"
+                    onClick={() => setPrice(String(currentPrice))}
+                    className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                  >
+                    Use market
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder={currentPrice ? `market: ${fmt(currentPrice)}` : "enter price"}
+                min="0"
+                step="0.01"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              />
+              <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+                Leave blank to sell at the current market price.
+              </p>
+            </div>
+
             {/* Notes */}
             <div>
               <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Notes (optional)</label>
@@ -170,11 +205,11 @@ export function SimulateSellModal({
             </div>
 
             {/* Proceeds breakdown */}
-            {currentPrice && shareCount > 0 && (
+            {sellPrice && shareCount > 0 && (
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50 space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500 dark:text-zinc-400">{shareCount} shares × {fmt(currentPrice)}</span>
-                  <span className="text-zinc-900 dark:text-zinc-100">{fmt(shareCount * currentPrice)}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">{shareCount} shares × {fmt(sellPrice)}</span>
+                  <span className="text-zinc-900 dark:text-zinc-100">{fmt(shareCount * sellPrice)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-500 dark:text-zinc-400">
@@ -210,7 +245,7 @@ export function SimulateSellModal({
 
             <button
               onClick={executeSell}
-              disabled={submitting || !validShares || !currentPrice}
+              disabled={submitting || !validShares || !sellPrice}
               className="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? "Executing..." : `Sell ${shareCount > 0 ? shareCount : ""} ${ticker}`}
