@@ -229,7 +229,7 @@ export function SimulateSellModal({
                 </div>
                 {estGain > 0 ? (
                   <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
-                    <span>Est. tax @ 26.375% (before allowance)</span>
+                    <span>Est. tax @ 26.375%</span>
                     <span>{fmt(estTax)}</span>
                   </div>
                 ) : estGain < 0 ? (

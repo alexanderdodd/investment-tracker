@@ -43,8 +43,6 @@ interface TaxYear {
   realizedGains: number;
   realizedLosses: number;
   netRealized: number;
-  allowance: number;
-  allowanceApplied: number;
   taxableAmount: number;
   tax: number;
   effectiveRate: number;
@@ -90,8 +88,7 @@ function PnlText({ value, basis }: { value: number; basis: number }) {
 }
 
 // After-tax P&L: a gain is reduced by the 26.375% effective rate; a loss keeps
-// the same rate as its tax-loss-harvesting shield against other gains. Ignores
-// the €1,000 annual allowance, which applies at the portfolio level.
+// the same rate as its tax-loss-harvesting shield against other gains.
 function EffectivePnlText({ value, basis }: { value: number; basis: number }) {
   const pnl = value - basis;
   const afterTax = pnl * (1 - EFFECTIVE_RATE);
@@ -484,8 +481,8 @@ export default function PortfolioDetailPage() {
                 Capital Gains &amp; Tax
               </h2>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                German capital gains tax (Abgeltungssteuer 25% + 5.5% Soli = 26.375%), €1,000
-                annual allowance. Realized losses offset gains (tax-loss harvesting).
+                German capital gains tax (Abgeltungssteuer 25% + 5.5% Soli = 26.375%).
+                Realized losses offset gains (tax-loss harvesting).
               </p>
             </div>
 
@@ -527,20 +524,6 @@ export default function PortfolioDetailPage() {
             {currentYearTax && (
               <div className="border-t border-zinc-100 px-6 py-4 text-sm dark:border-zinc-800">
                 <div className="flex justify-between py-1">
-                  <span className="text-zinc-500 dark:text-zinc-400">Net realized gains</span>
-                  <span className="text-zinc-900 dark:text-zinc-100">
-                    {fmt(Math.max(0, currentYearTax.netRealized))}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-zinc-500 dark:text-zinc-400">
-                    Tax-free allowance applied (of {fmt(currentYearTax.allowance)})
-                  </span>
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    −{fmt(currentYearTax.allowanceApplied)}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t border-zinc-100 py-1 pt-2 dark:border-zinc-800">
                   <span className="text-zinc-700 dark:text-zinc-300">Taxable amount</span>
                   <span className="text-zinc-900 dark:text-zinc-100">{fmt(currentYearTax.taxableAmount)}</span>
                 </div>
