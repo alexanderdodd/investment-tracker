@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { SimulateSellModal } from "@/components/simulate-sell-modal";
 import { AddCashModal } from "@/components/add-cash-modal";
@@ -104,6 +104,7 @@ function EffectivePnlText({ value, basis }: { value: number; basis: number }) {
 
 export default function PortfolioDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [data, setData] = useState<PortfolioData | null>(null);
@@ -112,6 +113,9 @@ export default function PortfolioDetailPage() {
   const [sellTarget, setSellTarget] = useState<Position | null>(null);
   const [showAddCash, setShowAddCash] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletingPortfolio, setDeletingPortfolio] = useState(false);
 
   const loadData = useCallback(() => {
     return fetch(`/api/portfolios/${id}`)
@@ -195,6 +199,35 @@ export default function PortfolioDetailPage() {
     }
   };
 
+  const duplicatePortfolio = async () => {
+    setDuplicating(true);
+    try {
+      const res = await fetch(`/api/portfolios/${id}/duplicate`, { method: "POST" });
+      const json = await res.json();
+      if (res.ok && json.id) {
+        router.push(`/portfolios/${json.id}`);
+      } else {
+        setDuplicating(false);
+      }
+    } catch {
+      setDuplicating(false);
+    }
+  };
+
+  const deletePortfolio = async () => {
+    setDeletingPortfolio(true);
+    try {
+      const res = await fetch(`/api/portfolios/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/portfolios");
+      } else {
+        setDeletingPortfolio(false);
+      }
+    } catch {
+      setDeletingPortfolio(false);
+    }
+  };
+
   // Compute live portfolio value
   const positionsWithLive = positions.map((pos) => {
     const livePrice = livePrices[pos.ticker];
@@ -258,10 +291,29 @@ export default function PortfolioDetailPage() {
             <span>/</span>
             <span className="text-zinc-600 dark:text-zinc-300">{portfolio.name}</span>
           </div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{portfolio.name}</h1>
-          {portfolio.description && (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">{portfolio.description}</p>
-          )}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{portfolio.name}</h1>
+              {portfolio.description && (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{portfolio.description}</p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={duplicatePortfolio}
+                disabled={duplicating}
+                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-blue-500 dark:hover:text-blue-400 transition-colors"
+              >
+                {duplicating ? "Duplicating…" : "Duplicate"}
+              </button>
+              <button
+                onClick={() => setShowDelete(true)}
+                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:border-red-400 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:text-red-400 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Summary cards */}
@@ -621,6 +673,41 @@ export default function PortfolioDetailPage() {
             loadData();
           }}
         />
+      )}
+
+      {showDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => !deletingPortfolio && setShowDelete(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Delete portfolio</h2>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              Delete <span className="font-medium text-zinc-700 dark:text-zinc-300">{portfolio.name}</span>?
+              This permanently removes the portfolio and all {summary.tradeCount} of its trades and dividends.
+              This cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setShowDelete(false)}
+                disabled={deletingPortfolio}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deletePortfolio}
+                disabled={deletingPortfolio}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {deletingPortfolio ? "Deleting…" : "Delete portfolio"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
