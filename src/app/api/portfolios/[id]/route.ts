@@ -150,8 +150,8 @@ export async function GET(
   });
 }
 
-// PATCH — adjust a portfolio's cash: `addCash` tops up contributed capital,
-// `setCash` pins cash remaining to an exact figure.
+// PATCH — rename a portfolio (`name`) and/or adjust its cash: `addCash` tops
+// up contributed capital, `setCash` pins cash remaining to an exact figure.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -176,7 +176,18 @@ export async function PATCH(
   const portfolio = portfolios[0];
   const body = await request.json();
 
-  let newStartingCash: number;
+  const updates: { name?: string; startingCash?: number } = {};
+
+  if (body.name !== undefined) {
+    const name = String(body.name).trim();
+    if (name.length === 0) {
+      return NextResponse.json({ error: "A portfolio name is required" }, { status: 400 });
+    }
+    if (name.length > 120) {
+      return NextResponse.json({ error: "Name must be 120 characters or fewer" }, { status: 400 });
+    }
+    updates.name = name;
+  }
 
   if (body.setCash !== undefined) {
     const setCash = Number(body.setCash);
@@ -193,21 +204,25 @@ export async function PATCH(
       (sum, t) => sum + (t.tradeType === "buy" ? -t.totalCost : t.totalCost),
       0
     );
-    newStartingCash = setCash - netTradeFlow;
-  } else {
+    updates.startingCash = setCash - netTradeFlow;
+  } else if (body.addCash !== undefined) {
     const addCash = Number(body.addCash);
     if (!Number.isFinite(addCash) || addCash <= 0) {
       return NextResponse.json({ error: "A positive cash amount is required" }, { status: 400 });
     }
-    newStartingCash = portfolio.startingCash + addCash;
+    updates.startingCash = portfolio.startingCash + addCash;
   }
 
-  await db
-    .update(simPortfolios)
-    .set({ startingCash: newStartingCash })
-    .where(eq(simPortfolios.id, id));
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
 
-  return NextResponse.json({ startingCash: newStartingCash });
+  await db.update(simPortfolios).set(updates).where(eq(simPortfolios.id, id));
+
+  return NextResponse.json({
+    name: updates.name ?? portfolio.name,
+    startingCash: updates.startingCash ?? portfolio.startingCash,
+  });
 }
 
 // DELETE — delete portfolio

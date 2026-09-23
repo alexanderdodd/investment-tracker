@@ -113,6 +113,8 @@ export default function PortfolioDetailPage() {
   const [loading, setLoading] = useState(true);
   const [sellTarget, setSellTarget] = useState<Position | null>(null);
   const [showCashModal, setShowCashModal] = useState(false);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -197,6 +199,28 @@ export default function PortfolioDetailPage() {
       }
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const saveName = async () => {
+    const name = (editingName ?? "").trim();
+    if (!name || name === portfolio.name) {
+      setEditingName(null);
+      return;
+    }
+    setSavingName(true);
+    try {
+      const res = await fetch(`/api/portfolios/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        setEditingName(null);
+        await loadData();
+      }
+    } finally {
+      setSavingName(false);
     }
   };
 
@@ -300,8 +324,51 @@ export default function PortfolioDetailPage() {
             <span className="text-zinc-600 dark:text-zinc-300">{portfolio.name}</span>
           </div>
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{portfolio.name}</h1>
+            <div className="min-w-0">
+              {editingName === null ? (
+                <div className="group flex items-center gap-2">
+                  <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{portfolio.name}</h1>
+                  <button
+                    onClick={() => setEditingName(portfolio.name)}
+                    aria-label="Rename portfolio"
+                    title="Rename portfolio"
+                    className="rounded-md p-1 text-zinc-400 opacity-0 transition-opacity hover:text-zinc-600 focus:opacity-100 group-hover:opacity-100 dark:hover:text-zinc-200"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.379-8.379-2.828-2.828z" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveName();
+                      if (e.key === "Escape") setEditingName(null);
+                    }}
+                    disabled={savingName}
+                    maxLength={120}
+                    autoFocus
+                    className="w-full max-w-sm rounded-lg border border-zinc-300 bg-white px-2 py-1 text-2xl font-bold text-zinc-900 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+                  />
+                  <button
+                    onClick={saveName}
+                    disabled={savingName || editingName.trim().length === 0}
+                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    {savingName ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    onClick={() => setEditingName(null)}
+                    disabled={savingName}
+                    className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:border-zinc-400 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
               {portfolio.description && (
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">{portfolio.description}</p>
               )}
