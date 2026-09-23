@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { SimulateSellModal } from "@/components/simulate-sell-modal";
-import { AddCashModal } from "@/components/add-cash-modal";
+import { CashModal } from "@/components/cash-modal";
 import { PositionMenu } from "@/components/position-menu";
 import { type FeeModel } from "@/lib/sim-fees";
 import { EFFECTIVE_RATE } from "@/lib/german-tax";
@@ -78,6 +78,10 @@ function fmtPct(v: number): string {
   return `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%`;
 }
 
+function fmtWeight(v: number): string {
+  return `${(v * 100).toFixed(1)}%`;
+}
+
 function PnlText({ value, basis }: { value: number; basis: number }) {
   const pnl = value - basis;
   const pct = basis > 0 ? pnl / basis : 0;
@@ -108,7 +112,7 @@ export default function PortfolioDetailPage() {
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [sellTarget, setSellTarget] = useState<Position | null>(null);
-  const [showAddCash, setShowAddCash] = useState(false);
+  const [showCashModal, setShowCashModal] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -270,6 +274,13 @@ export default function PortfolioDetailPage() {
 
   const totalCurrentValue = positionsWithLive.reduce((s, p) => s + (p.currentValue ?? 0), 0);
   const totalPortfolioValue = summary.cashRemaining + totalCurrentValue;
+
+  // Position weights: share of invested equity, plus share of the whole
+  // portfolio (cash included) as a secondary figure.
+  const weightOfInvested = (value: number | null) =>
+    value != null && totalCurrentValue > 0 ? value / totalCurrentValue : null;
+  const weightOfPortfolio = (value: number | null) =>
+    value != null && totalPortfolioValue > 0 ? value / totalPortfolioValue : null;
   const totalPnl = totalPortfolioValue - portfolio.startingCash;
   const totalPnlPct = portfolio.startingCash > 0 ? totalPnl / portfolio.startingCash : 0;
   const pnlColor = totalPnl >= 0
@@ -327,10 +338,11 @@ export default function PortfolioDetailPage() {
             <div className="flex items-start justify-between">
               <p className="text-xs text-zinc-500 dark:text-zinc-400">Cash Remaining</p>
               <button
-                onClick={() => setShowAddCash(true)}
+                onClick={() => setShowCashModal(true)}
+                title="Add cash or set an exact cash balance"
                 className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-600 hover:border-emerald-400 hover:text-emerald-600 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-emerald-500 dark:hover:text-emerald-400 transition-colors"
               >
-                + Add
+                Edit
               </button>
             </div>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{fmt(summary.cashRemaining)}</p>
@@ -348,7 +360,7 @@ export default function PortfolioDetailPage() {
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Positions</h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px]">
+              <table className="w-full min-w-[1100px]">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                     <th className="px-4 py-3 font-medium">Stock</th>
@@ -356,6 +368,12 @@ export default function PortfolioDetailPage() {
                     <th className="px-3 py-3 text-right font-medium">Avg Cost</th>
                     <th className="px-3 py-3 text-right font-medium">Live Price</th>
                     <th className="px-3 py-3 text-right font-medium">Value</th>
+                    <th
+                      className="px-3 py-3 text-right font-medium"
+                      title="Share of invested value; below it, share of the whole portfolio including cash"
+                    >
+                      Weight
+                    </th>
                     <th className="px-3 py-3 text-right font-medium">P&L</th>
                     <th className="px-3 py-3 text-right font-medium" title="P&L after 26.375% German capital gains tax (Abgeltungssteuer + Soli)">
                       Eff. P&L
@@ -397,6 +415,16 @@ export default function PortfolioDetailPage() {
                       <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
                         {pos.currentValue ? fmt(pos.currentValue) : "-"}
                       </td>
+                      <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
+                        {weightOfInvested(pos.currentValue) != null ? (
+                          <>
+                            {fmtWeight(weightOfInvested(pos.currentValue)!)}
+                            <span className="block text-[11px] text-zinc-400 dark:text-zinc-500">
+                              {fmtWeight(weightOfPortfolio(pos.currentValue)!)} of total
+                            </span>
+                          </>
+                        ) : "-"}
+                      </td>
                       <td className="px-3 py-3 text-right text-sm">
                         {pos.currentValue ? <PnlText value={pos.currentValue} basis={pos.totalCost} /> : "-"}
                       </td>
@@ -436,6 +464,16 @@ export default function PortfolioDetailPage() {
                     <td className="px-3 py-3"></td>
                     <td className="px-3 py-3"></td>
                     <td className="px-3 py-3 text-right text-zinc-900 dark:text-zinc-100">{fmt(totals.value)}</td>
+                    <td className="px-3 py-3 text-right text-zinc-900 dark:text-zinc-100">
+                      {totalCurrentValue > 0 ? (
+                        <>
+                          {fmtWeight(1)}
+                          <span className="block text-[11px] font-normal text-zinc-400 dark:text-zinc-500">
+                            {fmtWeight(weightOfPortfolio(totalCurrentValue)!)} of total
+                          </span>
+                        </>
+                      ) : "-"}
+                    </td>
                     <td className="px-3 py-3 text-right">
                       <PnlText value={totals.value} basis={totals.costForValue} />
                     </td>
@@ -645,12 +683,12 @@ export default function PortfolioDetailPage() {
         />
       )}
 
-      {showAddCash && (
-        <AddCashModal
+      {showCashModal && (
+        <CashModal
           portfolioId={portfolio.id}
           portfolioName={portfolio.name}
           cashRemaining={summary.cashRemaining}
-          onClose={() => setShowAddCash(false)}
+          onClose={() => setShowCashModal(false)}
           onDone={() => {
             setLoading(true);
             loadData();

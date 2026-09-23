@@ -150,7 +150,8 @@ export async function GET(
   });
 }
 
-// PATCH — add cash to a portfolio (increases contributed capital)
+// PATCH — adjust a portfolio's cash: `addCash` tops up contributed capital,
+// `setCash` pins cash remaining to an exact figure.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -172,19 +173,41 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const portfolio = portfolios[0];
   const body = await request.json();
-  const addCash = Number(body.addCash);
-  if (!Number.isFinite(addCash) || addCash <= 0) {
-    return NextResponse.json({ error: "A positive cash amount is required" }, { status: 400 });
+
+  let newStartingCash: number;
+
+  if (body.setCash !== undefined) {
+    const setCash = Number(body.setCash);
+    if (!Number.isFinite(setCash) || setCash < 0) {
+      return NextResponse.json({ error: "Cash remaining must be zero or more" }, { status: 400 });
+    }
+    // Cash remaining = startingCash − buys + sell proceeds, so pinning it to a
+    // target means backing the trade flow out of the target.
+    const trades = await db
+      .select()
+      .from(simTrades)
+      .where(eq(simTrades.portfolioId, id));
+    const netTradeFlow = trades.reduce(
+      (sum, t) => sum + (t.tradeType === "buy" ? -t.totalCost : t.totalCost),
+      0
+    );
+    newStartingCash = setCash - netTradeFlow;
+  } else {
+    const addCash = Number(body.addCash);
+    if (!Number.isFinite(addCash) || addCash <= 0) {
+      return NextResponse.json({ error: "A positive cash amount is required" }, { status: 400 });
+    }
+    newStartingCash = portfolio.startingCash + addCash;
   }
 
-  const newStartingCash = portfolios[0].startingCash + addCash;
   await db
     .update(simPortfolios)
     .set({ startingCash: newStartingCash })
     .where(eq(simPortfolios.id, id));
 
-  return NextResponse.json({ startingCash: newStartingCash, added: addCash });
+  return NextResponse.json({ startingCash: newStartingCash });
 }
 
 // DELETE — delete portfolio
