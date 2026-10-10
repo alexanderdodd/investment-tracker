@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/index";
 import { simPortfolios, simTrades } from "@/db/schema";
 import { auth } from "@/auth";
+import { replayTrades } from "@/lib/sim-lots";
 
 // POST — create portfolio
 export async function POST(request: Request) {
@@ -53,12 +54,15 @@ export async function GET() {
         .from(simTrades)
         .where(eq(simTrades.portfolioId, p.id));
 
-      const totalInvested = trades
-        .filter((t) => t.tradeType === "buy")
-        .reduce((sum, t) => sum + t.totalCost, 0);
-
-      const cashRemaining = p.startingCash - totalInvested;
-      const positionCount = new Set(trades.map((t) => t.ticker)).size;
+      // Mirror the detail route: FIFO replay for open positions, and cash =
+      // starting − buys + sell proceeds (sell.totalCost stores net proceeds).
+      const { positions } = replayTrades(trades);
+      const totalInvested = positions.reduce((sum, pos) => sum + pos.totalCost, 0);
+      const cashRemaining = trades.reduce(
+        (cash, t) => cash + (t.tradeType === "buy" ? -t.totalCost : t.totalCost),
+        p.startingCash
+      );
+      const positionCount = positions.length;
 
       return {
         id: p.id,
