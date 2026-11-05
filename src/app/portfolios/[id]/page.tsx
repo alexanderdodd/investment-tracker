@@ -110,6 +110,7 @@ export default function PortfolioDetailPage() {
 
   const [data, setData] = useState<PortfolioData | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  const [prevCloses, setPrevCloses] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [sellTarget, setSellTarget] = useState<Position | null>(null);
   const [showCashModal, setShowCashModal] = useState(false);
@@ -149,13 +150,22 @@ export default function PortfolioDetailPage() {
           const res = await fetch(`/api/stocks/${ticker}/price`);
           if (!res.ok) return null;
           const json = await res.json();
-          return { ticker, price: json.price ?? json.regularMarketPrice ?? null };
+          return {
+            ticker,
+            price: json.price ?? json.regularMarketPrice ?? null,
+            previousClose: json.previousClose ?? null,
+          };
         } catch { return null; }
       })
     ).then((results) => {
       const prices: Record<string, number> = {};
-      results.forEach((r) => { if (r?.price) prices[r.ticker] = r.price; });
+      const closes: Record<string, number> = {};
+      results.forEach((r) => {
+        if (r?.price) prices[r.ticker] = r.price;
+        if (r?.previousClose) closes[r.ticker] = r.previousClose;
+      });
       setLivePrices(prices);
+      setPrevCloses(closes);
     });
   }, [data]);
 
@@ -259,6 +269,10 @@ export default function PortfolioDetailPage() {
     const currentValue = livePrice ? pos.shares * livePrice : null;
     const unrealizedPnl = currentValue ? currentValue - pos.totalCost : null;
 
+    // Today's move: shares held × change since the previous close.
+    const prevClose = prevCloses[pos.ticker];
+    const prevValue = livePrice && prevClose ? pos.shares * prevClose : null;
+
     // Benchmark: what would SPY have returned?
     const spyNow = livePrices["SPY"];
     const spyReturn = (pos.spyPriceAtFirstBuy && spyNow)
@@ -271,7 +285,7 @@ export default function PortfolioDetailPage() {
       ? (pos.totalCost / pos.sectorEtfPriceAtFirstBuy) * etfNow
       : null;
 
-    return { ...pos, livePrice, currentValue, unrealizedPnl, spyReturn, etfReturn };
+    return { ...pos, livePrice, currentValue, unrealizedPnl, prevValue, spyReturn, etfReturn };
   });
 
   // Column totals for the Positions table footer. Percentages use the cost
@@ -283,6 +297,10 @@ export default function PortfolioDetailPage() {
         a.value += p.currentValue;
         a.costForValue += p.totalCost;
       }
+      if (p.currentValue != null && p.prevValue != null) {
+        a.dayValue += p.currentValue;
+        a.dayPrev += p.prevValue;
+      }
       if (p.spyReturn != null) {
         a.spy += p.spyReturn;
         a.costForSpy += p.totalCost;
@@ -293,7 +311,7 @@ export default function PortfolioDetailPage() {
       }
       return a;
     },
-    { divs: 0, value: 0, costForValue: 0, spy: 0, costForSpy: 0, etf: 0, costForEtf: 0 }
+    { divs: 0, value: 0, costForValue: 0, dayValue: 0, dayPrev: 0, spy: 0, costForSpy: 0, etf: 0, costForEtf: 0 }
   );
 
   const totalCurrentValue = positionsWithLive.reduce((s, p) => s + (p.currentValue ?? 0), 0);
@@ -427,13 +445,16 @@ export default function PortfolioDetailPage() {
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Positions</h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px]">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                     <th className="px-4 py-3 font-medium">Stock</th>
                     <th className="px-3 py-3 text-right font-medium">Shares</th>
                     <th className="px-3 py-3 text-right font-medium">Avg Cost</th>
                     <th className="px-3 py-3 text-right font-medium">Live Price</th>
+                    <th className="px-3 py-3 text-right font-medium" title="Change in position value since the previous close">
+                      Day P&L
+                    </th>
                     <th className="px-3 py-3 text-right font-medium">Value</th>
                     <th
                       className="px-3 py-3 text-right font-medium"
@@ -478,6 +499,9 @@ export default function PortfolioDetailPage() {
                       </td>
                       <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
                         {pos.livePrice ? fmt(pos.livePrice) : "-"}
+                      </td>
+                      <td className="px-3 py-3 text-right text-sm">
+                        {pos.currentValue && pos.prevValue ? <PnlText value={pos.currentValue} basis={pos.prevValue} /> : "-"}
                       </td>
                       <td className="px-3 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
                         {pos.currentValue ? fmt(pos.currentValue) : "-"}
@@ -530,6 +554,9 @@ export default function PortfolioDetailPage() {
                     <td className="px-3 py-3"></td>
                     <td className="px-3 py-3"></td>
                     <td className="px-3 py-3"></td>
+                    <td className="px-3 py-3 text-right">
+                      {totals.dayPrev > 0 ? <PnlText value={totals.dayValue} basis={totals.dayPrev} /> : "-"}
+                    </td>
                     <td className="px-3 py-3 text-right text-zinc-900 dark:text-zinc-100">{fmt(totals.value)}</td>
                     <td className="px-3 py-3 text-right text-zinc-900 dark:text-zinc-100">
                       {totalCurrentValue > 0 ? (
